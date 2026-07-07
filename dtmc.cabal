@@ -1,0 +1,15 @@
+cabal-version:      3.0
+name:               dtmc
+version:            0.1.0.0
+synopsis:           Type-safe discrete-time Markov chains
+build-type:         Simple
+
+common warnings
+  ghc-options: -Wall -Wcompat -Wincomplete-uni-patterns -Wredundant-constraints
+
+library
+  import:           warnings
+  hs-source-dirs:   src
+  exposed-modules:  Dtmc.Stochastic
+  build-depends:    base, hmatrix
+  default-language: GHC2021
