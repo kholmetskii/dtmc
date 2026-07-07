@@ -13,3 +13,13 @@ library
   exposed-modules:  Dtmc.Stochastic
   build-depends:    base, hmatrix
   default-language: GHC2021
+
+test-suite spec
+  import:             warnings
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Spec.hs
+  other-modules:      Dtmc.StochasticSpec
+  build-tool-depends: hspec-discover:hspec-discover
+  build-depends:      base, dtmc, hmatrix, hspec, QuickCheck
+  default-language:   GHC2021
