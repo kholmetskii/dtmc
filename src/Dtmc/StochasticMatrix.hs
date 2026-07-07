@@ -1,12 +1,12 @@
-module Dtmc.Stochastic
-  ( Stochastic
-  , unStochastic
-  , mkStochastic
-  , mulStochastic
+module Dtmc.StochasticMatrix
+  ( StochasticMatrix
+  , unStochasticMatrix
+  , mkStochasticMatrix
+  , mulStochasticMatrix
   ) where
 
-import Dtmc.ProbabilityVector (mkProbVectorAt)
-import Dtmc.StochErr (StochErr (NonSquareMatrix))
+import Dtmc.ProbabilityVector (mkProbabilityVectorAt)
+import Dtmc.ValidationError (ValidationError (NonSquareMatrix))
 import Numeric.LinearAlgebra (Matrix, cols, rows, toRows)
 import qualified Numeric.LinearAlgebra as LA
 
@@ -17,7 +17,7 @@ import qualified Numeric.LinearAlgebra as LA
 -- * it is square;
 -- * each row is accepted as a probability vector.
 --
--- Therefore, a value of type 'Stochastic' does not mean that the rows sum to
+-- Therefore, a value of type 'StochasticMatrix' does not mean that the rows sum to
 -- exactly @1@. It means the matrix passed numerical stochastic validation at a
 -- constructor boundary.
 --
@@ -28,22 +28,22 @@ import qualified Numeric.LinearAlgebra as LA
 --
 -- For a discrete-time Markov chain, a stochastic matrix is a valid transition
 -- matrix.
-newtype Stochastic = Stochastic
-  { unStochastic :: Matrix Double
+newtype StochasticMatrix = StochasticMatrix
+  { unStochasticMatrix :: Matrix Double
   }
   deriving (Show)
 
 -- | Smart constructor for stochastic matrices.
 --
--- This is the only safe way to construct a 'Stochastic' value from a raw
+-- This is the only safe way to construct a 'StochasticMatrix' value from a raw
 -- matrix. It checks that the matrix is square and that every row is a
 -- probability vector.
-mkStochastic :: Matrix Double -> Either StochErr Stochastic
-mkStochastic matrix
+mkStochasticMatrix :: Matrix Double -> Either ValidationError StochasticMatrix
+mkStochasticMatrix matrix
   | not (isSquare matrix) =
       Left (NonSquareMatrix (rows matrix) (cols matrix))
   | otherwise =
-      validateRows 0 (toRows matrix) *> Right (Stochastic matrix)
+      validateRows 0 (toRows matrix) *> Right (StochasticMatrix matrix)
 
 -- | Multiply two stochastic matrices.
 --
@@ -70,16 +70,16 @@ mkStochastic matrix
 -- the invariant is understood numerically rather than exactly.
 --
 -- Warning: this function assumes the two matrices have compatible dimensions.
-mulStochastic :: Stochastic -> Stochastic -> Stochastic
-mulStochastic a b =
-  Stochastic (unStochastic a LA.<> unStochastic b)
+mulStochasticMatrix :: StochasticMatrix -> StochasticMatrix -> StochasticMatrix
+mulStochasticMatrix a b =
+  StochasticMatrix (unStochasticMatrix a LA.<> unStochasticMatrix b)
 
 isSquare :: Matrix Double -> Bool
 isSquare matrix =
   rows matrix == cols matrix
 
-validateRows :: Int -> [LA.Vector Double] -> Either StochErr ()
+validateRows :: Int -> [LA.Vector Double] -> Either ValidationError ()
 validateRows _ [] =
   Right ()
 validateRows rowIndex (rowVector : rowVectors) =
-  mkProbVectorAt rowIndex rowVector *> validateRows (rowIndex + 1) rowVectors
+  mkProbabilityVectorAt rowIndex rowVector *> validateRows (rowIndex + 1) rowVectors

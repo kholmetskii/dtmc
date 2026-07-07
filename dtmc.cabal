@@ -9,9 +9,9 @@ common warnings
 
 library
   exposed-modules:
-      Dtmc.StochErr
+      Dtmc.ValidationError
       Dtmc.ProbabilityVector
-      Dtmc.Stochastic
+      Dtmc.StochasticMatrix
   hs-source-dirs:
       src
   build-depends:
@@ -26,7 +26,7 @@ test-suite spec
   hs-source-dirs:
       test
   other-modules:
-      Dtmc.StochasticSpec
+      Dtmc.StochasticMatrixSpec
   build-depends:
       base
     , dtmc

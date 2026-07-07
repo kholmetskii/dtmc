@@ -2,9 +2,9 @@ module Main where
 
 import Test.Hspec ( hspec )
 
-import qualified Dtmc.StochasticSpec
+import qualified Dtmc.StochasticMatrixSpec
 
 main :: IO ()
 main =
   hspec $ do
-    Dtmc.StochasticSpec.spec
+    Dtmc.StochasticMatrixSpec.spec

@@ -1,13 +1,13 @@
 {-# LANGUAGE InstanceSigs #-}
-module Dtmc.StochasticSpec where
+module Dtmc.StochasticMatrixSpec where
 
 import Data.Either ( isRight )
-import Dtmc.StochErr ( StochErr (..) )
-import Dtmc.Stochastic
-  ( Stochastic
-  , mkStochastic
-  , mulStochastic
-  , unStochastic
+import Dtmc.ValidationError ( ValidationError (..) )
+import Dtmc.StochasticMatrix
+  ( StochasticMatrix
+  , mkStochasticMatrix
+  , mulStochasticMatrix
+  , unStochasticMatrix
   )
 import Numeric.LinearAlgebra ( fromLists )
 import Test.Hspec
@@ -38,7 +38,7 @@ spec = do
               , [0.2, 0.8]
               ]
 
-      mkStochastic matrix `shouldSatisfy` isRight
+      mkStochasticMatrix matrix `shouldSatisfy` isRight
 
     it "accepts a valid row-stochastic matrix with zero entries" $ do
       let matrix =
@@ -47,7 +47,7 @@ spec = do
               , [0.0, 1.0]
               ]
 
-      mkStochastic matrix `shouldSatisfy` isRight
+      mkStochasticMatrix matrix `shouldSatisfy` isRight
 
     it "rejects a matrix with a negative entry" $ do
       let matrix =
@@ -56,7 +56,7 @@ spec = do
               , [-0.1, 1.1]
               ]
 
-      mkStochastic matrix
+      mkStochasticMatrix matrix
         `shouldFailWith` NegativeEntry
           { row = 1
           , col = 0
@@ -70,7 +70,7 @@ spec = do
               , [0.0, 1.0]
               ]
 
-      mkStochastic matrix
+      mkStochasticMatrix matrix
         `shouldFailWith` EntryAboveOne
           { row = 0
           , col = 0
@@ -84,7 +84,7 @@ spec = do
               , [0.2, 0.8]
               ]
 
-      mkStochastic matrix
+      mkStochasticMatrix matrix
         `shouldFailWith` RowSumOffBy
           { row = 0
           , rowSum = 0.9
@@ -97,7 +97,7 @@ spec = do
               , [0.2, 0.3, 0.5]
               ]
 
-      mkStochastic matrix
+      mkStochasticMatrix matrix
         `shouldFailWith` NonSquareMatrix
           { rowCount = 2
           , colCount = 3
@@ -109,10 +109,10 @@ spec = do
 
 prop_productRowStochastic :: SameSizedStochastic -> Bool
 prop_productRowStochastic (SameSizedStochastic a b) =
-  isRight (mkStochastic (unStochastic (mulStochastic a b)))
+  isRight (mkStochasticMatrix (unStochasticMatrix (mulStochasticMatrix a b)))
 
 data SameSizedStochastic =
-  SameSizedStochastic Stochastic Stochastic
+  SameSizedStochastic StochasticMatrix StochasticMatrix
   deriving (Show)
 
 instance Arbitrary SameSizedStochastic where
@@ -123,12 +123,12 @@ instance Arbitrary SameSizedStochastic where
     b <- genStochastic n
     pure (SameSizedStochastic a b)
 
-genStochastic :: Int -> Gen Stochastic
+genStochastic :: Int -> Gen StochasticMatrix
 genStochastic n = do
   rawRows <- vectorOf n (genNonZeroRow n)
   let matrix = fromLists (map normalise rawRows)
 
-  case mkStochastic matrix of
+  case mkStochasticMatrix matrix of
     Right stochastic -> pure stochastic
     Left err -> error ("genStochastic produced a non-stochastic matrix: " <> show err)
 
@@ -151,7 +151,7 @@ normalise row =
   let rowTotal = sum row
    in map (/ rowTotal) row
 
-shouldFailWith :: Either StochErr a -> StochErr -> IO ()
+shouldFailWith :: Either ValidationError a -> ValidationError -> IO ()
 shouldFailWith result expectedErr =
   case result of
     Left actualErr ->

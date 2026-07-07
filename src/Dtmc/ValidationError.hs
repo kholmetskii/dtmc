@@ -1,8 +1,8 @@
-module Dtmc.StochErr
-  ( StochErr (..)
+module Dtmc.ValidationError
+  ( ValidationError (..)
   ) where
 
-data StochErr
+data ValidationError
   = NonSquareMatrix
       { rowCount :: Int
       , colCount :: Int
