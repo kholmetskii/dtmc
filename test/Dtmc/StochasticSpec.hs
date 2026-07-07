@@ -2,17 +2,28 @@ module Dtmc.StochasticSpec where
 
 import Data.Maybe (isJust)
 import Dtmc.Stochastic
-    ( mkStochastic, mulStochastic, Stochastic(..) )
+  ( Stochastic
+  , mkStochastic
+  , mulStochastic
+  , unStochastic
+  )
 import Numeric.LinearAlgebra (fromLists)
-import Test.Hspec ( describe, it, shouldBe, shouldSatisfy, Spec )
+import Test.Hspec
+  ( Spec
+  , describe
+  , it
+  , shouldBe
+  , shouldSatisfy
+  )
 import Test.QuickCheck
-    ( choose,
-      chooseInt,
-      frequency,
-      vectorOf,
-      Arbitrary(arbitrary),
-      Gen,
-      Testable(property) )
+  ( Arbitrary (arbitrary)
+  , Gen
+  , choose
+  , chooseInt
+  , frequency
+  , property
+  , vectorOf
+  )
 
 spec :: Spec
 spec = do
@@ -22,6 +33,15 @@ spec = do
             fromLists
               [ [0.5, 0.5]
               , [0.2, 0.8]
+              ]
+
+      mkStochastic matrix `shouldSatisfy` isJust
+
+    it "accepts a valid row-stochastic matrix with zero entries" $ do
+      let matrix =
+            fromLists
+              [ [1.0, 0.0]
+              , [0.0, 1.0]
               ]
 
       mkStochastic matrix `shouldSatisfy` isJust

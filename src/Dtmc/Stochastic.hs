@@ -5,16 +5,26 @@ module Dtmc.Stochastic
     , mulStochastic
     ) where
 
-import Numeric.LinearAlgebra ( Matrix, cols, rows, toLists )
+import Numeric.LinearAlgebra (Matrix, cols, rows, toLists)
 import qualified Numeric.LinearAlgebra as LA
 
--- | A row-stochastic matrix.
+-- | A numerically row-stochastic matrix.
 --
--- A matrix is row-stochastic when:
+-- A matrix is accepted as row-stochastic when:
 --
 -- * it is square;
--- * every entry is non-negative;
--- * every row sums to 1.
+-- * every entry is at least @-epsilon@;
+-- * every entry is at most @1 + epsilon@;
+-- * every row sums to @1@ up to @epsilon@.
+--
+-- Therefore, a value of type 'Stochastic' does not mean that the rows sum to
+-- exactly @1@. It means the matrix passed numerical stochastic validation at a
+-- constructor boundary.
+--
+-- This representation uses 'Double' because the spectral layer of the library
+-- will compute eigenvectors, stationary distributions, and
+-- Perron--Frobenius-style quantities, which are generally non-rational and
+-- therefore numerical.
 --
 -- For a discrete-time Markov chain, a stochastic matrix is a valid transition
 -- matrix.
@@ -25,17 +35,20 @@ newtype Stochastic = Stochastic
   deriving (Eq, Show)
 
 -- | Numerical tolerance used when checking stochastic matrices.
+--
+-- The tolerance should be larger than ordinary floating-point normalisation
+-- error, but much smaller than meaningful modelling error.
 epsilon :: Double
 epsilon = 1e-9
 
 -- | Smart constructor for stochastic matrices.
 --
 -- This is the only safe way to construct a 'Stochastic' value from a raw
--- matrix. It checks that the matrix is square, non-negative, and row-stochastic.
+-- matrix. It checks that the matrix is square and numerically row-stochastic.
 mkStochastic :: Matrix Double -> Maybe Stochastic
 mkStochastic matrix
   | not (isSquare matrix) = Nothing
-  | not (allEntriesNonNegative matrix) = Nothing
+  | not (allEntriesInProbabilityRange matrix) = Nothing
   | not (allRowsSumToOne matrix) = Nothing
   | otherwise = Just (Stochastic matrix)
 
@@ -59,6 +72,10 @@ mkStochastic matrix
 --
 -- Therefore AB is row-stochastic.
 --
+-- Numerically, floating-point multiplication may introduce tiny drift. This
+-- library represents stochasticity up to 'epsilon', so the invariant is
+-- understood numerically rather than exactly.
+--
 -- Warning: this function assumes the two matrices have compatible dimensions.
 mulStochastic :: Stochastic -> Stochastic -> Stochastic
 mulStochastic a b =
@@ -68,13 +85,13 @@ isSquare :: Matrix Double -> Bool
 isSquare matrix =
   rows matrix == cols matrix
 
-allEntriesNonNegative :: Matrix Double -> Bool
-allEntriesNonNegative matrix =
-  all (all approximatelyNonNegative) (toLists matrix)
+allEntriesInProbabilityRange :: Matrix Double -> Bool
+allEntriesInProbabilityRange matrix =
+  all (all approximatelyProbability) (toLists matrix)
 
-approximatelyNonNegative :: Double -> Bool
-approximatelyNonNegative x =
-  x >= -epsilon
+approximatelyProbability :: Double -> Bool
+approximatelyProbability x =
+  x >= -epsilon && x <= 1.0 + epsilon
 
 allRowsSumToOne :: Matrix Double -> Bool
 allRowsSumToOne matrix =
