@@ -1,9 +1,18 @@
 module Dtmc.StochasticSpec where
 
+import Data.Maybe (isJust)
 import Dtmc.Stochastic
+    ( mkStochastic, mulStochastic, Stochastic(..) )
 import Numeric.LinearAlgebra (fromLists)
-import Test.Hspec
+import Test.Hspec ( describe, it, shouldBe, shouldSatisfy, Spec )
 import Test.QuickCheck
+    ( choose,
+      chooseInt,
+      frequency,
+      vectorOf,
+      Arbitrary(arbitrary),
+      Gen,
+      Testable(property) )
 
 spec :: Spec
 spec = do
@@ -57,6 +66,7 @@ data SameSizedStochastic =
   deriving (Show)
 
 instance Arbitrary SameSizedStochastic where
+  arbitrary :: Gen SameSizedStochastic
   arbitrary = do
     n <- chooseInt (1, 6)
     a <- genStochastic n
@@ -65,19 +75,28 @@ instance Arbitrary SameSizedStochastic where
 
 genStochastic :: Int -> Gen Stochastic
 genStochastic n = do
-  rawRows <- vectorOf n (vectorOf n (choose (0.0, 1000.0)))
+  rawRows <- vectorOf n (genNonZeroRow n)
   let matrix = fromLists (map normalise rawRows)
 
   case mkStochastic matrix of
     Just stochastic -> pure stochastic
     Nothing -> error "genStochastic produced a non-stochastic matrix"
 
+genNonZeroRow :: Int -> Gen [Double]
+genNonZeroRow n = do
+  row <- vectorOf n genEntry
+  if sum row == 0.0
+    then genNonZeroRow n
+    else pure row
+
+genEntry :: Gen Double
+genEntry =
+  frequency
+    [ (3, pure 0.0)
+    , (7, choose (0.0, 1000.0))
+    ]
+
 normalise :: [Double] -> [Double]
 normalise row =
-  let positiveRow = map (+ 1.0) row
-      rowTotal = sum positiveRow
-   in map (/ rowTotal) positiveRow
-
-isJust :: Maybe a -> Bool
-isJust (Just _) = True
-isJust Nothing = False
+  let rowTotal = sum row
+  in map (/ rowTotal) row
