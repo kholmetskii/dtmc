@@ -1,16 +1,19 @@
+{-# LANGUAGE InstanceSigs #-}
 module Dtmc.StochasticSpec where
 
-import Data.Maybe (isJust)
+import Data.Either ( isRight )
+import Dtmc.StochErr ( StochErr (..) )
 import Dtmc.Stochastic
   ( Stochastic
   , mkStochastic
   , mulStochastic
   , unStochastic
   )
-import Numeric.LinearAlgebra (fromLists)
+import Numeric.LinearAlgebra ( fromLists )
 import Test.Hspec
   ( Spec
   , describe
+  , expectationFailure
   , it
   , shouldBe
   , shouldSatisfy
@@ -35,7 +38,7 @@ spec = do
               , [0.2, 0.8]
               ]
 
-      mkStochastic matrix `shouldSatisfy` isJust
+      mkStochastic matrix `shouldSatisfy` isRight
 
     it "accepts a valid row-stochastic matrix with zero entries" $ do
       let matrix =
@@ -44,7 +47,7 @@ spec = do
               , [0.0, 1.0]
               ]
 
-      mkStochastic matrix `shouldSatisfy` isJust
+      mkStochastic matrix `shouldSatisfy` isRight
 
     it "rejects a matrix with a negative entry" $ do
       let matrix =
@@ -53,7 +56,26 @@ spec = do
               , [-0.1, 1.1]
               ]
 
-      mkStochastic matrix `shouldBe` Nothing
+      mkStochastic matrix
+        `shouldFailWith` NegativeEntry
+          { row = 1
+          , col = 0
+          , val = -0.1
+          }
+
+    it "rejects a matrix with an entry above 1" $ do
+      let matrix =
+            fromLists
+              [ [1.1, 0.0]
+              , [0.0, 1.0]
+              ]
+
+      mkStochastic matrix
+        `shouldFailWith` EntryAboveOne
+          { row = 0
+          , col = 0
+          , val = 1.1
+          }
 
     it "rejects a matrix whose rows do not sum to 1" $ do
       let matrix =
@@ -62,7 +84,11 @@ spec = do
               , [0.2, 0.8]
               ]
 
-      mkStochastic matrix `shouldBe` Nothing
+      mkStochastic matrix
+        `shouldFailWith` RowSumOffBy
+          { row = 0
+          , rowSum = 0.9
+          }
 
     it "rejects a non-square matrix" $ do
       let matrix =
@@ -71,7 +97,11 @@ spec = do
               , [0.2, 0.3, 0.5]
               ]
 
-      mkStochastic matrix `shouldBe` Nothing
+      mkStochastic matrix
+        `shouldFailWith` NonSquareMatrix
+          { rowCount = 2
+          , colCount = 3
+          }
 
   describe "mulStochastic" $ do
     it "the product of two stochastic matrices is stochastic" $
@@ -79,7 +109,7 @@ spec = do
 
 prop_productRowStochastic :: SameSizedStochastic -> Bool
 prop_productRowStochastic (SameSizedStochastic a b) =
-  isJust (mkStochastic (unStochastic (mulStochastic a b)))
+  isRight (mkStochastic (unStochastic (mulStochastic a b)))
 
 data SameSizedStochastic =
   SameSizedStochastic Stochastic Stochastic
@@ -99,8 +129,8 @@ genStochastic n = do
   let matrix = fromLists (map normalise rawRows)
 
   case mkStochastic matrix of
-    Just stochastic -> pure stochastic
-    Nothing -> error "genStochastic produced a non-stochastic matrix"
+    Right stochastic -> pure stochastic
+    Left err -> error ("genStochastic produced a non-stochastic matrix: " <> show err)
 
 genNonZeroRow :: Int -> Gen [Double]
 genNonZeroRow n = do
@@ -119,4 +149,12 @@ genEntry =
 normalise :: [Double] -> [Double]
 normalise row =
   let rowTotal = sum row
-  in map (/ rowTotal) row
+   in map (/ rowTotal) row
+
+shouldFailWith :: Either StochErr a -> StochErr -> IO ()
+shouldFailWith result expectedErr =
+  case result of
+    Left actualErr ->
+      actualErr `shouldBe` expectedErr
+    Right _ ->
+      expectationFailure "Expected validation to fail, but it succeeded."

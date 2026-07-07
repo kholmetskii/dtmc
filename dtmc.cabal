@@ -8,17 +8,32 @@ common warnings
   ghc-options: -Wall -Wcompat -Wincomplete-uni-patterns -Wredundant-constraints
 
 library
-  import:           warnings
-  hs-source-dirs:   src
-  exposed-modules:  Dtmc.Stochastic
-  build-depends:    base, hmatrix
-  default-language: GHC2021
+  exposed-modules:
+      Dtmc.StochErr
+      Dtmc.ProbabilityVector
+      Dtmc.Stochastic
+  hs-source-dirs:
+      src
+  build-depends:
+      base
+    , hmatrix
 
 test-suite spec
-  import:             warnings
-  type:               exitcode-stdio-1.0
-  hs-source-dirs:     test
-  main-is:            Spec.hs
-  other-modules:      Dtmc.StochasticSpec
-  build-depends:      base, dtmc, hmatrix, hspec, QuickCheck
-  default-language:   GHC2021
+  type:
+      exitcode-stdio-1.0
+  main-is:
+      Spec.hs
+  hs-source-dirs:
+      test
+  other-modules:
+      Dtmc.StochasticSpec
+  build-depends:
+      base
+    , dtmc
+    , hmatrix
+    , hspec
+    , QuickCheck
+  build-tool-depends:
+      hspec-discover:hspec-discover
+  default-language:
+      Haskell2010
