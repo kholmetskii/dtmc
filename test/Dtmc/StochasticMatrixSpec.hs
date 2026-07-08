@@ -1,15 +1,18 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE TypeApplications #-}
+
 module Dtmc.StochasticMatrixSpec where
 
-import Data.Either ( isRight )
-import Dtmc.ValidationError ( ValidationError (..) )
+import Data.Either (isRight)
 import Dtmc.StochasticMatrix
   ( StochasticMatrix
   , mkStochasticMatrix
   , mulStochasticMatrix
   , unStochasticMatrix
   )
-import Numeric.LinearAlgebra ( fromLists )
+import Dtmc.ValidationError ( ValidationError( .. ) )
+import Numeric.LinearAlgebra (fromLists)
 import Test.Hspec
   ( Spec
   , describe
@@ -30,7 +33,7 @@ import Test.QuickCheck
 
 spec :: Spec
 spec = do
-  describe "mkStochastic" $ do
+  describe "mkStochasticMatrix" $ do
     it "accepts a valid row-stochastic matrix" $ do
       let matrix =
             fromLists
@@ -38,7 +41,7 @@ spec = do
               , [0.2, 0.8]
               ]
 
-      mkStochasticMatrix matrix `shouldSatisfy` isRight
+      mkStochasticMatrix @2 matrix `shouldSatisfy` isRight
 
     it "accepts a valid row-stochastic matrix with zero entries" $ do
       let matrix =
@@ -47,7 +50,7 @@ spec = do
               , [0.0, 1.0]
               ]
 
-      mkStochasticMatrix matrix `shouldSatisfy` isRight
+      mkStochasticMatrix @2 matrix `shouldSatisfy` isRight
 
     it "rejects a matrix with a negative entry" $ do
       let matrix =
@@ -56,7 +59,7 @@ spec = do
               , [-0.1, 1.1]
               ]
 
-      mkStochasticMatrix matrix
+      mkStochasticMatrix @2 matrix
         `shouldFailWith` NegativeEntry
           { row = 1
           , col = 0
@@ -70,7 +73,7 @@ spec = do
               , [0.0, 1.0]
               ]
 
-      mkStochasticMatrix matrix
+      mkStochasticMatrix @2 matrix
         `shouldFailWith` EntryAboveOne
           { row = 0
           , col = 0
@@ -84,7 +87,7 @@ spec = do
               , [0.2, 0.8]
               ]
 
-      mkStochasticMatrix matrix
+      mkStochasticMatrix @2 matrix
         `shouldFailWith` RowSumOffBy
           { row = 0
           , rowSum = 0.9
@@ -97,40 +100,57 @@ spec = do
               , [0.2, 0.3, 0.5]
               ]
 
-      mkStochasticMatrix matrix
+      mkStochasticMatrix @2 matrix
         `shouldFailWith` NonSquareMatrix
           { rowCount = 2
           , colCount = 3
           }
 
-  describe "mulStochastic" $ do
+    it "rejects a square matrix with the wrong type-level dimension" $ do
+      let matrix =
+            fromLists
+              [ [0.5, 0.5]
+              , [0.2, 0.8]
+              ]
+
+      mkStochasticMatrix @3 matrix
+        `shouldFailWith` MatrixDimensionMismatch
+          { expectedSize = 3
+          , actualRows = 2
+          , actualCols = 2
+          }
+
+  describe "mulStochasticMatrix" $ do
     it "the product of two stochastic matrices is stochastic" $
       property prop_productRowStochastic
 
 prop_productRowStochastic :: SameSizedStochastic -> Bool
 prop_productRowStochastic (SameSizedStochastic a b) =
-  isRight (mkStochasticMatrix (unStochasticMatrix (mulStochasticMatrix a b)))
+  isRight
+    ( mkStochasticMatrix @2
+        (unStochasticMatrix (mulStochasticMatrix a b))
+    )
 
 data SameSizedStochastic =
-  SameSizedStochastic StochasticMatrix StochasticMatrix
+  SameSizedStochastic (StochasticMatrix 2) (StochasticMatrix 2)
   deriving (Show)
 
 instance Arbitrary SameSizedStochastic where
   arbitrary :: Gen SameSizedStochastic
   arbitrary = do
-    n <- chooseInt (1, 6)
-    a <- genStochastic n
-    b <- genStochastic n
+    a <- genStochasticMatrix2
+    b <- genStochasticMatrix2
     pure (SameSizedStochastic a b)
 
-genStochastic :: Int -> Gen StochasticMatrix
-genStochastic n = do
-  rawRows <- vectorOf n (genNonZeroRow n)
+genStochasticMatrix2 :: Gen (StochasticMatrix 2)
+genStochasticMatrix2 = do
+  rawRows <- vectorOf 2 (genNonZeroRow 2)
   let matrix = fromLists (map normalise rawRows)
 
-  case mkStochasticMatrix matrix of
+  case mkStochasticMatrix @2 matrix of
     Right stochastic -> pure stochastic
-    Left err -> error ("genStochastic produced a non-stochastic matrix: " <> show err)
+    Left err ->
+      error ("genStochasticMatrix2 produced a non-stochastic matrix: " <> show err)
 
 genNonZeroRow :: Int -> Gen [Double]
 genNonZeroRow n = do

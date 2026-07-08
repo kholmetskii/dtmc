@@ -3,9 +3,18 @@ module Dtmc.ValidationError
   ) where
 
 data ValidationError
-  = NonSquareMatrix
+  = VectorDimensionMismatch
+      { expectedLength :: Int
+      , actualLength :: Int
+      }
+  | NonSquareMatrix
       { rowCount :: Int
       , colCount :: Int
+      }
+  | MatrixDimensionMismatch
+      { expectedSize :: Int
+      , actualRows :: Int
+      , actualCols :: Int
       }
   | NegativeEntry
       { row :: Int

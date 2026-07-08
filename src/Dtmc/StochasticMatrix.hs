@@ -1,3 +1,9 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE KindSignatures #-}
+
+
 module Dtmc.StochasticMatrix
   ( StochasticMatrix
   , unStochasticMatrix
@@ -6,21 +12,23 @@ module Dtmc.StochasticMatrix
   , approxStochasticMatrixEq
   ) where
 
+import Data.Proxy (Proxy (Proxy))
 import Dtmc.ProbabilityVector (mkProbabilityVectorAt)
-import Dtmc.ValidationError (ValidationError (NonSquareMatrix))
+import Dtmc.ValidationError (ValidationError (..))
+import GHC.TypeNats (KnownNat, Nat, natVal)
 import Numeric.LinearAlgebra (Matrix, cols, rows, toRows)
 import qualified Numeric.LinearAlgebra as LA
 
--- | A numerically row-stochastic matrix.
+-- | A numerically row-stochastic @n x n@ matrix.
 --
--- A matrix is accepted as row-stochastic when:
+-- A matrix is accepted as a stochastic matrix when:
 --
--- * it is square;
--- * each row is accepted as a probability vector.
+-- * its runtime shape is @n x n@;
+-- * each row is accepted as a probability vector of length @n@.
 --
--- Therefore, a value of type 'StochasticMatrix' does not mean that the rows sum to
--- exactly @1@. It means the matrix passed numerical stochastic validation at a
--- constructor boundary.
+-- Therefore, a value of type @StochasticMatrix n@ does not mean that the rows
+-- sum to exactly @1@. It means the matrix passed numerical stochastic
+-- validation at a constructor boundary.
 --
 -- This representation uses 'Double' because the spectral layer of the library
 -- will compute eigenvectors, stationary distributions, and
@@ -29,24 +37,51 @@ import qualified Numeric.LinearAlgebra as LA
 --
 -- For a discrete-time Markov chain, a stochastic matrix is a valid transition
 -- matrix.
-newtype StochasticMatrix = StochasticMatrix
+newtype StochasticMatrix (n :: Nat) = StochasticMatrix
   { unStochasticMatrix :: Matrix Double
   }
   deriving (Show)
 
 -- | Smart constructor for stochastic matrices.
 --
--- This is the only safe way to construct a 'StochasticMatrix' value from a raw
--- matrix. It checks that the matrix is square and that every row is a
--- probability vector.
-mkStochasticMatrix :: Matrix Double -> Either ValidationError StochasticMatrix
+-- This is the only safe way to construct a @StochasticMatrix n@ value from a
+-- raw matrix. It checks that the matrix has shape @n x n@ and that every row is
+-- a probability vector of length @n@.
+mkStochasticMatrix
+  :: forall n
+   . KnownNat n
+  => Matrix Double
+  -> Either ValidationError (StochasticMatrix n)
 mkStochasticMatrix matrix
   | not (isSquare matrix) =
-      Left (NonSquareMatrix (rows matrix) (cols matrix))
+      Left
+        NonSquareMatrix
+          { rowCount = rows matrix
+          , colCount = cols matrix
+          }
+  | actualRows /= expectedSize || actualCols /= expectedSize =
+      Left
+        MatrixDimensionMismatch
+          { expectedSize = expectedSize
+          , actualRows = actualRows
+          , actualCols = actualCols
+          }
   | otherwise =
-      validateRows 0 (toRows matrix) *> Right (StochasticMatrix matrix)
+      validateRows (Proxy @n) 0 (toRows matrix) *> Right (StochasticMatrix matrix)
+ where
+  expectedSize :: Int
+  expectedSize =
+    fromIntegral (natVal (Proxy @n))
 
--- | Multiply two stochastic matrices.
+  actualRows :: Int
+  actualRows =
+    rows matrix
+
+  actualCols :: Int
+  actualCols =
+    cols matrix
+
+-- | Multiply two stochastic matrices of the same type-level size.
 --
 -- Proof:
 --
@@ -69,28 +104,30 @@ mkStochasticMatrix matrix
 -- Numerically, floating-point multiplication may introduce tiny drift. This
 -- library represents stochasticity up to the probability-vector tolerance, so
 -- the invariant is understood numerically rather than exactly.
---
--- Warning: this function assumes the two matrices have compatible dimensions.
-mulStochasticMatrix :: StochasticMatrix -> StochasticMatrix -> StochasticMatrix
+mulStochasticMatrix :: StochasticMatrix n -> StochasticMatrix n -> StochasticMatrix n
 mulStochasticMatrix a b =
   StochasticMatrix (unStochasticMatrix a LA.<> unStochasticMatrix b)
+
+-- | Compare two stochastic matrices approximately.
+--
+-- This is intentionally explicit instead of deriving 'Eq', because exact
+-- structural equality on 'Double' probability data is misleading.
+approxStochasticMatrixEq :: Double -> StochasticMatrix n -> StochasticMatrix n -> Bool
+approxStochasticMatrixEq tolerance a b =
+  and
+    ( zipWith
+        (\x y -> abs (x - y) <= tolerance)
+        (LA.toList (LA.flatten (unStochasticMatrix a)))
+        (LA.toList (LA.flatten (unStochasticMatrix b)))
+    )
 
 isSquare :: Matrix Double -> Bool
 isSquare matrix =
   rows matrix == cols matrix
 
-validateRows :: Int -> [LA.Vector Double] -> Either ValidationError ()
-validateRows _ [] =
+validateRows :: forall n . KnownNat n => Proxy n -> Int -> [LA.Vector Double] -> Either ValidationError ()
+validateRows _ _ [] =
   Right ()
-validateRows rowIndex (rowVector : rowVectors) =
-  mkProbabilityVectorAt rowIndex rowVector *> validateRows (rowIndex + 1) rowVectors
-
-approxStochasticMatrixEq :: Double -> StochasticMatrix -> StochasticMatrix -> Bool
-approxStochasticMatrixEq tolerance a b =
-  let matrixA = unStochasticMatrix a
-      matrixB = unStochasticMatrix b
-  in rows matrixA == rows matrixB
-        && cols matrixA == cols matrixB
-        && all
-          (\(x, y) -> abs (x - y) <= tolerance)
-          (zip (LA.toList (LA.flatten matrixA)) (LA.toList (LA.flatten matrixB)))
+validateRows proxy rowIndex (rowVector : rowVectors) =
+  mkProbabilityVectorAt @n rowIndex rowVector
+    *> validateRows proxy (rowIndex + 1) rowVectors
