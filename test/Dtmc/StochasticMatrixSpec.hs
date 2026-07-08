@@ -30,6 +30,7 @@ import Test.QuickCheck
   , property
   , vectorOf
   )
+import Dtmc.Generators (genDenseStochasticMatrix2)
 
 spec :: Spec
 spec = do
@@ -138,38 +139,9 @@ data SameSizedStochastic =
 instance Arbitrary SameSizedStochastic where
   arbitrary :: Gen SameSizedStochastic
   arbitrary = do
-    a <- genStochasticMatrix2
-    b <- genStochasticMatrix2
+    a <- genDenseStochasticMatrix2
+    b <- genDenseStochasticMatrix2
     pure (SameSizedStochastic a b)
-
-genStochasticMatrix2 :: Gen (StochasticMatrix 2)
-genStochasticMatrix2 = do
-  rawRows <- vectorOf 2 (genNonZeroRow 2)
-  let matrix = fromLists (map normalise rawRows)
-
-  case mkStochasticMatrix @2 matrix of
-    Right stochastic -> pure stochastic
-    Left err ->
-      error ("genStochasticMatrix2 produced a non-stochastic matrix: " <> show err)
-
-genNonZeroRow :: Int -> Gen [Double]
-genNonZeroRow n = do
-  row <- vectorOf n genEntry
-  if sum row == 0.0
-    then genNonZeroRow n
-    else pure row
-
-genEntry :: Gen Double
-genEntry =
-  frequency
-    [ (3, pure 0.0)
-    , (7, choose (0.0, 1000.0))
-    ]
-
-normalise :: [Double] -> [Double]
-normalise row =
-  let rowTotal = sum row
-   in map (/ rowTotal) row
 
 shouldFailWith :: Either ValidationError a -> ValidationError -> IO ()
 shouldFailWith result expectedErr =

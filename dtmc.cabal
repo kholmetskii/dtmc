@@ -36,6 +36,7 @@ test-suite spec
   other-modules:
       Dtmc.StochasticMatrixSpec
       Dtmc.SimulationSpec
+      Dtmc.Generators
   build-depends:
     , base
     , dtmc
