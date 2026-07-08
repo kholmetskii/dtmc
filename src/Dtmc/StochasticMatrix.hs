@@ -3,6 +3,7 @@ module Dtmc.StochasticMatrix
   , unStochasticMatrix
   , mkStochasticMatrix
   , mulStochasticMatrix
+  , approxStochasticMatrixEq
   ) where
 
 import Dtmc.ProbabilityVector (mkProbabilityVectorAt)
@@ -83,3 +84,13 @@ validateRows _ [] =
   Right ()
 validateRows rowIndex (rowVector : rowVectors) =
   mkProbabilityVectorAt rowIndex rowVector *> validateRows (rowIndex + 1) rowVectors
+
+approxStochasticMatrixEq :: Double -> StochasticMatrix -> StochasticMatrix -> Bool
+approxStochasticMatrixEq tolerance a b =
+  let matrixA = unStochasticMatrix a
+      matrixB = unStochasticMatrix b
+  in rows matrixA == rows matrixB
+        && cols matrixA == cols matrixB
+        && all
+          (\(x, y) -> abs (x - y) <= tolerance)
+          (zip (LA.toList (LA.flatten matrixA)) (LA.toList (LA.flatten matrixB)))
