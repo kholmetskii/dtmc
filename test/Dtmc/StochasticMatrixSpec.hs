@@ -4,15 +4,27 @@
 
 module Dtmc.StochasticMatrixSpec where
 
-import Data.Either (isRight)
+import Data.Either
+  ( isRight
+  )
+import Dtmc.Generators
+  ( genDenseStochasticMatrix2
+  , genDenseStochasticRawMatrix2
+  )
 import Dtmc.StochasticMatrix
   ( StochasticMatrix
   , mkStochasticMatrix
   , mulStochasticMatrix
   , unStochasticMatrix
   )
-import Dtmc.ValidationError ( ValidationError( .. ) )
-import Numeric.LinearAlgebra (fromLists)
+import Dtmc.ValidationError
+  ( ValidationError ( .. )
+  )
+import Numeric.LinearAlgebra
+  ( Matrix
+  , fromLists
+  , toLists
+  )
 import Test.Hspec
   ( Spec
   , describe
@@ -24,13 +36,8 @@ import Test.Hspec
 import Test.QuickCheck
   ( Arbitrary (arbitrary)
   , Gen
-  , choose
-  , chooseInt
-  , frequency
   , property
-  , vectorOf
   )
-import Dtmc.Generators (genDenseStochasticMatrix2)
 
 spec :: Spec
 spec = do
@@ -121,6 +128,15 @@ spec = do
           , actualCols = 2
           }
 
+    it "round-trips generated stochastic matrices without mutating them" $
+      property prop_generatedMatrixRoundTrips
+
+    it "rejects row-sum perturbations with RowSumOffBy" $
+      property prop_rejectsRowSumBump
+
+    it "rejects sign flips with NegativeEntry" $
+      property prop_rejectsNegativeEntry
+
   describe "mulStochasticMatrix" $ do
     it "the product of two stochastic matrices is stochastic" $
       property prop_productRowStochastic
@@ -132,6 +148,33 @@ prop_productRowStochastic (SameSizedStochastic a b) =
         (unStochasticMatrix (mulStochasticMatrix a b))
     )
 
+prop_generatedMatrixRoundTrips :: DenseRawMatrix2 -> Bool
+prop_generatedMatrixRoundTrips (DenseRawMatrix2 matrix) =
+  case mkStochasticMatrix @2 matrix of
+    Right stochasticMatrix ->
+      unStochasticMatrix stochasticMatrix == matrix
+    Left _ ->
+      False
+
+prop_rejectsRowSumBump :: DenseRawMatrix2 -> Bool
+prop_rejectsRowSumBump (DenseRawMatrix2 matrix) =
+  case mkStochasticMatrix @2 (bumpSafeEntryInRow0 delta matrix) of
+    Left RowSumOffBy { row = 0 } ->
+      True
+    _ ->
+      False
+
+prop_rejectsNegativeEntry :: DenseRawMatrix2 -> Bool
+prop_rejectsNegativeEntry (DenseRawMatrix2 matrix) =
+  case mkStochasticMatrix @2 (setEntry00 (-delta) matrix) of
+    Left NegativeEntry { row = 0, col = 0 } ->
+      True
+    _ ->
+      False
+
+delta :: Double
+delta = 1e-6
+
 data SameSizedStochastic =
   SameSizedStochastic (StochasticMatrix 2) (StochasticMatrix 2)
   deriving (Show)
@@ -142,6 +185,38 @@ instance Arbitrary SameSizedStochastic where
     a <- genDenseStochasticMatrix2
     b <- genDenseStochasticMatrix2
     pure (SameSizedStochastic a b)
+
+newtype DenseRawMatrix2 =
+  DenseRawMatrix2 (Matrix Double)
+  deriving (Show)
+
+instance Arbitrary DenseRawMatrix2 where
+  arbitrary :: Gen DenseRawMatrix2
+  arbitrary =
+    DenseRawMatrix2 <$> genDenseStochasticRawMatrix2
+
+bumpSafeEntryInRow0 :: Double -> Matrix Double -> Matrix Double
+bumpSafeEntryInRow0 amount matrix =
+  case toLists matrix of
+    ([x, y] : rowsRest)
+      | x <= y ->
+          fromLists ([x + amount, y] : rowsRest)
+      | otherwise ->
+          fromLists ([x, y + amount] : rowsRest)
+    _ ->
+      matrix
+
+setEntry00 :: Double -> Matrix Double -> Matrix Double
+setEntry00 newValue matrix =
+  case toLists matrix of
+    (row0 : rowsRest) ->
+      case row0 of
+        (_ : xs) ->
+          fromLists ((newValue : xs) : rowsRest)
+        [] ->
+          matrix
+    [] ->
+      matrix
 
 shouldFailWith :: Either ValidationError a -> ValidationError -> IO ()
 shouldFailWith result expectedErr =

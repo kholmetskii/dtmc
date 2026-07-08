@@ -1,16 +1,19 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Dtmc.Generators
-  ( genDenseStochasticMatrix2
+  ( genDenseStochasticRawMatrix2
+  , genDenseStochasticMatrix2
   ) where
 
 import Dtmc.StochasticMatrix
   ( StochasticMatrix
   , mkStochasticMatrix
   )
-import Numeric.LinearAlgebra (fromLists)
+import Numeric.LinearAlgebra
+  ( Matrix
+  , fromLists
+  )
 import Test.QuickCheck
   ( Gen
   , choose
@@ -18,20 +21,39 @@ import Test.QuickCheck
   , vectorOf
   )
 
--- | Generate a dense/sparse-ish stochastic matrix of size 2.
+-- | Generate a raw stochastic matrix of size 2.
 --
--- This generator currently normalises randomly generated rows and may include
--- zero entries because 'genEntry' can return 0.
+-- The rows are generated as non-negative vectors and then normalised in
+-- 'Double'. Therefore row sums may differ from @1@ by ordinary floating-point
+-- normalisation error.
 --
--- Important: a truly Dirichlet(1,...,1)-based generator would produce strictly
--- positive rows. Such dense generators are useful for basic invariants, but
--- they do not test reducible, absorbing, or prescribed-zero-pattern chains.
--- Classification tests need separate structured generators.
+-- The validation tolerance in 'mkStochasticMatrix' must be larger than this
+-- normalisation error. For small dimensions, this error is on the order of
+-- @n * u@, where @u@ is double-precision machine epsilon, and the library's
+-- tolerance @1e-9@ is safely larger.
+--
+-- This generator is appropriate for constructor round-trip and multiplication
+-- closure properties.
+--
+-- Warning: dense Dirichlet-style generators produce strictly positive rows,
+-- hence typically only regular/ergodic chains. Such generators are not suitable
+-- for testing reducible chains, absorbing chains, communicating classes, or
+-- prescribed zero patterns. Those require separate structured generators.
+--
+-- This current generator is not a true Dirichlet generator: it intentionally
+-- allows zero entries, so it can also produce sparse matrices.
+genDenseStochasticRawMatrix2 :: Gen (Matrix Double)
+genDenseStochasticRawMatrix2 = do
+  rawRows <- vectorOf 2 (genNonZeroRow 2)
+  pure (fromLists (map normalise rawRows))
+
+-- | Generate a validated stochastic matrix of size 2.
+--
+-- This should always succeed if the generator's floating-point normalisation
+-- error is below the validation tolerance.
 genDenseStochasticMatrix2 :: Gen (StochasticMatrix 2)
 genDenseStochasticMatrix2 = do
-  rawRows <- vectorOf 2 (genNonZeroRow 2)
-  let matrix = fromLists (map normalise rawRows)
-
+  matrix <- genDenseStochasticRawMatrix2
   case mkStochasticMatrix @2 matrix of
     Right stochasticMatrix ->
       pure stochasticMatrix
