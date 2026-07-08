@@ -12,11 +12,15 @@ library
       Dtmc.ValidationError
       Dtmc.ProbabilityVector
       Dtmc.StochasticMatrix
+      Dtmc.Simulation
   hs-source-dirs:
       src
   build-depends:
       base
     , hmatrix
+    , finite-typelits
+    , mwc-random
+    , primitive
   default-extensions:
     DataKinds
     ScopedTypeVariables
@@ -31,12 +35,15 @@ test-suite spec
       test
   other-modules:
       Dtmc.StochasticMatrixSpec
+      Dtmc.SimulationSpec
   build-depends:
-      base
+    , base
     , dtmc
     , hmatrix
     , hspec
     , QuickCheck
+    , finite-typelits
+    , mwc-random
   build-tool-depends:
       hspec-discover:hspec-discover
   default-language:
