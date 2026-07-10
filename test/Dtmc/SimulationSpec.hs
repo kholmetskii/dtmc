@@ -1,54 +1,49 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
-
-module Dtmc.SimulationSpec where
+module Dtmc.SimulationSpec (spec) where
 
 import Control.Monad (replicateM)
-import Data.Either (fromRight)
-import Data.Finite (Finite, finite)
+import Control.Monad.ST (runST)
+import Data.Finite (Finite)
 import Dtmc.Simulation (step)
 import Dtmc.StochasticMatrix (StochasticMatrix, mkStochasticMatrix)
-import Numeric.LinearAlgebra (fromLists)
-import Test.Hspec
-  ( Spec
-  , describe
-  , it
-  , shouldBe
-  , shouldSatisfy
-  )
+import qualified Numeric.LinearAlgebra.Static as S
 import qualified System.Random.MWC as MWC
+import Test.Hspec
+
+cyclic3 :: StochasticMatrix 3
+cyclic3 =
+  either (error . show) id $
+    mkStochasticMatrix (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0])
+
+-- Deliberately asymmetric: state 0 is absorbing, state 1 is not.
+-- (The identity matrix would be symmetric and useless as an oracle.)
+absorbing2 :: StochasticMatrix 2
+absorbing2 =
+  either (error . show) id $
+    mkStochasticMatrix (S.matrix [1, 0, 0.3, 0.7])
+
+-- Everything runs in ST with a fixed seed (MWC.create), so the tests are
+-- DETERMINISTIC (docs/TESTING.md T5). This is also the only place where step's
+-- PrimMonad polymorphism is actually exercised: production path IO, test path ST.
+orbit3 :: [Finite 3]
+orbit3 = runST $ do
+  g <- MWC.create
+  s1 <- step cyclic3 0 g
+  s2 <- step cyclic3 s1 g
+  s3 <- step cyclic3 s2 g
+  pure [s1, s2, s3]
+
+absorbed :: [Finite 2]
+absorbed = runST $ do
+  g <- MWC.create
+  replicateM 50 (step absorbing2 0 g)
 
 spec :: Spec
 spec = do
-  describe "step" $ do
-    it "always stays in state 0 for an absorbing state 0" $ do
-      gen <- MWC.create
+  it "follows the 3-cycle 0 -> 1 -> 2 -> 0 (transposition would give 0 -> 2 -> 1)" $
+    orbit3 `shouldBe` [1, 2, 0]
 
-      let matrix = absorbingMatrix
-          state0 = finite @2 0
+  it "never leaves an absorbing state" $
+    absorbed `shouldBe` replicate 50 0
 
-      nextStates <- replicateM 20 (step matrix state0 gen)
-
-      nextStates `shouldSatisfy` all (== state0)
-
-    it "always stays in state 1 for an absorbing state 1" $ do
-      gen <- MWC.create
-
-      let matrix = absorbingMatrix
-          state1 = finite @2 1
-
-      nextStates <- replicateM 20 (step matrix state1 gen)
-
-      nextStates `shouldSatisfy` all (== state1)
-
-absorbingMatrix :: StochasticMatrix 2
-absorbingMatrix =
-  fromRight
-    (error "absorbingMatrix should be stochastic")
-    ( mkStochasticMatrix @2
-        ( fromLists
-            [ [1.0, 0.0]
-            , [0.0, 1.0]
-            ]
-        )
-    )
+  it "runs in ST, exercising the PrimMonad polymorphism of step" $
+    length orbit3 `shouldBe` 3

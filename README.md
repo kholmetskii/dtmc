@@ -1,61 +1,64 @@
 # dtmc
 
-A small Haskell library for type-safe discrete-time Markov chains.
+Type-safe discrete-time Markov chains in Haskell.
 
-The project is currently experimental. The first goal is to encode basic Markov-chain invariants clearly and test them carefully.
+## What the type system guarantees
 
-## Core idea
+The claim is two-tiered, and the difference matters.
 
-A transition matrix for a finite discrete-time Markov chain is a row-stochastic matrix.
+**Proved by the compiler:** dimension, squareness, dimension agreement under
+multiplication. That is `Numeric.LinearAlgebra.Static` — `R n`, `Sq n`, `KnownNat`.
 
-That means:
+**Checked once at a boundary, then carried by the type:** stochasticity. The
+`StochasticMatrix` constructor is hidden; the only way to obtain a value is
+`mkStochasticMatrix`, which runs every row through `validateSimplexPoint`.
 
-1. the matrix is square;
-2. every entry is non-negative;
-3. every row sums to one.
+The compiler does **not** prove stochasticity: `S.matrix [1,2,-3,0.5] :: Sq 2` is
+a perfectly valid `Sq 2`. And `StochasticMatrix n` does not mean "the rows sum to
+1"; it means "no row deviates from 1 by more than ε, and this was checked once at
+a single audited boundary". The justification for ε is [NUMERICS.md](NUMERICS.md), N2.
 
-In mathematics, if `A` and `B` are row-stochastic matrices, then `AB` is also row-stochastic.
+hmatrix's dimension indices have phantom roles, so migrating to `Static` does not
+by itself close `coerce :: StochasticMatrix 2 -> StochasticMatrix 3`. The carriers
+are annotated `type role ... nominal`; the regression test is `check/Role.hs`,
+which **must fail to compile** ([docs/DECISIONS.md](docs/DECISIONS.md), D2).
 
-This package reflects that idea in two layers.
+## Prove / verify
 
-## Two layers of safety
+Every theorem carries a `-- Proof:` block (a prose derivation) and a paired
+property or simulation. The proof pays rent: it licenses a total signature.
 
-### 1. Runtime-verified, then type-carried
+```haskell
+mulStochasticMatrix :: KnownNat n => StochasticMatrix n -> StochasticMatrix n -> StochasticMatrix n
+--                                                                              ^ no Either: closure is proved
+rowAt :: KnownNat n => StochasticMatrix n -> Finite n -> Distribution n
+--                                                       ^ no Either: the row is already validated
+```
 
-A raw `Matrix Double` is not trusted directly.
+If a function carries a `-- Proof:` and still returns `Either` for the property it
+supposedly proves, the proof carries nothing.
 
-Instead, it must pass through:
+The discipline is enforced by CI, not by memory: every exposed module has a paired
+spec; `Dtmc.Internal` is imported only at the validation boundary or under a
+`-- Proof:`; there is no import edge between `Distribution` and `StochasticMatrix`.
 
-    mkStochastic :: Matrix Double -> Maybe Stochastic
+## Numerical honesty
 
-If the matrix satisfies the stochastic invariant, it becomes a value of type:
+Every trade of accuracy for tractability gets an entry: where, what was chosen,
+what was rejected, how it is checked.
 
-    Stochastic
+- [NUMERICS.md](NUMERICS.md) — numerical decisions (`N*`)
+- [docs/DECISIONS.md](docs/DECISIONS.md) — architecture and types (`D*`)
+- [docs/TESTING.md](docs/TESTING.md) — test and generator design (`T*`)
 
-After that, the type carries the fact that the matrix has already been verified.
+## Building
 
-### 2. Compiler-preserved operations
+```bash
+cabal build all
+cabal test all --test-show-details=direct
+ghc -isrc check/Role.hs      # must FAIL to compile
+```
 
-Some operations preserve the stochastic invariant by theorem.
-
-For example:
-
-    mulStochastic :: Stochastic -> Stochastic -> Stochastic
-
-The product of two stochastic matrices is stochastic, so the result can safely be given type `Stochastic`.
-
-The proof is documented in the Haddock comment above the implementation.
-
-## Build
-
-    cabal build all
-
-## Test
-
-    cabal test all --test-show-details=direct
-
-## Numerical backend
-
-This package uses `hmatrix`, which links against system BLAS/LAPACK.
-
-See `NUMERICS.md` for details.
+hmatrix links against the system LAPACK/BLAS. Linux: `libblas-dev liblapack-dev`.
+macOS: Accelerate out of the box. Results are reproducible only up to the backend,
+so CI exercises both ([NUMERICS.md](NUMERICS.md), N5).

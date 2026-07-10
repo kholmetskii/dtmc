@@ -1,133 +1,99 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE KindSignatures #-}
-
-
+-- |
+-- Module      : Dtmc.StochasticMatrix
+--
+-- The transition matrix: square, row-stochastic.
+--
+-- The guarantee is two-tiered, and the difference matters:
+--
+--   * PROVED BY THE COMPILER: dimension, squareness, dimension agreement under
+--     multiplication (@Numeric.LinearAlgebra.Static@).
+--   * CHECKED ONCE AT A BOUNDARY, THEN CARRIED BY THE TYPE: stochasticity.
+--
+-- The compiler does NOT prove stochasticity: @S.matrix [1,2,-3,0.5] :: Sq 2@ is
+-- a perfectly valid @Sq 2@. And @StochasticMatrix n@ does not mean "the rows
+-- sum to 1"; it means "no row deviates from 1 by more than ε, and this was
+-- checked once at a single audited boundary" (NUMERICS N2).
+--
+-- This module does NOT import 'Dtmc.Distribution'.
 module Dtmc.StochasticMatrix
   ( StochasticMatrix
   , unStochasticMatrix
+  , StochasticError (..)
   , mkStochasticMatrix
   , mulStochasticMatrix
   , approxStochasticMatrixEq
   ) where
 
-import Data.Proxy (Proxy (Proxy))
-import Dtmc.ProbabilityVector (mkProbabilityVectorAt)
-import Dtmc.ValidationError (ValidationError (..))
-import GHC.TypeNats (KnownNat, Nat, natVal)
-import Numeric.LinearAlgebra (Matrix, cols, rows, toRows)
+import Data.Bifunctor (first)
+import Data.Foldable (traverse_)
+import Dtmc.Internal (StochasticMatrix (..))
+import Dtmc.Simplex (SimplexError, validateSimplexPoint)
+import GHC.TypeNats (KnownNat)
 import qualified Numeric.LinearAlgebra as LA
+import qualified Numeric.LinearAlgebra.Static as S
 
--- | A numerically row-stochastic @n x n@ matrix.
+-- | Which row violated Δ^{n-1}, and how.
 --
--- A matrix is accepted as a stochastic matrix when:
---
--- * its runtime shape is @n x n@;
--- * each row is accepted as a probability vector of length @n@.
---
--- Therefore, a value of type @StochasticMatrix n@ does not mean that the rows
--- sum to exactly @1@. It means the matrix passed numerical stochastic
--- validation at a constructor boundary.
---
--- This representation uses 'Double' because the spectral layer of the library
--- will compute eigenvectors, stationary distributions, and
--- Perron--Frobenius-style quantities, which are generally non-rational and
--- therefore numerical.
---
--- For a discrete-time Markov chain, a stochastic matrix is a valid transition
--- matrix.
-newtype StochasticMatrix (n :: Nat) = StochasticMatrix
-  { unStochasticMatrix :: Matrix Double
-  }
-  deriving (Show)
+-- @data@, not @newtype@: two fields. There are no dimension constructors here —
+-- @NonSquareMatrix@ and @MatrixDimensionMismatch@ became unrepresentable.
+data StochasticError = InRow Int SimplexError
+  deriving (Eq, Show)
 
--- | Smart constructor for stochastic matrices.
+-- | Validates stochasticity only. Squareness and size are already in the type.
 --
--- This is the only safe way to construct a @StochasticMatrix n@ value from a
--- raw matrix. It checks that the matrix has shape @n x n@ and that every row is
--- a probability vector of length @n@.
+-- Definition (ST227 §2.4): a matrix is row-stochastic iff every row is a
+-- distribution. The code restates the definition literally.
+--
+-- 'traverse_' in 'Either' short-circuits on the first error:
+-- @traverse_ f = foldr ((*>) . f) (pure ())@, and @Left e *> _ = Left e@.
+-- Applicative, not Monad: the second check does not depend on the first
+-- check's result, only on its success.
+--
+-- Verified: Dtmc.StochasticMatrixSpec
 mkStochasticMatrix
-  :: forall n
-   . KnownNat n
-  => Matrix Double
-  -> Either ValidationError (StochasticMatrix n)
-mkStochasticMatrix matrix
-  | not (isSquare matrix) =
-      Left
-        NonSquareMatrix
-          { rowCount = rows matrix
-          , colCount = cols matrix
-          }
-  | actualRows /= expectedSize || actualCols /= expectedSize =
-      Left
-        MatrixDimensionMismatch
-          { expectedSize = expectedSize
-          , actualRows = actualRows
-          , actualCols = actualCols
-          }
-  | otherwise =
-      validateRows (Proxy @n) 0 (toRows matrix) *> Right (StochasticMatrix matrix)
- where
-  expectedSize :: Int
-  expectedSize =
-    fromIntegral (natVal (Proxy @n))
+  :: KnownNat n => S.Sq n -> Either StochasticError (StochasticMatrix n)
+mkStochasticMatrix m =
+  StochasticMatrix m <$ traverse_ checkRow (zip [0 ..] (S.toRows m))
+  where
+    -- S.toRows :: (KnownNat m, KnownNat n) => L m n -> [R n]
+    -- Rows are already typed; no detour through the dynamic API.
+    checkRow (i, r) = first (InRow i) (validateSimplexPoint r)
 
-  actualRows :: Int
-  actualRows =
-    rows matrix
-
-  actualCols :: Int
-  actualCols =
-    cols matrix
-
--- | Multiply two stochastic matrices of the same type-level size.
+-- | The product of two row-stochastic matrices.
 --
 -- Proof:
+--   Let A, B be row-stochastic. Entries are non-negative, so
+--   (AB)_ij = Σ_k A_ik B_kj is a sum of products of non-negatives, hence ≥ 0.
+--   For every row i:
+--     Σ_j (AB)_ij = Σ_j Σ_k A_ik B_kj
+--                 = Σ_k A_ik (Σ_j B_kj)
+--                 = Σ_k A_ik · 1
+--                 = 1.
+--   The sums are finite (|S| < ∞), so interchanging the order of summation is
+--   unconditional. ∎  (ST227 §2.4; the closure the n-step lemma rests on.)
 --
--- Let A and B be row-stochastic matrices of the same size. Since every entry of
--- A and B is non-negative, every entry of AB is a sum of products of
--- non-negative numbers, so every entry of AB is non-negative.
+-- The proof pays rent: it licenses a TOTAL signature. No @Either@ — the result
+-- cannot fail to be stochastic.
 --
--- Also, for each row i,
+-- The result is NOT re-validated through 'mkStochasticMatrix'. See NUMERICS N1.
 --
--- @
--- sum_j (AB)_ij
---   = sum_j sum_k A_ik B_kj
---   = sum_k A_ik sum_j B_kj
---   = sum_k A_ik
---   = 1.
--- @
---
--- Therefore AB is row-stochastic.
---
--- Numerically, floating-point multiplication may introduce tiny drift. This
--- library represents stochasticity up to the probability-vector tolerance, so
--- the invariant is understood numerically rather than exactly.
-mulStochasticMatrix :: StochasticMatrix n -> StochasticMatrix n -> StochasticMatrix n
-mulStochasticMatrix a b =
-  StochasticMatrix (unStochasticMatrix a LA.<> unStochasticMatrix b)
+-- Verified: Dtmc.StochasticMatrixSpec.prop_productRowStochastic
+mulStochasticMatrix
+  :: KnownNat n => StochasticMatrix n -> StochasticMatrix n -> StochasticMatrix n
+mulStochasticMatrix (StochasticMatrix a) (StochasticMatrix b) =
+  StochasticMatrix (a S.<> b)
+  --                  ^^^^^ (<>) :: (KnownNat m, KnownNat k, KnownNat n)
+  --                        => L m k -> L k n -> L m n
+  -- Dimension agreement is checked by the compiler, not by hmatrix at runtime.
+  -- That is why mulStochasticMatrix acquired KnownNat n: the constraint carries
+  -- the dimension proof.
 
--- | Compare two stochastic matrices approximately.
---
--- This is intentionally explicit instead of deriving 'Eq', because exact
--- structural equality on 'Double' probability data is misleading.
-approxStochasticMatrixEq :: Double -> StochasticMatrix n -> StochasticMatrix n -> Bool
-approxStochasticMatrixEq tolerance a b =
-  and
-    ( zipWith
-        (\x y -> abs (x - y) <= tolerance)
-        (LA.toList (LA.flatten (unStochasticMatrix a)))
-        (LA.toList (LA.flatten (unStochasticMatrix b)))
-    )
-
-isSquare :: Matrix Double -> Bool
-isSquare matrix =
-  rows matrix == cols matrix
-
-validateRows :: forall n . KnownNat n => Proxy n -> Int -> [LA.Vector Double] -> Either ValidationError ()
-validateRows _ _ [] =
-  Right ()
-validateRows proxy rowIndex (rowVector : rowVectors) =
-  mkProbabilityVectorAt @n rowIndex rowVector
-    *> validateRows proxy (rowIndex + 1) rowVectors
+-- | Entrywise comparison with an explicit tolerance.
+-- See 'Dtmc.Distribution.approxDistributionEq'.
+approxStochasticMatrixEq
+  :: KnownNat n => Double -> StochasticMatrix n -> StochasticMatrix n -> Bool
+approxStochasticMatrixEq tol (StochasticMatrix a) (StochasticMatrix b) =
+  and (zipWith close (entries a) (entries b))
+  where
+    entries = LA.toList . LA.flatten . S.extract
+    close x y = abs (x - y) <= tol

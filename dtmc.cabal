@@ -3,49 +3,55 @@ name:               dtmc
 version:            0.1.0.0
 synopsis:           Type-safe discrete-time Markov chains
 build-type:         Simple
-
-common warnings
-  ghc-options: -Wall -Wcompat -Wincomplete-uni-patterns -Wredundant-constraints
+extra-doc-files:    README.md
+                    NUMERICS.md
+                    docs/DECISIONS.md
+                    docs/TESTING.md
+common lang
+  default-language:   GHC2021
+  default-extensions: DataKinds
+                    , RoleAnnotations
+  ghc-options:        -Wall
+                      -Wcompat
+                      -Wincomplete-uni-patterns
+                      -Wredundant-constraints
 
 library
+  import:          lang
+  hs-source-dirs:  src
   exposed-modules:
-      Dtmc.ValidationError
-      Dtmc.ProbabilityVector
+      Dtmc.Simplex
+      Dtmc.Distribution
       Dtmc.StochasticMatrix
+      Dtmc.Kernel
       Dtmc.Simulation
-  hs-source-dirs:
-      src
+  other-modules:
+      Dtmc.Internal
   build-depends:
-      base
-    , hmatrix
+      base            >=4.17 && <5
+    , hmatrix         >=0.20
     , finite-typelits
     , mwc-random
     , primitive
-  default-extensions:
-    DataKinds
-    ScopedTypeVariables
-    TypeApplications
 
 test-suite spec
-  type:
-      exitcode-stdio-1.0
-  main-is:
-      Spec.hs
-  hs-source-dirs:
-      test
+  import:             lang
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Spec.hs
   other-modules:
-      Dtmc.StochasticMatrixSpec
-      Dtmc.SimulationSpec
       Dtmc.Generators
+      Dtmc.SimplexSpec
+      Dtmc.DistributionSpec
+      Dtmc.StochasticMatrixSpec
+      Dtmc.KernelSpec
+      Dtmc.SimulationSpec
+  build-tool-depends: hspec-discover:hspec-discover
   build-depends:
-    , base
+      base
     , dtmc
     , hmatrix
-    , hspec
-    , QuickCheck
     , finite-typelits
     , mwc-random
-  build-tool-depends:
-      hspec-discover:hspec-discover
-  default-language:
-      Haskell2010
+    , hspec
+    , QuickCheck

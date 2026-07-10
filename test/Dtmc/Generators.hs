@@ -1,80 +1,76 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
-
+-- | Generators. Per the M1 brief these are "core, not test scaffolding" — for
+-- now they live under test/, and should move into a @dtmc-testing@ sublibrary
+-- the first time anything outside the test suite needs them.
 module Dtmc.Generators
-  ( genDenseStochasticRawMatrix2
-  , genDenseStochasticMatrix2
+  ( genSimplexPointList
+  , genStochasticSq
+  , onLists
+  , bumpSmallest
+  , bumpSmallestInRow0
+  , setEntry00
   ) where
 
-import Dtmc.StochasticMatrix
-  ( StochasticMatrix
-  , mkStochasticMatrix
-  )
-import Numeric.LinearAlgebra
-  ( Matrix
-  , fromLists
-  )
-import Test.QuickCheck
-  ( Gen
-  , choose
-  , frequency
-  , vectorOf
-  )
+import Data.Proxy (Proxy (..))
+import GHC.TypeNats (KnownNat, natVal)
+import qualified Numeric.LinearAlgebra as LA
+import qualified Numeric.LinearAlgebra.Static as S
+import Test.QuickCheck (Gen, choose, frequency, vectorOf)
 
--- | Generate a raw stochastic matrix of size 2.
+-- | A point of Δ^{k-1} as a list.
 --
--- The rows are generated as non-negative vectors and then normalised in
--- 'Double'. Therefore row sums may differ from @1@ by ordinary floating-point
--- normalisation error.
+-- This is NOT Dirichlet(1,…,1): 30% of coordinates are exactly zero. See
+-- docs/TESTING.md T3 — a dense Dirichlet yields strictly positive rows, so
+-- EVERY matrix would be regular (irreducible and aperiodic), and the M3
+-- classification tests would be vacuously green.
 --
--- The validation tolerance in 'mkStochasticMatrix' must be larger than this
--- normalisation error. For small dimensions, this error is on the order of
--- @n * u@, where @u@ is double-precision machine epsilon, and the library's
--- tolerance @1e-9@ is safely larger.
---
--- This generator is appropriate for constructor round-trip and multiplication
--- closure properties.
---
--- Warning: dense Dirichlet-style generators produce strictly positive rows,
--- hence typically only regular/ergodic chains. Such generators are not suitable
--- for testing reducible chains, absorbing chains, communicating classes, or
--- prescribed zero patterns. Those require separate structured generators.
---
--- This current generator is not a true Dirichlet generator: it intentionally
--- allows zero entries, so it can also produce sparse matrices.
-genDenseStochasticRawMatrix2 :: Gen (Matrix Double)
-genDenseStochasticRawMatrix2 = do
-  rawRows <- vectorOf 2 (genNonZeroRow 2)
-  pure (fromLists (map normalise rawRows))
+-- Zeros do occur here, but they occur BY CHANCE, not by construction. Covering
+-- reducible chains in M3 still requires structured generators with a prescribed
+-- zero pattern. Do not rely on this generator there.
+genSimplexPointList :: Int -> Gen [Double]
+genSimplexPointList k = do
+  xs <- vectorOf k genEntry
+  let total = sum xs
+  if total == 0.0
+    then genSimplexPointList k -- probability 0.3^k; retrying is safe
+    else pure (map (/ total) xs)
+  where
+    genEntry = frequency [(3, pure 0.0), (7, choose (0.0, 1000.0))]
 
--- | Generate a validated stochastic matrix of size 2.
+-- | A row-stochastic n×n matrix. The size comes from the type.
+genStochasticSq :: forall n. KnownNat n => Gen (S.Sq n)
+genStochasticSq = do
+  rows <- vectorOf k (genSimplexPointList k)
+  pure (S.matrix (concat rows))
+  where
+    k = fromIntegral (natVal (Proxy @n))
+
+-- | Perturbations are easier to describe on lists. @S.matrix@ throws on a
+-- wrong-length list, so @f@ must preserve the shape.
+onLists :: KnownNat n => ([[Double]] -> [[Double]]) -> S.Sq n -> S.Sq n
+onLists f = S.matrix . concat . f . LA.toLists . S.extract
+
+-- | Add @d@ to the SMALLEST coordinate.
 --
--- This should always succeed if the generator's floating-point normalisation
--- error is below the validation tolerance.
-genDenseStochasticMatrix2 :: Gen (StochasticMatrix 2)
-genDenseStochasticMatrix2 = do
-  matrix <- genDenseStochasticRawMatrix2
-  case mkStochasticMatrix @2 matrix of
-    Right stochasticMatrix ->
-      pure stochasticMatrix
-    Left err ->
-      error ("genDenseStochasticMatrix2 produced invalid matrix: " <> show err)
+-- Not the first one. See docs/TESTING.md T1: QuickCheck found the counterexample
+-- [1.0, 0.0, 0.0] — bumping the first coordinate pushes it past 1 + ε, and the
+-- coordinatewise check (which by contract runs BEFORE the sum) returns
+-- EntryAboveOne rather than SumOffBy.
+--
+-- For a simplex point min ≤ 1/n, so after +1e-6 the smallest coordinate stays
+-- safely below 1 + ε and the error is isolated to SumOffBy.
+bumpSmallest :: Double -> [Double] -> [Double]
+bumpSmallest _ [] = []
+bumpSmallest d xs = zipWith bump [0 :: Int ..] xs
+  where
+    j = snd (minimum (zip xs [0 :: Int ..]))
+    bump i x = if i == j then x + d else x
 
-genNonZeroRow :: Int -> Gen [Double]
-genNonZeroRow n = do
-  row <- vectorOf n genEntry
-  if sum row == 0.0
-    then genNonZeroRow n
-    else pure row
+bumpSmallestInRow0 :: Double -> [[Double]] -> [[Double]]
+bumpSmallestInRow0 _ [] = []
+bumpSmallestInRow0 d (r : rs) = bumpSmallest d r : rs
 
-genEntry :: Gen Double
-genEntry =
-  frequency
-    [ (3, pure 0.0)
-    , (7, choose (0.0, 1000.0))
-    ]
-
-normalise :: [Double] -> [Double]
-normalise row =
-  let rowTotal = sum row
-   in map (/ rowTotal) row
+-- | Replace entry (0,0). The row sum breaks too, but the coordinatewise check
+-- runs first, so the reported error is NegativeEntry 0.
+setEntry00 :: Double -> [[Double]] -> [[Double]]
+setEntry00 v ((_ : rest) : rs) = (v : rest) : rs
+setEntry00 _ m = m
