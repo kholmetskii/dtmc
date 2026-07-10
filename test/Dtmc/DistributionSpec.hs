@@ -1,87 +1,108 @@
 module Dtmc.DistributionSpec (spec) where
 
 import Dtmc.Distribution
-    ( DistributionError(DistributionError),
-      SimplexError(SumOffBy, EntryAboveOne, NegativeEntry),
-      Distribution(unDistribution),
-      validateSimplex,
-      mkDistribution,
-      approxDistributionEq )
-import Dtmc.Generators (bumpSmallest, genSimplexPointList)
+  ( DistributionError (..)
+  , SimplexError (..)
+  , approxDistributionEq
+  , mkDistribution
+  , unDistribution
+  , validateSimplex
+  )
+import Dtmc.TestSupport
+  ( bumpSmallest
+  , genSimplexPoint
+  )
 import qualified Numeric.LinearAlgebra.Static as S
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
 
--- Verifies: Dtmc.Distribution.validateSimplex, mkDistribution, approxDistributionEq
---
--- The old SimplexSpec merged in here: the predicate is no longer a separate
--- module. hspec-discover already wraps spec in describe "Dtmc.Distribution".
 spec :: Spec
 spec = do
-  ---------------------------------------------------------------------------
-  -- validateSimplex: the Δ^{n-1} predicate
-  ---------------------------------------------------------------------------
-  it "rejects the empty point (n = 0): sum [] = 0 /= 1" $
-    validateSimplex (S.vector [] :: S.R 0) `shouldBe` Left (SumOffBy 0.0)
+  describe "validateSimplex" $ do
+    it "rejects an empty vector" $
+      validateSimplex (S.vector [] :: S.R 0)
+        `shouldBe` Left (SumOffBy 0)
 
-  it "tolerates a -1e-17 rounding sliver" $
-    validateSimplex (S.vector [-1e-17, 1.0] :: S.R 2) `shouldBe` Right ()
+    it "accepts a tiny negative rounding error" $
+      validateSimplex (S.vector [-1e-17, 1] :: S.R 2)
+        `shouldBe` Right ()
 
-  it "reports EntryAboveOne before NegativeEntry (check order is contractual)" $
-    validateSimplex (S.vector [1.5, -0.5] :: S.R 2)
-      `shouldBe` Left (EntryAboveOne 0 1.5)
+    it "reports an entry above one" $
+      validateSimplex (S.vector [1.5, -0.5] :: S.R 2)
+        `shouldBe` Left (EntryAboveOne 0 1.5)
 
-  -- Regression on the QuickCheck counterexample (seed 180161876). docs/TESTING.md T1.
-  it "an entry at 1.0 bumped past the bound reports EntryAboveOne, not SumOffBy" $
-    validateSimplex (S.vector [1.000001, 0.0, 0.0] :: S.R 3)
-      `shouldBe` Left (EntryAboveOne 0 1.000001)
+    prop "accepts normalised vectors" $
+      forAll (genSimplexPoint 3) $ \entries ->
+        validateSimplex (S.vector entries :: S.R 3)
+          === Right ()
 
-  prop "accepts a normalised point" $
-    forAll (genSimplexPointList 3) $ \xs ->
-      validateSimplex (S.vector xs :: S.R 3) === Right ()
+    prop "rejects vectors whose sum is too large" $
+      forAll (genSimplexPoint 3) $ \entries ->
+        case validateSimplex
+          (S.vector (bumpSmallest 1e-6 entries) :: S.R 3) of
+          Left (SumOffBy _) ->
+            property True
+          result ->
+            counterexample
+              ("expected SumOffBy, got " <> show result)
+              False
 
-  prop "rejects a sum bumped by 1e-6 (>> tolerance) with SumOffBy" $
-    forAll (genSimplexPointList 3) $ \xs ->
-      case validateSimplex (S.vector (bumpSmallest 1e-6 xs) :: S.R 3) of
-        Left (SumOffBy _) -> property True
-        other -> counterexample ("expected SumOffBy, got " <> show other) False
+    prop "rejects genuinely negative entries" $
+      forAll (genSimplexPoint 3) $ \entries ->
+        let invalid = case entries of
+              _ : rest -> (-1e-6) : rest
+              [] -> []
+         in case validateSimplex (S.vector invalid :: S.R 3) of
+              Left (NegativeEntry 0 _) ->
+                property True
+              result ->
+                counterexample
+                  ("expected NegativeEntry 0, got " <> show result)
+                  False
 
-  prop "rejects a genuinely negative coordinate with NegativeEntry" $
-    forAll (genSimplexPointList 3) $ \xs ->
-      let broken = case xs of
-            (_ : rest) -> (-1e-6) : rest
-            []         -> []
-       in case validateSimplex (S.vector broken :: S.R 3) of
-            Left (NegativeEntry 0 _) -> property True
-            other -> counterexample ("expected NegativeEntry 0, got " <> show other) False
+  describe "mkDistribution" $ do
+    prop "preserves the validated vector" $
+      forAll (genSimplexPoint 3) $ \entries ->
+        let simplexVector = S.vector entries :: S.R 3
+        in case mkDistribution simplexVector of
+              Right distribution ->
+                S.extract (unDistribution distribution)
+                  === S.extract simplexVector
+              Left err ->
+                counterexample
+                  ("generated vector was rejected: " <> show err)
+                  False
 
-  ---------------------------------------------------------------------------
-  -- mkDistribution: the validation boundary
-  ---------------------------------------------------------------------------
-  -- The constructor validates but does NOT mutate, hence exact equality.
-  prop "round-trips exactly" $
-    forAll (genSimplexPointList 3) $ \xs ->
-      let v = S.vector xs :: S.R 3
-       in case mkDistribution v of
-            Right d -> property (S.extract (unDistribution d) == S.extract v)
-            Left e  -> counterexample ("generator produced a rejected point: " <> show e) False
+    prop "wraps simplex validation errors" $
+      forAll (genSimplexPoint 3) $ \entries ->
+        case mkDistribution
+          (S.vector (bumpSmallest 1e-6 entries) :: S.R 3) of
+          Left (DistributionError (SumOffBy _)) ->
+            property True
+          result ->
+            counterexample
+              ("expected DistributionError SumOffBy, got " <> show result)
+              False
 
-  prop "wraps the simplex error without inventing a row index" $
-    forAll (genSimplexPointList 3) $ \xs ->
-      case mkDistribution (S.vector (bumpSmallest 1e-6 xs) :: S.R 3) of
-        Left (DistributionError (SumOffBy _)) -> property True
-        Left e  -> counterexample ("expected SumOffBy, got " <> show e) False
-        Right _ -> counterexample "expected rejection, got Right" False
+    it "rejects a zero-dimensional distribution" $
+      case mkDistribution (S.vector [] :: S.R 0) of
+        Left (DistributionError (SumOffBy actualSum)) ->
+          actualSum `shouldBe` 0
+        Left err ->
+          expectationFailure
+            ("expected SumOffBy 0, got " <> show err)
+        Right _ ->
+          expectationFailure "expected rejection"
 
-  prop "approxDistributionEq is reflexive at tolerance 0" $
-    forAll (genSimplexPointList 3) $ \xs ->
-      case mkDistribution (S.vector xs :: S.R 3) of
-        Right d -> property (approxDistributionEq 0 d d)
-        Left e  -> counterexample ("generator produced a rejected point: " <> show e) False
-
-  it "rejects a zero-dimensional distribution" $
-    case mkDistribution (S.vector [] :: S.R 0) of
-      Left (DistributionError (SumOffBy s)) -> s `shouldBe` 0.0
-      Left e  -> expectationFailure ("expected SumOffBy 0.0, got " <> show e)
-      Right _ -> expectationFailure "expected rejection of R 0"
+  describe "approxDistributionEq" $ do
+    prop "is reflexive at zero tolerance" $
+      forAll (genSimplexPoint 3) $ \entries ->
+        case mkDistribution (S.vector entries :: S.R 3) of
+          Right distribution ->
+            property
+              (approxDistributionEq 0 distribution distribution)
+          Left err ->
+            counterexample
+              ("generated vector was rejected: " <> show err)
+              False

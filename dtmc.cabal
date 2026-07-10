@@ -2,61 +2,69 @@ cabal-version:      3.0
 name:               dtmc
 version:            0.1.0.0
 synopsis:           Type-safe discrete-time Markov chains
-description:        Finite discrete-time Markov chains with type-level dimensions,
-                    validated probability distributions and transition matrices,
-                    and deterministic-testable simulation primitives.
+description:
+  Finite discrete-time Markov chains with type-level dimensions,
+  validated probability distributions and transition matrices,
+  and deterministic-testable simulation primitives.
 category:           Math, Probability
 homepage:           https://github.com/kholmetskii/dtmc
 bug-reports:        https://github.com/kholmetskii/dtmc/issues
 author:             Arkadii Kholmetskii
 build-type:         Simple
 extra-doc-files:    README.md
-                    NUMERICS.md
-                    docs/DECISIONS.md
-                    docs/TESTING.md
+
 common lang
-  default-language:   GHC2021
-  default-extensions: DataKinds
-                    , RoleAnnotations
-  ghc-options:        -Wall
-                      -Wcompat
-                      -Wincomplete-uni-patterns
-                      -Wredundant-constraints
+  default-language: GHC2021
+
+  default-extensions:
+      DataKinds
+    , RoleAnnotations
+
+  ghc-options:
+      -Wall
+      -Wcompat
+      -Wincomplete-uni-patterns
+      -Wredundant-constraints
 
 library
-  import:          lang
-  hs-source-dirs:  src
+  import:           lang
+  hs-source-dirs:   src
+
   exposed-modules:
-    Dtmc
-    Dtmc.Distribution
-    Dtmc.TransitionMatrix
-    Dtmc.Simulation
+      Dtmc
+      Dtmc.Distribution
+      Dtmc.TransitionMatrix
+      Dtmc.Simulation
+
   other-modules:
-    Dtmc.Internal.Types
-    Dtmc.Internal.Simplex
+      Dtmc.Internal.Types
+      Dtmc.Internal.Simplex
+
   build-depends:
-      base            >=4.17 && <5
-    , hmatrix         >=0.20
+      base >=4.17 && <5
     , finite-typelits
+    , hmatrix >=0.20
     , mwc-random
     , primitive
 
 test-suite spec
-  import:             lang
-  type:               exitcode-stdio-1.0
-  hs-source-dirs:     test
-  main-is:            Spec.hs
+  import:           lang
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Spec.hs
+
   other-modules:
-      Dtmc.Generators
       Dtmc.DistributionSpec
       Dtmc.TransitionMatrixSpec
       Dtmc.SimulationSpec
-  build-tool-depends: hspec-discover:hspec-discover
+      Dtmc.TestSupport
+
   build-depends:
-      base
+      base >=4.17 && <5
     , dtmc
-    , hmatrix
     , finite-typelits
-    , mwc-random
+    , hmatrix
     , hspec
+    , hspec-discover
+    , mwc-random
     , QuickCheck

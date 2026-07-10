@@ -12,7 +12,7 @@ module Dtmc.TransitionMatrix
 import Data.Bifunctor (first)
 import Data.Finite (Finite, getFinite)
 import Data.Foldable (traverse_)
-import Dtmc.Distribution (Distribution)
+import Dtmc.Internal.Types ( Distribution )
 import Dtmc.Internal.Simplex
   ( SimplexError (..)
   , validateSimplex
