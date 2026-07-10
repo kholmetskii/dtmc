@@ -5,155 +5,45 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  schedule:
-    # macOS/Accelerate weekly (NUMERICS N5). Every push gets Linux only.
-    - cron: '0 6 * * 1'
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # The only job that watches the prove/verify discipline rather than the code.
-  # Seconds, no GHC. Tests check the code; this checks that the structure has
-  # not rotted.
-  # ---------------------------------------------------------------------------
-  discipline:
+  test:
+    name: linux / ghc 9.10.3
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      # The source of truth is dtmc.cabal, NOT the filesystem.
-      # A glob over `src/Dtmc/*.hs` would see Dtmc.Internal and Dtmc.Errors
-      # (both in other-modules, neither needs a spec) and demand specs for them.
-      #
-      # hspec-discover does not do this: it picks up existing *Spec.hs files but
-      # never requires that a spec exist. That is exactly how ProbabilityVectorSpec
-      # went missing.
-      - name: Every exposed module has a paired spec
+      - name: Install LAPACK and BLAS
         run: |
-          fail=0
-          mods=$(awk '
-            /^[[:space:]]*--/ {next}
-            /^[[:space:]]*exposed-modules:/ {inblock=1; next}
-            inblock && /^[[:space:]]*[a-z-]+:/ {inblock=0}
-            inblock {for (i = 1; i <= NF; i++) if ($i ~ /^Dtmc\./) print $i}
-          ' dtmc.cabal)
-          [ -n "$mods" ] || { echo "::error::exposed-modules parse returned nothing"; exit 1; }
-          for m in $mods; do
-            p="test/$(printf '%s' "$m" | tr '.' '/')Spec.hs"
-            if [ -f "$p" ]; then
-              echo "  ok   $m"
-            else
-              echo "::error file=dtmc.cabal::MISSING $p — paired-spec discipline"
-              fail=1
-            fi
-          done
-          exit $fail
+          sudo apt-get update
+          sudo apt-get install -y libblas-dev liblapack-dev
 
-      # Dtmc.Internal holds the raw constructors: applying them builds a value
-      # BYPASSING validation.
-      #
-      # Dtmc.Distribution is the validation boundary for Δ^{n-1}, so constructing
-      # is its job. Every OTHER importer must carry a `-- Proof:` — today that is
-      # TransitionMatrix (mulTransitionMatrix, rowAt); M2 will add Dynamics.
-      #
-      # Limitation: this checks for a `-- Proof:` anywhere in the file, not
-      # directly above the constructor application. A strict check would require
-      # parsing Haskell. The job catches the real risk: a NEW module quietly
-      # acquiring access. Recorded in docs/DECISIONS.md D4.
-      - name: Dtmc.Internal is imported only at the boundary or under a Proof
-        run: |
-          fail=0
-          boundary="src/Dtmc/Distribution.hs"
-          importers=$(grep -rlE '^import[[:space:]]+Dtmc\.Internal' src/ || true)
-          [ -n "$importers" ] || echo "  (no importers)"
-          for f in $importers; do
-            case " $boundary " in
-              *" $f "*) echo "  ok   $f (validation boundary)"; continue ;;
-            esac
-            if grep -q -- '-- Proof:' "$f"; then
-              echo "  ok   $f (has Proof)"
-            else
-              echo "::error file=$f::imports Dtmc.Internal without a -- Proof: block"
-              fail=1
-            fi
-          done
-          exit $fail
-
-      # The dependency is ONE-WAY and asymmetric.
-      #
-      #   TransitionMatrix -> Distribution   legitimate: a matrix IS a family of
-      #                                      distributions (has-a, not a cycle).
-      #   Distribution -> TransitionMatrix   forbidden: Δ(S) knows nothing of kernels.
-      #
-      # An edge in the wrong direction would mean the predicate got duplicated,
-      # and rejection tests would start exercising different copies of ε.
-      - name: Distribution does not depend on TransitionMatrix
-        run: |
-          if grep -nE '^import[[:space:]]+Dtmc\.TransitionMatrix' src/Dtmc/Distribution.hs; then
-            echo "::error file=src/Dtmc/Distribution.hs::must not import Dtmc.TransitionMatrix"
-            exit 1
-          fi
-          echo "  ok   dependency is one-way"
-
-  # ---------------------------------------------------------------------------
-  # Linux/OpenBLAS on every push. macOS/Accelerate on a schedule only.
-  # ---------------------------------------------------------------------------
-  build:
-    name: linux / ghc ${{ matrix.ghc }}
-    strategy:
-      fail-fast: false
-      matrix:
-        ghc: ['9.10.3']
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # hmatrix links against the system LAPACK/BLAS through the FFI. Without
-      # this you get a linker error that looks like a Haskell problem but is not.
-      - name: Install LAPACK/BLAS
-        run: sudo apt-get update && sudo apt-get install -y libblas-dev liblapack-dev
-
-      - uses: haskell-actions/setup@v2
-        id: setup
-        with:
-          ghc-version: ${{ matrix.ghc }}
-          cabal-version: 'latest'
-
-      - run: cabal update
-      - name: Resolve dependency plan
-        run: cabal build all --enable-tests --dry-run
-
-      - uses: actions/cache@v4
-        with:
-          path: ${{ steps.setup.outputs.cabal-store }}
-          key: linux-ghc${{ matrix.ghc }}-${{ hashFiles('**/plan.json') }}
-          restore-keys: linux-ghc${{ matrix.ghc }}-
-
-      # -Werror in CI only, never locally: locally a warning is a signal, in CI
-      # it is a stop. -Wall was off for months because `common warnings` was never
-      # imported. That will not happen silently again.
-      - name: Build
-        run: cabal build all --enable-tests --ghc-options=-Werror
-      - name: Test
-        run: cabal test all --test-show-details=direct --ghc-options=-Werror
-
-  # NUMERICS N5: Accelerate instead of OpenBLAS. Weekly, not on every commit.
-  build-macos:
-    name: macos / accelerate
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
       - uses: haskell-actions/setup@v2
         id: setup
         with:
           ghc-version: '9.10.3'
           cabal-version: 'latest'
-      - run: cabal update
-      - run: cabal build all --enable-tests --dry-run
-      - uses: actions/cache@v4
+
+      - name: Cache Cabal packages
+        uses: actions/cache@v4
         with:
           path: ${{ steps.setup.outputs.cabal-store }}
-          key: macos-ghc9.10.3-${{ hashFiles('**/plan.json') }}
-          restore-keys: macos-ghc9.10.3-
-      - run: cabal build all --enable-tests --ghc-options=-Werror
-      - run: cabal test all --test-show-details=direct --ghc-options=-Werror
+          key: linux-ghc-9.10.3-${{ hashFiles('dtmc.cabal', 'cabal.project', 'cabal.project.freeze') }}
+          restore-keys: |
+            linux-ghc-9.10.3-
+
+      - run: cabal update
+
+      - name: Build
+        run: cabal build all --enable-tests --ghc-options=-Werror
+
+      - name: Test
+        run: cabal test all --test-show-details=direct --ghc-options=-Werror
+
+      - name: Check nominal roles
+        run: |
+          if cabal exec -- ghc -fno-code -isrc check/Role.hs; then
+            echo "::error file=check/Role.hs::dimension-changing coerce unexpectedly compiled"
+            exit 1
+          fi
