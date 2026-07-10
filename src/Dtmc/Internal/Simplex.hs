@@ -4,7 +4,9 @@ module Dtmc.Internal.Simplex
   , validateSimplex
   ) where
 
-import GHC.TypeNats (KnownNat)
+import GHC.TypeNats
+  ( KnownNat
+  )
 import qualified Numeric.LinearAlgebra as LA
 import qualified Numeric.LinearAlgebra.Static as S
 

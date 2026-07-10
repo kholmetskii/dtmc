@@ -1,10 +1,20 @@
 {-# LANGUAGE TypeApplications #-}
 
-module Dtmc.TransitionMatrixSpec (spec) where
+module Dtmc.TransitionMatrixSpec
+  ( spec
+  ) where
 
-import Dtmc.Distribution
-  ( mkDistribution
+import Dtmc
+  ( SimplexError (..)
+  , TransitionError (..)
+  , TransitionMatrix
+  , approxTransitionMatrixEq
+  , mkDistribution
+  , mkTransitionMatrix
+  , mulTransitionMatrix
+  , rowAt
   , unDistribution
+  , unTransitionMatrix
   )
 import Dtmc.TestSupport
   ( bumpSmallestInFirstRow
@@ -12,21 +22,24 @@ import Dtmc.TestSupport
   , modifyMatrixRows
   , setFirstEntry
   )
-import Dtmc.TransitionMatrix
-  ( SimplexError (..)
-  , TransitionError (..)
-  , TransitionMatrix
-  , approxTransitionMatrixEq
-  , mkTransitionMatrix
-  , mulTransitionMatrix
-  , rowAt
-  , unTransitionMatrix
-  )
 import qualified Numeric.LinearAlgebra as LA
 import qualified Numeric.LinearAlgebra.Static as S
 import Test.Hspec
-import Test.Hspec.QuickCheck (prop)
+  ( Spec
+  , describe
+  , it
+  , shouldBe
+  )
+import Test.Hspec.QuickCheck
+  ( prop
+  )
 import Test.QuickCheck
+  ( conjoin
+  , counterexample
+  , forAll
+  , property
+  , (===)
+  )
 
 cyclicThree :: TransitionMatrix 3
 cyclicThree =

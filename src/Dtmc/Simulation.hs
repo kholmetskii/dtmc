@@ -3,18 +3,28 @@ module Dtmc.Simulation
   , step
   ) where
 
-import Control.Monad.Primitive (PrimMonad, PrimState)
-import Data.Finite (Finite, finite)
-import Dtmc.Distribution
+import Control.Monad.Primitive
+  ( PrimMonad
+  , PrimState
+  )
+import Data.Finite
+  ( Finite
+  , finite
+  )
+import Dtmc.Internal.Types 
   ( Distribution
-  , simplexTolerance
-  , unDistribution
+  , unDistribution 
+  )
+import Dtmc.Internal.Simplex
+  ( simplexTolerance
   )
 import Dtmc.TransitionMatrix
   ( TransitionMatrix
   , rowAt
   )
-import GHC.TypeNats (KnownNat)
+import GHC.TypeNats
+  ( KnownNat
+  )
 import qualified Numeric.LinearAlgebra as LA
 import qualified Numeric.LinearAlgebra.Static as S
 import qualified System.Random.MWC as MWC

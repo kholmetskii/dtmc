@@ -1,21 +1,31 @@
-module Dtmc.SimulationSpec (spec) where
+module Dtmc.SimulationSpec
+  ( spec
+  ) where
 
-import Control.Monad (replicateM)
-import Control.Monad.ST (runST)
-import Data.Finite (Finite)
-import Dtmc.Distribution (mkDistribution)
-import Dtmc.Simulation
-  ( sampleFrom
-  , step
+import Control.Monad
+  ( replicateM
   )
-import Dtmc.TransitionMatrix
+import Control.Monad.ST
+  ( runST
+  )
+import Data.Finite
+  ( Finite
+  )
+import Dtmc
   ( TransitionMatrix
+  , mkDistribution
   , mkTransitionMatrix
+  , sampleFrom
+  , step
   )
 import qualified Numeric.LinearAlgebra.Static as S
 import qualified System.Random.MWC as MWC
 import Test.Hspec
-
+  ( Spec
+  , describe
+  , it
+  , shouldBe
+  )
 cyclicThree :: TransitionMatrix 3
 cyclicThree =
   either (error . show) id $

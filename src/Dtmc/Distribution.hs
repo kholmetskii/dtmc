@@ -1,22 +1,24 @@
 module Dtmc.Distribution
   ( Distribution
-  , unDistribution
-  , SimplexError (..)
   , DistributionError (..)
-  , simplexTolerance
-  , validateSimplex
   , mkDistribution
+  , unDistribution
   , approxDistributionEq
   ) where
 
-import Data.Bifunctor (first)
 import Dtmc.Internal.Simplex
-  ( SimplexError (..)
-  , simplexTolerance
+  ( SimplexError
   , validateSimplex
   )
-import Dtmc.Internal.Types (Distribution (..))
-import GHC.TypeNats (KnownNat)
+import Dtmc.Internal.Types
+  ( Distribution (..)
+  )
+import GHC.TypeNats
+  ( KnownNat
+  )
+import Data.Bifunctor
+  ( first
+  )
 import qualified Numeric.LinearAlgebra as LA
 import qualified Numeric.LinearAlgebra.Static as S
 

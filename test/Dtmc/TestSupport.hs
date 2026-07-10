@@ -10,8 +10,13 @@ module Dtmc.TestSupport
   , setFirstEntry
   ) where
 
-import Data.Proxy (Proxy (..))
-import GHC.TypeNats (KnownNat, natVal)
+import Data.Proxy
+  ( Proxy (..)
+  )
+import GHC.TypeNats
+  ( KnownNat
+  , natVal
+  )
 import qualified Numeric.LinearAlgebra as LA
 import qualified Numeric.LinearAlgebra.Static as S
 import Test.QuickCheck

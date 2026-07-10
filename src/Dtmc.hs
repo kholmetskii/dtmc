@@ -3,22 +3,39 @@ module Dtmc
   , DistributionError (..)
   , mkDistribution
   , unDistribution
+  , approxDistributionEq
   , TransitionMatrix
   , TransitionError (..)
   , mkTransitionMatrix
   , unTransitionMatrix
-  , rowAt
   , mulTransitionMatrix
+  , rowAt
+  , approxTransitionMatrixEq
+  , SimplexError (..)
   , sampleFrom
   , step
   ) where
 
 import Dtmc.Distribution
-    ( DistributionError(..), Distribution(..), mkDistribution )
-import Dtmc.Simulation ( sampleFrom, step )
+  ( Distribution
+  , DistributionError (..)
+  , mkDistribution
+  , unDistribution
+  , approxDistributionEq
+  )
 import Dtmc.TransitionMatrix
-    ( TransitionError(..),
-      TransitionMatrix(..),
-      mkTransitionMatrix,
-      mulTransitionMatrix,
-      rowAt )
+  ( TransitionMatrix
+  , TransitionError (..)
+  , mkTransitionMatrix
+  , unTransitionMatrix
+  , mulTransitionMatrix
+  , rowAt
+  , approxTransitionMatrixEq
+  )
+import Dtmc.Internal.Simplex
+  ( SimplexError (..)
+  )
+import Dtmc.Simulation
+  ( sampleFrom
+  , step
+  )

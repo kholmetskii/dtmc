@@ -1,27 +1,34 @@
 module Dtmc.TransitionMatrix
   ( TransitionMatrix
-  , unTransitionMatrix
-  , SimplexError (..)
   , TransitionError (..)
   , mkTransitionMatrix
+  , unTransitionMatrix
   , mulTransitionMatrix
   , rowAt
   , approxTransitionMatrixEq
   ) where
 
-import Data.Bifunctor (first)
-import Data.Finite (Finite, getFinite)
-import Data.Foldable (traverse_)
-import Dtmc.Internal.Types ( Distribution )
+import Data.Bifunctor
+  ( first
+  )
+import Data.Finite
+  ( Finite
+  , getFinite
+  )
+import Data.Foldable
+  ( traverse_
+  )
 import Dtmc.Internal.Simplex
-  ( SimplexError (..)
+  ( SimplexError
   , validateSimplex
   )
 import Dtmc.Internal.Types
   ( Distribution (..)
   , TransitionMatrix (..)
   )
-import GHC.TypeNats (KnownNat)
+import GHC.TypeNats
+  ( KnownNat
+  )
 import qualified Numeric.LinearAlgebra as LA
 import qualified Numeric.LinearAlgebra.Static as S
 

@@ -3,7 +3,10 @@ module Dtmc.Internal.Types
   , TransitionMatrix (..)
   ) where
 
-import GHC.TypeNats (KnownNat, Nat)
+import GHC.TypeNats 
+  (KnownNat
+  , Nat
+  )
 import qualified Numeric.LinearAlgebra.Static as S
 
 newtype Distribution (n :: Nat) = Distribution
