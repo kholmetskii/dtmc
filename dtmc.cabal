@@ -2,6 +2,13 @@ cabal-version:      3.0
 name:               dtmc
 version:            0.1.0.0
 synopsis:           Type-safe discrete-time Markov chains
+description:        Finite discrete-time Markov chains with type-level dimensions,
+                    validated probability distributions and transition matrices,
+                    and deterministic-testable simulation primitives.
+category:           Math, Probability
+homepage:           https://github.com/kholmetskii/dtmc
+bug-reports:        https://github.com/kholmetskii/dtmc/issues
+author:             Arkadii Kholmetskii
 build-type:         Simple
 extra-doc-files:    README.md
                     NUMERICS.md
@@ -20,12 +27,13 @@ library
   import:          lang
   hs-source-dirs:  src
   exposed-modules:
-      Dtmc.Distribution
-      Dtmc.TransitionMatrix
-      Dtmc.Simulation
+    Dtmc
+    Dtmc.Distribution
+    Dtmc.TransitionMatrix
+    Dtmc.Simulation
   other-modules:
-      Dtmc.Internal
-      Dtmc.Errors
+    Dtmc.Internal.Types
+    Dtmc.Internal.Simplex
   build-depends:
       base            >=4.17 && <5
     , hmatrix         >=0.20
