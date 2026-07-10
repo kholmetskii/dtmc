@@ -68,9 +68,9 @@ newtype TransitionMatrix (n :: Nat) = TransitionMatrix
 --
 -- A role annotation can only strengthen the inferred role. Regression test:
 -- check/Role.hs must FAIL to compile.
--- type role Distribution nominal
+type role Distribution nominal
 
--- type role TransitionMatrix nominal
+type role TransitionMatrix nominal
 
 -- hmatrix declares Show (R n) and Show (L m n) with a KnownNat context: you
 -- need the size at runtime to print. Standalone deriving makes that
