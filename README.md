@@ -10,16 +10,16 @@ The claim is two-tiered, and the difference matters.
 multiplication. That is `Numeric.LinearAlgebra.Static` — `R n`, `Sq n`, `KnownNat`.
 
 **Checked once at a boundary, then carried by the type:** stochasticity. The
-`StochasticMatrix` constructor is hidden; the only way to obtain a value is
-`mkStochasticMatrix`, which runs every row through `validateSimplexPoint`.
+`TransitionMatrix` constructor is hidden; the only way to obtain a value is
+`mkTransitionMatrix`, which runs every row through `Distribution`'s `validateSimplex`.
 
 The compiler does **not** prove stochasticity: `S.matrix [1,2,-3,0.5] :: Sq 2` is
-a perfectly valid `Sq 2`. And `StochasticMatrix n` does not mean "the rows sum to
+a perfectly valid `Sq 2`. And `TransitionMatrix n` does not mean "the rows sum to
 1"; it means "no row deviates from 1 by more than ε, and this was checked once at
 a single audited boundary". The justification for ε is [NUMERICS.md](NUMERICS.md), N2.
 
 hmatrix's dimension indices have phantom roles, so migrating to `Static` does not
-by itself close `coerce :: StochasticMatrix 2 -> StochasticMatrix 3`. The carriers
+by itself close `coerce :: TransitionMatrix 2 -> TransitionMatrix 3`. The carriers
 are annotated `type role ... nominal`; the regression test is `check/Role.hs`,
 which **must fail to compile** ([docs/DECISIONS.md](docs/DECISIONS.md), D2).
 
@@ -29,9 +29,9 @@ Every theorem carries a `-- Proof:` block (a prose derivation) and a paired
 property or simulation. The proof pays rent: it licenses a total signature.
 
 ```haskell
-mulStochasticMatrix :: KnownNat n => StochasticMatrix n -> StochasticMatrix n -> StochasticMatrix n
+mulTransitionMatrix :: KnownNat n => TransitionMatrix n -> TransitionMatrix n -> TransitionMatrix n
 --                                                                              ^ no Either: closure is proved
-rowAt :: KnownNat n => StochasticMatrix n -> Finite n -> Distribution n
+rowAt :: KnownNat n => TransitionMatrix n -> Finite n -> Distribution n
 --                                                       ^ no Either: the row is already validated
 ```
 
@@ -40,7 +40,8 @@ supposedly proves, the proof carries nothing.
 
 The discipline is enforced by CI, not by memory: every exposed module has a paired
 spec; `Dtmc.Internal` is imported only at the validation boundary or under a
-`-- Proof:`; there is no import edge between `Distribution` and `StochasticMatrix`.
+`-- Proof:`; the `Distribution` → `TransitionMatrix` dependency direction never
+reverses.
 
 ## Numerical honesty
 

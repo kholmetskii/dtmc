@@ -19,14 +19,13 @@ the sum — returns `EntryAboveOne`, not the expected `SumOffBy`.
 **Fix.** For a simplex point `min ≤ 1/n ≤ 0.5`, so after `+1e-6` the smallest
 coordinate stays safely below `1 + ε`. The error is isolated to `SumOffBy`.
 
-**Side conclusion.** Two failures from one seed, in `SimplexSpec` and
-`DistributionSpec`, are direct evidence that the predicate is shared (D3).
+**Side conclusion.** Two failures from one seed, in the predicate and the constructor properties, are direct evidence that the predicate is shared (D3).
 
 ---
 
 ## T2 — a 3-cycle, not `I₂`
 
-**Where.** `Dtmc.KernelSpec`, `Dtmc.SimulationSpec`.
+**Where.** `Dtmc.TransitionMatrixSpec`, `Dtmc.SimulationSpec`.
 
 **Problem.** The old test used the identity matrix `I₂`. It is **symmetric**:
 row `i` equals column `i`. Had `rowAt` used `toColumns` instead of `toRows`, both
@@ -76,7 +75,7 @@ input (`[1.0, 0.0, 0.0]`) but stays silent about the result
 **Rule.**
 
 ```haskell
-case validateSimplexPoint v of
+case validateSimplex v of
   Left (SumOffBy _) -> property True
   other -> counterexample ("expected SumOffBy, got " <> show other) False
 ```

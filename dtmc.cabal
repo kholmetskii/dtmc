@@ -20,13 +20,12 @@ library
   import:          lang
   hs-source-dirs:  src
   exposed-modules:
-      Dtmc.Simplex
       Dtmc.Distribution
-      Dtmc.StochasticMatrix
-      Dtmc.Kernel
+      Dtmc.TransitionMatrix
       Dtmc.Simulation
   other-modules:
       Dtmc.Internal
+      Dtmc.Errors
   build-depends:
       base            >=4.17 && <5
     , hmatrix         >=0.20
@@ -41,10 +40,8 @@ test-suite spec
   main-is:            Spec.hs
   other-modules:
       Dtmc.Generators
-      Dtmc.SimplexSpec
       Dtmc.DistributionSpec
-      Dtmc.StochasticMatrixSpec
-      Dtmc.KernelSpec
+      Dtmc.TransitionMatrixSpec
       Dtmc.SimulationSpec
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:

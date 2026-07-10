@@ -8,12 +8,12 @@ Test design lives in [docs/TESTING.md](docs/TESTING.md) (`T*`).
 
 ---
 
-## N1 — `mulStochasticMatrix` does not re-validate its result
+## N1 — `mulTransitionMatrix` does not re-validate its result
 
-**Where.** `Dtmc.StochasticMatrix.mulStochasticMatrix`.
+**Where.** `Dtmc.TransitionMatrix.mulTransitionMatrix`.
 
 **Choice.** The result is returned through the raw constructor, without
-`mkStochasticMatrix`.
+`mkTransitionMatrix`.
 
 **Why.** The closure theorem is exact. Float row sums of the product equal 1 to
 within `O(n·u)`, `u ≈ 1.1e-16`. Running a provably correct result through the
@@ -24,14 +24,14 @@ strict constructor trades a proof for a tolerance gamble that can only lose
 function carries a `-- Proof:` block and still returns `Maybe`/`Either` for the
 property it supposedly proves, the proof carries nothing.
 
-**Checked by.** `Dtmc.StochasticMatrixSpec.prop_productRowStochastic`, which
+**Checked by.** `Dtmc.TransitionMatrixSpec.prop_productRowStochastic`, which
 *does* re-validate — appropriate in a test, not in the implementation.
 
 ---
 
 ## N2 — `simplexTolerance = 1e-9`, absolute
 
-**Where.** `Dtmc.Simplex`.
+**Where.** `Dtmc.Distribution`.
 
 **Choice.** `Double` plus an ε.
 
@@ -53,7 +53,7 @@ rows in `Double`, so their sums land in `1 ± O(n·u)`. Any tighter and "generat
 matrices are always accepted" fails. At `n ≤ 10³` that is `≈ 1e-13` — four orders
 of margin. Absolute equals relative here because the target is exactly 1.
 
-**What this means.** `StochasticMatrix n` does NOT mean "the rows sum to 1". It
+**What this means.** `TransitionMatrix n` does NOT mean "the rows sum to 1". It
 means "no row deviates from 1 by more than ε, and this was checked once at a
 constructor boundary".
 
@@ -63,7 +63,7 @@ constructor boundary".
 
 ## N3 — naive summation
 
-**Where.** `Dtmc.Simplex.validateSimplexPoint`, `total = sum entries`.
+**Where.** `Dtmc.Distribution.validateSimplex`, `total = sum entries`.
 
 **Choice.** Naive summation, error `O(n·u)`. Rejected: Kahan/Neumaier, `O(u)`.
 
@@ -109,7 +109,7 @@ release.
 - Monte Carlo: `O(1/√N)`; at `N = 2·10⁵` that is `≈ 1.1e-3` — **six orders of
   magnitude looser**.
 
-That is why `approxDistributionEq` and `approxStochasticMatrixEq` take the
+That is why `approxDistributionEq` and `approxTransitionMatrixEq` take the
 tolerance as an **explicit parameter** rather than reading `simplexTolerance`.
 Reach for `simplexTolerance` in the empirical-marginal convergence test and CI is
 red forever; reach for the MC tolerance in a constructor and the constructor

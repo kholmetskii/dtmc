@@ -21,8 +21,8 @@ jobs:
       - uses: actions/checkout@v4
 
       # The source of truth is dtmc.cabal, NOT the filesystem.
-      # A glob over `src/Dtmc/*.hs` would see Dtmc.Internal (it is in
-      # other-modules and needs no spec) and demand InternalSpec.hs.
+      # A glob over `src/Dtmc/*.hs` would see Dtmc.Internal and Dtmc.Errors
+      # (both in other-modules, neither needs a spec) and demand specs for them.
       #
       # hspec-discover does not do this: it picks up existing *Spec.hs files but
       # never requires that a spec exist. That is exactly how ProbabilityVectorSpec
@@ -31,6 +31,7 @@ jobs:
         run: |
           fail=0
           mods=$(awk '
+            /^[[:space:]]*--/ {next}
             /^[[:space:]]*exposed-modules:/ {inblock=1; next}
             inblock && /^[[:space:]]*[a-z-]+:/ {inblock=0}
             inblock {for (i = 1; i <= NF; i++) if ($i ~ /^Dtmc\./) print $i}
@@ -50,9 +51,9 @@ jobs:
       # Dtmc.Internal holds the raw constructors: applying them builds a value
       # BYPASSING validation.
       #
-      # Dtmc.Distribution and Dtmc.StochasticMatrix are the validation boundary
-      # itself, so constructing is their job. Every OTHER importer must carry a
-      # `-- Proof:` (today that is Kernel; M2 will add Dynamics).
+      # Dtmc.Distribution is the validation boundary for Δ^{n-1}, so constructing
+      # is its job. Every OTHER importer must carry a `-- Proof:` — today that is
+      # TransitionMatrix (mulTransitionMatrix, rowAt); M2 will add Dynamics.
       #
       # Limitation: this checks for a `-- Proof:` anywhere in the file, not
       # directly above the constructor application. A strict check would require
@@ -61,7 +62,7 @@ jobs:
       - name: Dtmc.Internal is imported only at the boundary or under a Proof
         run: |
           fail=0
-          boundary="src/Dtmc/Distribution.hs src/Dtmc/StochasticMatrix.hs"
+          boundary="src/Dtmc/Distribution.hs"
           importers=$(grep -rlE '^import[[:space:]]+Dtmc\.Internal' src/ || true)
           [ -n "$importers" ] || echo "  (no importers)"
           for f in $importers; do
@@ -77,22 +78,21 @@ jobs:
           done
           exit $fail
 
-      # Δ^{n-1} is one predicate (Dtmc.Simplex). Distribution and StochasticMatrix
-      # know nothing of each other. An edge would mean the predicate got duplicated
-      # again, and rejection tests would start exercising different copies of ε.
-      - name: No import edge between Distribution and StochasticMatrix
+      # The dependency is ONE-WAY and asymmetric.
+      #
+      #   TransitionMatrix -> Distribution   legitimate: a matrix IS a family of
+      #                                      distributions (has-a, not a cycle).
+      #   Distribution -> TransitionMatrix   forbidden: Δ(S) knows nothing of kernels.
+      #
+      # An edge in the wrong direction would mean the predicate got duplicated,
+      # and rejection tests would start exercising different copies of ε.
+      - name: Distribution does not depend on TransitionMatrix
         run: |
-          fail=0
-          if grep -nE '^import[[:space:]]+Dtmc\.StochasticMatrix' src/Dtmc/Distribution.hs; then
-            echo "::error file=src/Dtmc/Distribution.hs::must not import Dtmc.StochasticMatrix"
-            fail=1
+          if grep -nE '^import[[:space:]]+Dtmc\.TransitionMatrix' src/Dtmc/Distribution.hs; then
+            echo "::error file=src/Dtmc/Distribution.hs::must not import Dtmc.TransitionMatrix"
+            exit 1
           fi
-          if grep -nE '^import[[:space:]]+Dtmc\.Distribution' src/Dtmc/StochasticMatrix.hs; then
-            echo "::error file=src/Dtmc/StochasticMatrix.hs::must not import Dtmc.Distribution"
-            fail=1
-          fi
-          [ $fail -eq 0 ] && echo "  ok   no edge"
-          exit $fail
+          echo "  ok   dependency is one-way"
 
   # ---------------------------------------------------------------------------
   # Linux/OpenBLAS on every push. macOS/Accelerate on a schedule only.

@@ -4,22 +4,22 @@ import Control.Monad (replicateM)
 import Control.Monad.ST (runST)
 import Data.Finite (Finite)
 import Dtmc.Simulation (step)
-import Dtmc.StochasticMatrix (StochasticMatrix, mkStochasticMatrix)
+import Dtmc.TransitionMatrix (TransitionMatrix, mkTransitionMatrix)
 import qualified Numeric.LinearAlgebra.Static as S
 import qualified System.Random.MWC as MWC
-import Test.Hspec
+import Test.Hspec ( Spec, it, shouldBe )
 
-cyclic3 :: StochasticMatrix 3
+cyclic3 :: TransitionMatrix 3
 cyclic3 =
   either (error . show) id $
-    mkStochasticMatrix (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0])
+    mkTransitionMatrix (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0])
 
 -- Deliberately asymmetric: state 0 is absorbing, state 1 is not.
 -- (The identity matrix would be symmetric and useless as an oracle.)
-absorbing2 :: StochasticMatrix 2
+absorbing2 :: TransitionMatrix 2
 absorbing2 =
   either (error . show) id $
-    mkStochasticMatrix (S.matrix [1, 0, 0.3, 0.7])
+    mkTransitionMatrix (S.matrix [1, 0, 0.3, 0.7])
 
 -- Everything runs in ST with a fixed seed (MWC.create), so the tests are
 -- DETERMINISTIC (docs/TESTING.md T5). This is also the only place where step's

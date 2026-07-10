@@ -1,8 +1,15 @@
 -- |
 -- Module      : Dtmc.Simulation
 --
--- The simulation primitive. Does not import 'Dtmc.Internal': it constructs
--- only through 'Dtmc.Kernel.rowAt'.
+-- The simulation primitive.
+--
+-- A separate module for a boring reason, not an architectural one: it pulls in
+-- @mwc-random@ and @primitive@. Folding 'step' into 'Dtmc.TransitionMatrix'
+-- would mean that anyone wanting to multiply two matrices drags in a
+-- pseudo-random number generator.
+--
+-- Does not import 'Dtmc.Internal': it constructs only through
+-- 'Dtmc.TransitionMatrix.rowAt'.
 module Dtmc.Simulation
   ( sampleFrom
   , step
@@ -10,9 +17,8 @@ module Dtmc.Simulation
 
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Data.Finite (Finite, finite)
-import Dtmc.Internal ( Distribution, unDistribution, StochasticMatrix )
-import Dtmc.Kernel (rowAt)
-import Dtmc.Simplex (simplexTolerance)
+import Dtmc.Distribution (Distribution, simplexTolerance, unDistribution)
+import Dtmc.TransitionMatrix (TransitionMatrix, rowAt)
 import GHC.TypeNats (KnownNat)
 import qualified Numeric.LinearAlgebra as LA
 import qualified Numeric.LinearAlgebra.Static as S
@@ -52,11 +58,11 @@ sampleFrom d gen = do
 -- distribution, sample from it.
 step
   :: (KnownNat n, PrimMonad m)
-  => StochasticMatrix n -> Finite n -> MWC.Gen (PrimState m) -> m (Finite n)
+  => TransitionMatrix n -> Finite n -> MWC.Gen (PrimState m) -> m (Finite n)
 step p i = sampleFrom (rowAt p i)
 
 -- | Zeroes ONLY those negative coordinates that
--- 'Dtmc.Simplex.validateSimplexPoint' tolerates, i.e. those in [-ε, 0).
+-- 'Dtmc.Distribution.validateSimplex' tolerates, i.e. those in [-ε, 0).
 --
 -- Anything below is a violated invariant, i.e. a bug, not data. The previous
 -- version was named @clampTinyNegativeEntries@ and silently clamped ANY
