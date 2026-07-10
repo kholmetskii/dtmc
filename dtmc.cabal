@@ -65,6 +65,8 @@ test-suite spec
     , finite-typelits
     , hmatrix
     , hspec
-    , hspec-discover
     , mwc-random
     , QuickCheck
+
+  build-tool-depends:
+      hspec-discover:hspec-discover
