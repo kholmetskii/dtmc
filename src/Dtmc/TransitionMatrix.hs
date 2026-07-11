@@ -37,18 +37,17 @@ data TransitionError = InRow Int SimplexError
 
 mkTransitionMatrix :: (KnownNat n) => S.Sq n -> Either TransitionError (TransitionMatrix n)
 mkTransitionMatrix matrix =
-    TransitionMatrix matrix <$ traverse_ validateRow (zip [0 ..] (S.toRows matrix))
+    TransitionMatrix { unTransitionMatrix = matrix } <$ traverse_ validateRow (zip [0 ..] (S.toRows matrix))
   where
     validateRow (index, row) =
         first (InRow index) (validateSimplex row)
 
 mulTransitionMatrix :: (KnownNat n) => TransitionMatrix n -> TransitionMatrix n -> TransitionMatrix n
-mulTransitionMatrix (TransitionMatrix left) (TransitionMatrix right) =
-    TransitionMatrix (left S.<> right)
+mulTransitionMatrix = (<>)
 
 rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> Distribution n
 rowAt (TransitionMatrix matrix) index =
-    Distribution (S.toRows matrix !! fromIntegral (getFinite index))
+    Distribution { unDistribution = S.toRows matrix !! fromIntegral (getFinite index) }
 
 approxTransitionMatrixEq :: (KnownNat n) => Double -> TransitionMatrix n -> TransitionMatrix n -> Bool
 approxTransitionMatrixEq tolerance (TransitionMatrix left) (TransitionMatrix right) =
