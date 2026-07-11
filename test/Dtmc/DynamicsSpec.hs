@@ -8,18 +8,27 @@ module Dtmc.DynamicsSpec (
 import Data.Proxy (
     Proxy (..),
  )
-import Dtmc.Distribution
-    ( approxDistributionEq, mkDistribution, unDistribution )
-import Dtmc.Dynamics
-    ( chapmanKolmogorov, evolve, evolveN, identityMatrix, matrixPower )
-import Dtmc.TransitionMatrix
-    ( TransitionMatrix,
-      approxTransitionMatrixEq,
-      mkTransitionMatrix,
-      unTransitionMatrix )
+import Dtmc.Distribution (
+    approxDistributionEq,
+    mkDistribution,
+    unDistribution,
+ )
+import Dtmc.Dynamics (
+    chapmanKolmogorov,
+    evolve,
+    evolveN,
+    identityMatrix,
+    matrixPower,
+ )
 import Dtmc.TestSupport (
     genSimplexPoint,
     genTransitionMatrix,
+ )
+import Dtmc.TransitionMatrix (
+    TransitionMatrix,
+    approxTransitionMatrixEq,
+    mkTransitionMatrix,
+    unTransitionMatrix,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -47,7 +56,7 @@ import Test.QuickCheck (
 {-# ANN module ("HLint: ignore Monoid law, left identity" :: String) #-}
 {-# ANN module ("HLint: ignore Monoid law, right identity" :: String) #-}
 
-genDistribution :: forall n. KnownNat n => Gen (S.R n)
+genDistribution :: forall n. (KnownNat n) => Gen (S.R n)
 genDistribution = do
     entries <- genSimplexPoint (fromIntegral (natVal (Proxy @n)))
     pure (S.vector entries)
@@ -67,30 +76,28 @@ twoStateSquared =
 spec :: Spec
 spec = do
     describe "TransitionMatrix Semigroup" $ do
-        prop "composition is approximately associative" $
-            forAll
+        prop "composition is approximately associative"
+            $ forAll
                 ( (,,)
                     <$> genTransitionMatrix @3
                     <*> genTransitionMatrix @3
                     <*> genTransitionMatrix @3
                 )
-                $ \(matrixA, matrixB, matrixC) ->
-                    case
-                        ( mkTransitionMatrix matrixA
-                        , mkTransitionMatrix matrixB
-                        , mkTransitionMatrix matrixC
-                        )
-                    of
-                        (Right a, Right b, Right c) ->
-                            property $
-                                approxTransitionMatrixEq
-                                    1e-9
-                                    ((a <> b) <> c)
-                                    (a <> (b <> c))
-                        result ->
-                            counterexample
-                                ("generated matrices were rejected: " <> show result)
-                                False
+            $ \(matrixA, matrixB, matrixC) ->
+                case ( mkTransitionMatrix matrixA
+                     , mkTransitionMatrix matrixB
+                     , mkTransitionMatrix matrixC
+                     ) of
+                    (Right a, Right b, Right c) ->
+                        property $
+                            approxTransitionMatrixEq
+                                1e-9
+                                ((a <> b) <> c)
+                                (a <> (b <> c))
+                    result ->
+                        counterexample
+                            ("generated matrices were rejected: " <> show result)
+                            False
 
     describe "TransitionMatrix Monoid" $ do
         prop "has a left identity" $
@@ -182,12 +189,10 @@ spec = do
                 \(k, matrix) ->
                     case mkTransitionMatrix matrix of
                         Right p ->
-                            case
-                                mkTransitionMatrix
-                                    ( unTransitionMatrix
-                                        (matrixPower (fromIntegral k) p)
-                                    )
-                            of
+                            case mkTransitionMatrix
+                                ( unTransitionMatrix
+                                    (matrixPower (fromIntegral k) p)
+                                ) of
                                 Right _ ->
                                     property True
                                 Left err ->
@@ -199,27 +204,27 @@ spec = do
                                 ("generated matrix was rejected: " <> show err)
                                 False
 
-        prop "satisfies the power addition law" $
-            forAll
+        prop "satisfies the power addition law"
+            $ forAll
                 ( (,,)
                     <$> choose (0, 6 :: Int)
                     <*> choose (0, 6 :: Int)
                     <*> genTransitionMatrix @3
                 )
-                $ \(m, n, matrix) ->
-                    case mkTransitionMatrix matrix of
-                        Right p ->
-                            property $
-                                approxTransitionMatrixEq
-                                    1e-9
-                                    (matrixPower (fromIntegral (m + n)) p)
-                                    ( matrixPower (fromIntegral m) p
-                                        <> matrixPower (fromIntegral n) p
-                                    )
-                        Left err ->
-                            counterexample
-                                ("generated matrix was rejected: " <> show err)
-                                False
+            $ \(m, n, matrix) ->
+                case mkTransitionMatrix matrix of
+                    Right p ->
+                        property $
+                            approxTransitionMatrixEq
+                                1e-9
+                                (matrixPower (fromIntegral (m + n)) p)
+                                ( matrixPower (fromIntegral m) p
+                                    <> matrixPower (fromIntegral n) p
+                                )
+                    Left err ->
+                        counterexample
+                            ("generated matrix was rejected: " <> show err)
+                            False
 
     describe "evolveN" $ do
         it "leaves a distribution unchanged after zero steps" $ do
@@ -234,74 +239,74 @@ spec = do
                 mu
                 `shouldBe` True
 
-        prop "agrees with iterating evolve" $
-            forAll
+        prop "agrees with iterating evolve"
+            $ forAll
                 ( (,,)
                     <$> choose (0, 6 :: Int)
                     <*> genDistribution @3
                     <*> genTransitionMatrix @3
                 )
-                $ \(k, vector, matrix) ->
-                    case (mkDistribution vector, mkTransitionMatrix matrix) of
-                        (Right mu, Right p) ->
-                            let iterated =
-                                    iterate (`evolve` p) mu !! k
-                             in property $
-                                    approxDistributionEq
-                                        1e-9
-                                        (evolveN (fromIntegral k) mu p)
-                                        iterated
-                        result ->
-                            counterexample
-                                ("generated input was rejected: " <> show result)
-                                False
+            $ \(k, vector, matrix) ->
+                case (mkDistribution vector, mkTransitionMatrix matrix) of
+                    (Right mu, Right p) ->
+                        let iterated =
+                                iterate (`evolve` p) mu !! k
+                         in property $
+                                approxDistributionEq
+                                    1e-9
+                                    (evolveN (fromIntegral k) mu p)
+                                    iterated
+                    result ->
+                        counterexample
+                            ("generated input was rejected: " <> show result)
+                            False
 
     describe "chapmanKolmogorov" $ do
-        prop "equals the (m + n)-step transition matrix" $
-            forAll
+        prop "equals the (m + n)-step transition matrix"
+            $ forAll
                 ( (,,)
                     <$> choose (0, 4 :: Int)
                     <*> choose (0, 4 :: Int)
                     <*> genTransitionMatrix @3
                 )
-                $ \(m, n, matrix) ->
-                    case mkTransitionMatrix matrix of
-                        Right p ->
-                            property $
-                                approxTransitionMatrixEq
-                                    1e-9
-                                    ( chapmanKolmogorov
-                                        (fromIntegral m)
-                                        (fromIntegral n)
-                                        p
-                                    )
-                                    (matrixPower (fromIntegral (m + n)) p)
-                        Left err ->
-                            counterexample
-                                ("generated matrix was rejected: " <> show err)
-                                False
+            $ \(m, n, matrix) ->
+                case mkTransitionMatrix matrix of
+                    Right p ->
+                        property $
+                            approxTransitionMatrixEq
+                                1e-9
+                                ( chapmanKolmogorov
+                                    (fromIntegral m)
+                                    (fromIntegral n)
+                                    p
+                                )
+                                (matrixPower (fromIntegral (m + n)) p)
+                    Left err ->
+                        counterexample
+                            ("generated matrix was rejected: " <> show err)
+                            False
 
-        prop "splits distribution evolution across m and n steps" $
-            forAll
+        prop "splits distribution evolution across m and n steps"
+            $ forAll
                 ( (,,,)
                     <$> choose (0, 4 :: Int)
                     <*> choose (0, 4 :: Int)
                     <*> genDistribution @3
                     <*> genTransitionMatrix @3
                 )
-                $ \(m, n, vector, matrix) ->
-                    case (mkDistribution vector, mkTransitionMatrix matrix) of
-                        (Right mu, Right p) ->
-                            property $
-                                approxDistributionEq
-                                    1e-9
-                                    (evolveN (fromIntegral (m + n)) mu p)
-                                    ( evolveN
-                                        (fromIntegral n)
-                                        (evolveN (fromIntegral m) mu p)
-                                        p
-                                    )
-                        result ->
-                            counterexample
-                                ("generated input was rejected: " <> show result)
-                                False
+            $ \(m, n, vector, matrix) ->
+                case (mkDistribution vector, mkTransitionMatrix matrix) of
+                    (Right mu, Right p) ->
+                        property $
+                            approxDistributionEq
+                                1e-9
+                                (evolveN (fromIntegral (m + n)) mu p)
+                                ( evolveN
+                                    (fromIntegral n)
+                                    (evolveN (fromIntegral m) mu p)
+                                    p
+                                )
+                    result ->
+                        counterexample
+                            ("generated input was rejected: " <> show result)
+                            False

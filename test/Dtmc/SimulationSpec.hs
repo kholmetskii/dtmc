@@ -11,10 +11,12 @@ import Control.Monad.ST (
 import Data.Finite (
     Finite,
  )
-import Dtmc.Distribution ( mkDistribution )
-import Dtmc.Simulation ( sampleFrom, step )
-import Dtmc.TransitionMatrix
-    ( TransitionMatrix, mkTransitionMatrix )
+import Dtmc.Distribution (mkDistribution)
+import Dtmc.Simulation (sampleFrom, step)
+import Dtmc.TransitionMatrix (
+    TransitionMatrix,
+    mkTransitionMatrix,
+ )
 import Numeric.LinearAlgebra.Static qualified as S
 import System.Random.MWC qualified as MWC
 import Test.Hspec (

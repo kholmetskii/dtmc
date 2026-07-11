@@ -16,9 +16,8 @@ import Dtmc.Internal.Types (
 import GHC.TypeNats (
     KnownNat,
  )
-import Numeric.Natural (Natural)
 import Numeric.LinearAlgebra.Static qualified as S
-
+import Numeric.Natural (Natural)
 
 evolve :: (KnownNat n) => Distribution n -> TransitionMatrix n -> Distribution n
 evolve (Distribution v) (TransitionMatrix m) =

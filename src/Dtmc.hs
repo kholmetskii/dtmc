@@ -14,11 +14,11 @@ module Dtmc (
     SimplexError (..),
     sampleFrom,
     step,
-    evolve, 
-    evolveN, 
-    identityMatrix, 
-    matrixPower, 
-    chapmanKolmogorov
+    evolve,
+    evolveN,
+    identityMatrix,
+    matrixPower,
+    chapmanKolmogorov,
 ) where
 
 import Dtmc.Distribution (
@@ -46,9 +46,9 @@ import Dtmc.TransitionMatrix (
  )
 
 import Dtmc.Dynamics (
-    evolve, 
-    evolveN, 
-    identityMatrix, 
-    matrixPower, 
-    chapmanKolmogorov
-    )
+    chapmanKolmogorov,
+    evolve,
+    evolveN,
+    identityMatrix,
+    matrixPower,
+ )

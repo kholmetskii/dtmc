@@ -30,29 +30,39 @@ import Numeric.LinearAlgebra.Static qualified as S
 import System.Random.MWC qualified as MWC
 import System.Random.MWC.Distributions qualified as MWCD
 
-sampleFrom :: (KnownNat n, PrimMonad m) => Distribution n -> MWC.Gen (PrimState m) -> m (Finite n)
+sampleFrom ::
+    (KnownNat n, PrimMonad m) =>
+    Distribution n ->
+    MWC.Gen (PrimState m) ->
+    m (Finite n)
 sampleFrom distribution generator = do
     index <- MWCD.categorical weights generator
     pure (finite (fromIntegral index))
   where
     weights =
-        clampToleratedNegatives
+        sanitizeWeights
             (S.extract (unDistribution distribution))
 
-step :: (KnownNat n, PrimMonad m) => TransitionMatrix n -> Finite n -> MWC.Gen (PrimState m) -> m (Finite n)
+step ::
+    (KnownNat n, PrimMonad m) =>
+    TransitionMatrix n ->
+    Finite n ->
+    MWC.Gen (PrimState m) ->
+    m (Finite n)
 step matrix state =
     sampleFrom (rowAt matrix state)
 
-clampToleratedNegatives :: LA.Vector Double -> LA.Vector Double
-clampToleratedNegatives =
-    LA.cmap clamp
+sanitizeWeights :: LA.Vector Double -> LA.Vector Double
+sanitizeWeights =
+    LA.cmap sanitize
   where
-    clamp value
+    sanitize value
         | value >= 0 = value
         | value >= negate simplexTolerance = 0
         | otherwise =
             error
-                ( "Dtmc.Simulation: coordinate "
+                ( "Dtmc.Simulation: internal invariant violation: "
+                    <> "probability coordinate "
                     <> show value
                     <> " is below -simplexTolerance"
                 )
