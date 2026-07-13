@@ -19,6 +19,20 @@ module Dtmc (
     identityMatrix,
     matrixPower,
     chapmanKolmogorov,
+    supportEdge,
+    accessible,
+    communicates,
+    communicatingClasses,
+    irreducible,
+    period,
+    aperiodic,
+    CommClass (..),
+    Classification,
+    classesOf,
+    classify,
+    Irreducible,
+    witnessIrreducible,
+    irreducibleMatrix,
 ) where
 
 import Dtmc.Distribution (
@@ -51,4 +65,21 @@ import Dtmc.Dynamics (
     evolveN,
     identityMatrix,
     matrixPower,
+ )
+
+import Dtmc.Classification (
+    Classification,
+    CommClass (..),
+    Irreducible,
+    accessible,
+    aperiodic,
+    classesOf,
+    classify,
+    communicatingClasses,
+    communicates,
+    irreducible,
+    irreducibleMatrix,
+    period,
+    supportEdge,
+    witnessIrreducible,
  )

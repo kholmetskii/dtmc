@@ -36,6 +36,7 @@ library
       Dtmc.TransitionMatrix
       Dtmc.Simulation
       Dtmc.Dynamics
+      Dtmc.Classification
 
   other-modules:
       Dtmc.Internal.Types
@@ -59,6 +60,7 @@ test-suite spec
       Dtmc.TransitionMatrixSpec
       Dtmc.SimulationSpec
       Dtmc.DynamicsSpec
+      Dtmc.ClassificationSpec
       Dtmc.TestSupport
 
   build-depends:

@@ -12,6 +12,10 @@ A small Haskell library for finite discrete-time Markov chains with type-safe di
 - Random sampling from a distribution
 - Single-step Markov-chain simulation
 - Approximate equality helpers for numerical comparisons
+- Distribution evolution, matrix powers, and the Chapman–Kolmogorov law
+- Support-graph classification: accessibility, communication, communicating
+  classes, irreducibility, and per-class periods (exact, combinatorial), with
+  an `Irreducible` witness type
 
 ## Quick start
 
@@ -64,4 +68,4 @@ On macOS, `hmatrix` can use Apple Accelerate.
 
 ## Status
 
-The library is in early development. The current API covers the basic finite-state objects and single-step simulation. Multi-step dynamics and further Markov-chain analysis are planned.
+The library is in early development. The current API covers the finite-state objects, single- and multi-step dynamics (Chapman–Kolmogorov), and the combinatorial structure theory of the support graph (communicating classes, irreducibility, and periodicity). Hitting/return times, recurrence, absorbing chains, and stationary/limiting behaviour are planned.
