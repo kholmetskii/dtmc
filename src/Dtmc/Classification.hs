@@ -33,16 +33,21 @@ module Dtmc.Classification (
     irreducibleMatrix,
 ) where
 
+import Data.Array (
+    Array,
+    array,
+    (!),
+ )
 import Data.Finite (
     Finite,
     finite,
-    finites,
     getFinite,
  )
 import Data.Maybe (
-    fromMaybe, isNothing,
+    fromMaybe,
+    isNothing,
  )
-import Dtmc.Internal.Types ( TransitionMatrix, unTransitionMatrix )
+import Dtmc.Internal.Types (TransitionMatrix, unTransitionMatrix)
 import GHC.TypeNats (
     KnownNat,
  )
@@ -50,14 +55,61 @@ import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (Natural)
 
--- Adjacency of the support graph: entry @(i,j)@ is true iff @P(i,j) > 0@.
-supportMatrix :: (KnownNat n) => TransitionMatrix n -> [[Bool]]
-supportMatrix p =
-    map (map (> 0)) (LA.toLists (S.extract (unTransitionMatrix p)))
+-- The support graph of a chain, built once and shared by every query below.
+-- @graphAdjacency@ is the direct support relation (@P(i,j) > 0@);
+-- @graphReach@ is its reflexive-transitive closure. Fields are lazy, so a query
+-- that needs only adjacency (e.g. 'supportEdge') never forces the closure.
+data Graph = Graph
+    { graphDim :: Int
+    , graphAdjacency :: Array (Int, Int) Bool
+    , graphReach :: Array (Int, Int) Bool
+    }
 
--- Index a boolean adjacency/reachability matrix as @m[i][j]@.
-at :: [[Bool]] -> Int -> Int -> Bool
-at m i j = (m !! i) !! j
+-- Build the support graph and its closure from a transition matrix. The
+-- adjacency array records @P(i,j) > 0@; 'reachClosure' then adds all indirect
+-- paths (and the reflexive diagonal).
+buildGraph :: (KnownNat n) => TransitionMatrix n -> Graph
+buildGraph p =
+    Graph
+        { graphDim = dim
+        , graphAdjacency = adjacency
+        , graphReach = reachClosure dim adjacency
+        }
+  where
+    rows = LA.toLists (S.extract (unTransitionMatrix p))
+    dim = length rows
+    adjacency =
+        array
+            ((0, 0), (dim - 1, dim - 1))
+            [ ((i, j), entry > 0)
+            | (i, row) <- zip [0 ..] rows
+            , (j, entry) <- zip [0 ..] row
+            ]
+
+-- Reflexive-transitive closure of a boolean adjacency array by Floyd-Warshall:
+-- start from the adjacency relation with the diagonal forced true, then for each
+-- intermediate vertex @k@ add the edge @i -> j@ whenever @i -> k@ and @k -> j@.
+-- Entry @(i,j)@ ends true iff @j@ is reachable from @i@ in zero or more steps.
+reachClosure :: Int -> Array (Int, Int) Bool -> Array (Int, Int) Bool
+reachClosure dim adjacency =
+    foldl' pass reflexive [0 .. dim - 1]
+  where
+    bounds' = ((0, 0), (dim - 1, dim - 1))
+    indices = [0 .. dim - 1]
+    reflexive =
+        array
+            bounds'
+            [ ((i, j), i == j || adjacency ! (i, j))
+            | i <- indices
+            , j <- indices
+            ]
+    pass reach k =
+        array
+            bounds'
+            [ ((i, j), reach ! (i, j) || (reach ! (i, k) && reach ! (k, j)))
+            | i <- indices
+            , j <- indices
+            ]
 
 -- Convert a raw @Int@ state index into the bounded 'Finite' @n@ index.
 toFinite :: (KnownNat n) => Int -> Finite n
@@ -67,83 +119,75 @@ toFinite = finite . fromIntegral
 toIndex :: Finite n -> Int
 toIndex = fromIntegral . getFinite
 
--- Reflexive-transitive closure of the support graph by @n@ rounds of
--- Boolean relation composition: entry @(i,j)@ becomes true iff @j@ is reachable
--- from @i@ in zero or more steps.
-reachClosure :: [[Bool]] -> [[Bool]]
-reachClosure s = iterate stepClosure start !! dim
+-- Partition state indices into communicating classes given a built graph:
+-- greedily group each state with all later states it communicates with. States
+-- (and classes) come out in ascending-index order.
+rawClasses :: Graph -> [[Int]]
+rawClasses g = go [0 .. graphDim g - 1]
   where
-    dim = length s
-    idxs = [0 .. dim - 1]
-    start = [[i == j || at s i j | j <- idxs] | i <- idxs]
-    stepClosure r =
-        [ [at r i j || or [at r i k && at s k j | k <- idxs] | j <- idxs]
-        | i <- idxs
-        ]
+    reach = graphReach g
+    comm i j = reach ! (i, j) && reach ! (j, i)
+    go [] = []
+    go (x : xs) =
+        (x : filter (comm x) xs) : go (filter (not . comm x) xs)
 
 -- | Direct one-step reachability: @True@ iff @P(i,j) > 0@.
 supportEdge :: (KnownNat n) => TransitionMatrix n -> Finite n -> Finite n -> Bool
-supportEdge p i j = at (supportMatrix p) (toIndex i) (toIndex j)
+supportEdge p i j = graphAdjacency (buildGraph p) ! (toIndex i, toIndex j)
 
 -- | Accessibility @i -> j@: @j@ is reachable from @i@ in zero or more steps.
 accessible :: (KnownNat n) => TransitionMatrix n -> Finite n -> Finite n -> Bool
-accessible p i j = at (reachClosure (supportMatrix p)) (toIndex i) (toIndex j)
+accessible p i j = graphReach (buildGraph p) ! (toIndex i, toIndex j)
 
 -- | Communication @i <-> j@: @i@ and @j@ are mutually accessible. This is the
 -- equivalence relation whose classes are the communicating classes.
 communicates :: (KnownNat n) => TransitionMatrix n -> Finite n -> Finite n -> Bool
 communicates p i j =
-    at r a b && at r b a
+    reach ! (a, b) && reach ! (b, a)
   where
-    r = reachClosure (supportMatrix p)
+    reach = graphReach (buildGraph p)
     a = toIndex i
     b = toIndex j
-
--- Partition state indices into communicating classes given a reachability
--- matrix: greedily group each state with all others it communicates with.
-rawClasses :: [[Bool]] -> [[Int]]
-rawClasses r = go [0 .. length r - 1]
-  where
-    comm i j = at r i j && at r j i
-    go [] = []
-    go (x : xs) =
-        (x : filter (comm x) xs) : go (filter (not . comm x) xs)
 
 -- | The communicating classes of the chain, each as a list of states.
 communicatingClasses :: (KnownNat n) => TransitionMatrix n -> [[Finite n]]
 communicatingClasses p =
-    map (map toFinite) (rawClasses (reachClosure (supportMatrix p)))
+    map (map toFinite) (rawClasses (buildGraph p))
 
 -- | Whether the chain is irreducible: all states form a single (non-empty)
 -- communicating class, so every state is reachable from every other.
 irreducible :: (KnownNat n) => TransitionMatrix n -> Bool
 irreducible p =
-    case rawClasses (reachClosure (supportMatrix p)) of
+    case rawClasses (buildGraph p) of
         [c] -> not (null c)
         _ -> False
-
 
 -- | Period of state @i@: the gcd of the lengths of all closed walks through
 -- @i@, computed within @i@'s communicating class. 'Nothing' when the class has
 -- no cycles (the period is undefined).
 period :: (KnownNat n) => TransitionMatrix n -> Finite n -> Maybe Natural
 period p i =
-    periodOfClass s klass
+    periodOfClass (edgeOf g) klass
   where
-    s = supportMatrix p
-    r = reachClosure s
+    g = buildGraph p
+    reach = graphReach g
     a = toIndex i
-    klass = filter (\j -> at r a j && at r j a) [0 .. length s - 1]
+    klass = filter (\j -> reach ! (a, j) && reach ! (j, a)) [0 .. graphDim g - 1]
+
+-- Read the support (adjacency) relation of a graph as a plain edge predicate,
+-- for the period BFS below.
+edgeOf :: Graph -> Int -> Int -> Bool
+edgeOf g u v = graphAdjacency g ! (u, v)
 
 -- Period of a communicating class: BFS-label the class from a root, then take
 -- the gcd of @level(u) + 1 - level(v)@ over every intra-class edge @u -> v@.
 -- A gcd of @0@ (no edges/cycles) means the period is undefined.
-periodOfClass :: [[Bool]] -> [Int] -> Maybe Natural
+periodOfClass :: (Int -> Int -> Bool) -> [Int] -> Maybe Natural
 periodOfClass _ [] = Nothing
-periodOfClass s klass@(root : _) =
+periodOfClass edge klass@(root : _) =
     if d == 0 then Nothing else Just (fromIntegral d)
   where
-    dist = bfsWithin s klass root
+    dist = bfsWithin edge klass root
     lvl u = fromMaybe 0 (lookup u dist)
     d =
         foldl'
@@ -152,13 +196,13 @@ periodOfClass s klass@(root : _) =
             [ abs (lvl u + 1 - lvl v)
             | u <- klass
             , v <- klass
-            , at s u v
+            , edge u v
             ]
 
 -- Breadth-first level assignment restricted to a single class, returning each
 -- reached vertex paired with its distance from @root@.
-bfsWithin :: [[Bool]] -> [Int] -> Int -> [(Int, Int)]
-bfsWithin s klass root = go [root] [(root, 0)]
+bfsWithin :: (Int -> Int -> Bool) -> [Int] -> Int -> [(Int, Int)]
+bfsWithin edge klass root = go [root] [(root, 0)]
   where
     go [] dist = dist
     go (u : queue) dist =
@@ -168,18 +212,19 @@ bfsWithin s klass root = go [root] [(root, 0)]
         fresh =
             [ v
             | v <- klass
-            , at s u v
+            , edge u v
             , isNothing (lookup v dist)
             , v `notElem` queue
             ]
 
--- | Whether the chain is aperiodic: every state has period @1@ (and there is
--- at least one state).
-aperiodic :: forall n. (KnownNat n) => TransitionMatrix n -> Bool
+-- | Whether the chain is aperiodic: every communicating class has period @1@
+-- (and there is at least one state). Derived from 'classify' so the support
+-- graph and closure are built only once, rather than per state.
+aperiodic :: (KnownNat n) => TransitionMatrix n -> Bool
 aperiodic p =
-    not (null states) && all (\i -> period p i == Just 1) states
+    not (null classes) && all ((== Just 1) . classPeriod) classes
   where
-    states = finites :: [Finite n]
+    classes = classesOf (classify p)
 
 -- | A summary of one communicating class: its member states, its 'period'
 -- (@Nothing@ if undefined), and whether it is 'classClosed' -- i.e. no edge
@@ -214,18 +259,19 @@ classify p =
     Classification
         [ CommClass
             { classMembers = map toFinite c
-            , classPeriod = periodOfClass s c
+            , classPeriod = periodOfClass edge c
             , classClosed = isClosed c
             }
         | c <- classes
         ]
   where
-    s = supportMatrix p
-    dim = length s
-    classes = rawClasses (reachClosure s)
+    g = buildGraph p
+    dim = graphDim g
+    edge = edgeOf g
+    classes = rawClasses g
     isClosed c =
         and
-            [ not (at s u v)
+            [ not (edge u v)
             | u <- c
             , v <- [0 .. dim - 1]
             , v `notElem` c

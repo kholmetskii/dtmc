@@ -44,6 +44,7 @@ library
 
   build-depends:
       base >=4.17 && <5
+    , array
     , finite-typelits
     , hmatrix >=0.20
     , mwc-random
