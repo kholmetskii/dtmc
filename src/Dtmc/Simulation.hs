@@ -19,8 +19,8 @@ import Data.Finite (
     Finite,
     finite,
  )
-import Dtmc.Internal.Simplex (
-    simplexTolerance,
+import Dtmc.Approx (
+    snapToSimplex,
  )
 import Dtmc.Internal.Types (
     Distribution,
@@ -33,14 +33,13 @@ import Dtmc.TransitionMatrix (
 import GHC.TypeNats (
     KnownNat,
  )
-import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 import System.Random.MWC qualified as MWC
 import System.Random.MWC.Distributions qualified as MWCD
 
 -- | Draw one state index from a distribution, using its entries as categorical
 -- weights. The result is a valid 'Finite' @n@ because the weight vector has
--- length @n@; coordinates first pass through 'sanitizeWeights' to absorb tiny
+-- length @n@; coordinates first pass through 'snapToSimplex' to absorb tiny
 -- negative rounding artefacts the sampler would otherwise reject.
 sampleFrom ::
     (KnownNat n, PrimMonad m) =>
@@ -52,7 +51,7 @@ sampleFrom distribution generator = do
     pure (finite (fromIntegral index))
   where
     weights =
-        sanitizeWeights
+        snapToSimplex
             (S.extract (unDistribution distribution))
 
 -- | One step of the chain: from the current @state@, sample the next state from
@@ -66,22 +65,3 @@ step ::
     m (Finite n)
 step matrix state =
     sampleFrom (rowAt matrix state)
-
--- | Snap small negative coordinates -- those within 'simplexTolerance' of zero,
--- an artefact of floating-point arithmetic -- to exactly zero so the categorical
--- sampler accepts them. A coordinate more negative than that signals a real
--- invariant violation, i.e. a programmer error, so it fails loudly.
-sanitizeWeights :: LA.Vector Double -> LA.Vector Double
-sanitizeWeights =
-    LA.cmap sanitize
-  where
-    sanitize value
-        | value >= 0 = value
-        | value >= negate simplexTolerance = 0
-        | otherwise =
-            error
-                ( "Dtmc.Simulation: internal invariant violation: "
-                    <> "probability coordinate "
-                    <> show value
-                    <> " is below -simplexTolerance"
-                )
