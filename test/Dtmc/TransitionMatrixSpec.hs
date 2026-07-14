@@ -8,7 +8,6 @@ import Dtmc (
     SimplexError (..),
     TransitionError (..),
     TransitionMatrix,
-    approxTransitionMatrixEq,
     mkDistribution,
     mkTransitionMatrix,
     mulTransitionMatrix,
@@ -20,7 +19,8 @@ import Dtmc.TestSupport (
     bumpSmallestInFirstRow,
     genTransitionMatrix,
     modifyMatrixRows,
-    setFirstEntry,
+    setFirstEntry, 
+    approxTransitionMatrixEq,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S

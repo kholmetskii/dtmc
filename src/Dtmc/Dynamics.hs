@@ -12,7 +12,6 @@ module Dtmc.Dynamics (
     evolveN,
     identityMatrix,
     matrixPower,
-    chapmanKolmogorov,
 ) where
 
 import Data.Semigroup (
@@ -56,15 +55,3 @@ evolveN ::
     Distribution n
 evolveN k mu p =
     evolve mu (matrixPower k p)
-
--- | The Chapman-Kolmogorov identity in constructive form: returns @p^m '<>' p^n@,
--- which equals @p^(m+n)@. Splitting an @(m+n)@-step transition into an @m@-step
--- followed by an @n@-step.
-chapmanKolmogorov ::
-    (KnownNat n) =>
-    Natural ->
-    Natural ->
-    TransitionMatrix n ->
-    TransitionMatrix n
-chapmanKolmogorov m n p =
-    matrixPower m p <> matrixPower n p

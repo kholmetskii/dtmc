@@ -11,7 +11,6 @@ module Dtmc.Distribution (
     DistributionError (..),
     mkDistribution,
     unDistribution,
-    approxDistributionEq,
 ) where
 
 import Data.Bifunctor (
@@ -27,7 +26,6 @@ import Dtmc.Internal.Types (
 import GHC.TypeNats (
     KnownNat,
  )
-import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 
 -- | A distribution-specific wrapper around 'SimplexError', keeping these
@@ -41,13 +39,3 @@ newtype DistributionError = DistributionError SimplexError
 mkDistribution :: (KnownNat n) => S.R n -> Either DistributionError (Distribution n)
 mkDistribution vector =
     Distribution vector <$ first DistributionError (validateSimplex vector)
-
--- | Entrywise comparison within an absolute @tolerance@. Distributions hold
--- floating-point data, so this -- rather than exact @(==)@ -- is the right notion
--- of equality for tests and numerical results.
-approxDistributionEq :: (KnownNat n) => Double -> Distribution n -> Distribution n -> Bool
-approxDistributionEq tolerance (Distribution left) (Distribution right) =
-    and (zipWith close (entries left) (entries right))
-  where
-    entries = LA.toList . S.extract
-    close x y = abs (x - y) <= tolerance

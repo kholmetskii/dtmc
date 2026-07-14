@@ -5,7 +5,7 @@
 -- Single entry point for users of the library. It gathers the intended public
 -- surface -- the 'Distribution' and 'TransitionMatrix' types with their
 -- validating constructors and error types, the analytic forward dynamics
--- ('evolve', 'matrixPower', 'chapmanKolmogorov'), the qualitative structure
+-- ('evolve' and 'matrixPower'), the qualitative structure
 -- theory ('communicatingClasses', 'irreducible', 'period', 'classify'), and the
 -- random simulation primitives -- while hiding the "Dtmc.Internal" modules.
 -- Import this module to build, analyse, and run chains.
@@ -14,14 +14,12 @@ module Dtmc (
     DistributionError (..),
     mkDistribution,
     unDistribution,
-    approxDistributionEq,
     TransitionMatrix,
     TransitionError (..),
     mkTransitionMatrix,
     unTransitionMatrix,
     mulTransitionMatrix,
     rowAt,
-    approxTransitionMatrixEq,
     SimplexError (..),
     sampleFrom,
     step,
@@ -29,7 +27,6 @@ module Dtmc (
     evolveN,
     identityMatrix,
     matrixPower,
-    chapmanKolmogorov,
     supportEdge,
     accessible,
     communicates,
@@ -49,7 +46,6 @@ module Dtmc (
 import Dtmc.Distribution (
     Distribution,
     DistributionError (..),
-    approxDistributionEq,
     mkDistribution,
     unDistribution,
  )
@@ -63,7 +59,6 @@ import Dtmc.Simulation (
 import Dtmc.TransitionMatrix (
     TransitionError (..),
     TransitionMatrix,
-    approxTransitionMatrixEq,
     mkTransitionMatrix,
     mulTransitionMatrix,
     rowAt,
@@ -71,7 +66,6 @@ import Dtmc.TransitionMatrix (
  )
 
 import Dtmc.Dynamics (
-    chapmanKolmogorov,
     evolve,
     evolveN,
     identityMatrix,

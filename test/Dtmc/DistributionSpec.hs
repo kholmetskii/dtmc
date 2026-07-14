@@ -5,13 +5,12 @@ module Dtmc.DistributionSpec (
 import Dtmc (
     DistributionError (..),
     SimplexError (..),
-    approxDistributionEq,
     mkDistribution,
     unDistribution,
  )
 import Dtmc.TestSupport (
     bumpSmallest,
-    genSimplexPoint,
+    genSimplexPoint, approxDistributionEq,
  )
 import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (

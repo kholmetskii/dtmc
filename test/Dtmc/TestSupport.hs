@@ -2,6 +2,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Dtmc.TestSupport (
+    approxDistributionEq,
+    approxTransitionMatrixEq,
     genSimplexPoint,
     genTransitionMatrix,
     modifyMatrixRows,
@@ -12,6 +14,14 @@ module Dtmc.TestSupport (
 
 import Data.Proxy (
     Proxy (..),
+ )
+import Dtmc.Distribution (
+    Distribution,
+    unDistribution,
+ )
+import Dtmc.TransitionMatrix (
+    TransitionMatrix,
+    unTransitionMatrix,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -89,3 +99,19 @@ setFirstEntry ::
 setFirstEntry value ((_ : rest) : rows) =
     (value : rest) : rows
 setFirstEntry _ rows = rows
+
+approxTransitionMatrixEq ::
+    (KnownNat n) => Double -> TransitionMatrix n -> TransitionMatrix n -> Bool
+approxTransitionMatrixEq tolerance left right =
+    and (zipWith close (entries left) (entries right))
+  where
+    entries = LA.toList . LA.flatten . S.extract . unTransitionMatrix
+    close x y = abs (x - y) <= tolerance
+
+approxDistributionEq ::
+    (KnownNat n) => Double -> Distribution n -> Distribution n -> Bool
+approxDistributionEq tolerance left right =
+    and (zipWith close (entries left) (entries right))
+  where
+    entries = LA.toList . S.extract . unDistribution
+    close x y = abs (x - y) <= tolerance

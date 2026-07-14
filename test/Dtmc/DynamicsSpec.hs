@@ -9,24 +9,23 @@ import Data.Proxy (
     Proxy (..),
  )
 import Dtmc.Distribution (
-    approxDistributionEq,
     mkDistribution,
     unDistribution,
  )
 import Dtmc.Dynamics (
-    chapmanKolmogorov,
     evolve,
     evolveN,
     identityMatrix,
     matrixPower,
  )
 import Dtmc.TestSupport (
+    approxDistributionEq,
+    approxTransitionMatrixEq,
     genSimplexPoint,
     genTransitionMatrix,
  )
 import Dtmc.TransitionMatrix (
     TransitionMatrix,
-    approxTransitionMatrixEq,
     mkTransitionMatrix,
     unTransitionMatrix,
  )
@@ -261,32 +260,7 @@ spec = do
                             ("generated input was rejected: " <> show result)
                             False
 
-    describe "chapmanKolmogorov" $ do
-        prop "equals the (m + n)-step transition matrix"
-            $ forAll
-                ( (,,)
-                    <$> choose (0, 4 :: Int)
-                    <*> choose (0, 4 :: Int)
-                    <*> genTransitionMatrix @3
-                )
-            $ \(m, n, matrix) ->
-                case mkTransitionMatrix matrix of
-                    Right p ->
-                        property $
-                            approxTransitionMatrixEq
-                                1e-9
-                                ( chapmanKolmogorov
-                                    (fromIntegral m)
-                                    (fromIntegral n)
-                                    p
-                                )
-                                (matrixPower (fromIntegral (m + n)) p)
-                    Left err ->
-                        counterexample
-                            ("generated matrix was rejected: " <> show err)
-                            False
-
-        prop "splits distribution evolution across m and n steps"
+        prop "composes m steps then n steps"
             $ forAll
                 ( (,,,)
                     <$> choose (0, 4 :: Int)

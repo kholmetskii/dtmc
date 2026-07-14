@@ -14,7 +14,6 @@ module Dtmc.TransitionMatrix (
     unTransitionMatrix,
     mulTransitionMatrix,
     rowAt,
-    approxTransitionMatrixEq,
 ) where
 
 import Data.Bifunctor (
@@ -38,7 +37,6 @@ import Dtmc.Internal.Types (
 import GHC.TypeNats (
     KnownNat,
  )
-import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 
 -- | A row of the matrix was not a valid distribution: carries the zero-based
@@ -68,12 +66,3 @@ mulTransitionMatrix = (<>)
 rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> Distribution n
 rowAt (TransitionMatrix matrix) index =
     Distribution{unDistribution = S.toRows matrix !! fromIntegral (getFinite index)}
-
--- | Entrywise approximate equality within @tolerance@, comparing the flattened
--- matrices; the float-tolerant counterpart to exact equality, for tests.
-approxTransitionMatrixEq :: (KnownNat n) => Double -> TransitionMatrix n -> TransitionMatrix n -> Bool
-approxTransitionMatrixEq tolerance (TransitionMatrix left) (TransitionMatrix right) =
-    and (zipWith close (entries left) (entries right))
-  where
-    entries = LA.toList . LA.flatten . S.extract
-    close x y = abs (x - y) <= tolerance
