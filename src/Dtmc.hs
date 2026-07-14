@@ -1,3 +1,14 @@
+-- |
+-- Module      : Dtmc
+-- Description : Public facade re-exporting the library's curated API.
+--
+-- Single entry point for users of the library. It gathers the intended public
+-- surface -- the 'Distribution' and 'TransitionMatrix' types with their
+-- validating constructors and error types, the analytic forward dynamics
+-- ('evolve', 'matrixPower', 'chapmanKolmogorov'), the qualitative structure
+-- theory ('communicatingClasses', 'irreducible', 'period', 'classify'), and the
+-- random simulation primitives -- while hiding the "Dtmc.Internal" modules.
+-- Import this module to build, analyse, and run chains.
 module Dtmc (
     Distribution,
     DistributionError (..),

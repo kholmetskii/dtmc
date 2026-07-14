@@ -1,3 +1,12 @@
+-- |
+-- Module      : Dtmc.Dynamics
+-- Description : Deterministic forward dynamics and multi-step transitions.
+--
+-- The analytic (non-random) evolution of a chain: how a distribution is pushed
+-- forward by the transition matrix, and how one-step matrices compose into
+-- @k@-step matrices. Row-stochastic @p@ acts on a column distribution @mu@ by
+-- @mu' = transpose p '#>' mu@, i.e. @mu'(j) = sum_i mu(i) * p(i,j)@. Powers and
+-- products reuse the 'Monoid' structure of 'TransitionMatrix'.
 module Dtmc.Dynamics (
     evolve,
     evolveN,
@@ -19,18 +28,26 @@ import GHC.TypeNats (
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (Natural)
 
+-- | One-step push-forward of a distribution: @evolve mu p = transpose p '#>' mu@.
+-- Maps the law of the current state to the law of the next state.
 evolve :: (KnownNat n) => Distribution n -> TransitionMatrix n -> Distribution n
 evolve (Distribution v) (TransitionMatrix m) =
     Distribution
         { unDistribution = S.tr m S.#> v
         }
 
+-- | The @n*n@ identity as a transition matrix: the zero-step transition
+-- (@mempty@), which leaves any distribution unchanged.
 identityMatrix :: (KnownNat n) => TransitionMatrix n
 identityMatrix = mempty
 
+-- | The @k@-step transition matrix @p^k@, formed by @k@-fold monoidal product
+-- (@matrixPower 0 = identityMatrix@).
 matrixPower :: (KnownNat n) => Natural -> TransitionMatrix n -> TransitionMatrix n
 matrixPower = mtimesDefault
 
+-- | @k@-step push-forward: @evolveN k mu p = evolve mu (p^k)@, the law of the
+-- state after @k@ transitions.
 evolveN ::
     (KnownNat n) =>
     Natural ->
@@ -40,6 +57,9 @@ evolveN ::
 evolveN k mu p =
     evolve mu (matrixPower k p)
 
+-- | The Chapman-Kolmogorov identity in constructive form: returns @p^m '<>' p^n@,
+-- which equals @p^(m+n)@. Splitting an @(m+n)@-step transition into an @m@-step
+-- followed by an @n@-step.
 chapmanKolmogorov ::
     (KnownNat n) =>
     Natural ->
