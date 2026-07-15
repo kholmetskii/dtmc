@@ -52,9 +52,6 @@ import Test.QuickCheck (
     property,
  )
 
-{-# ANN module ("HLint: ignore Monoid law, left identity" :: String) #-}
-{-# ANN module ("HLint: ignore Monoid law, right identity" :: String) #-}
-
 genDistribution :: forall n. (KnownNat n) => Gen (S.R n)
 genDistribution = do
     entries <- genSimplexPoint (fromIntegral (natVal (Proxy @n)))

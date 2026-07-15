@@ -16,11 +16,11 @@ import Dtmc (
     unTransitionMatrix,
  )
 import Dtmc.TestSupport (
+    approxTransitionMatrixEq,
     bumpSmallestInFirstRow,
     genTransitionMatrix,
     modifyMatrixRows,
-    setFirstEntry, 
-    approxTransitionMatrixEq,
+    setFirstEntry,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S

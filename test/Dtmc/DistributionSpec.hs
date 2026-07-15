@@ -9,8 +9,9 @@ import Dtmc (
     unDistribution,
  )
 import Dtmc.TestSupport (
+    approxDistributionEq,
     bumpSmallest,
-    genSimplexPoint, approxDistributionEq,
+    genSimplexPoint,
  )
 import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
