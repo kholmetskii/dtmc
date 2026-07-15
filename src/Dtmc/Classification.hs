@@ -9,12 +9,30 @@
 -- classes, irreducibility, and the period of each state/class.
 --
 -- The graph combinatorics live in "Dtmc.Internal.Graph"; this module is the thin
--- bridge that reads a chain's support into a 'Graph' (once, via 'supportGraph')
--- and renames the graph facts into Markov-chain vocabulary: communicating
--- classes are the strongly connected components, and a class's period is the
--- period of that component.
+-- bridge that reads a chain's support into a 'Graph' and renames the graph facts
+-- into Markov-chain vocabulary: communicating classes are the strongly connected
+-- components, and a class's period is the period of that component.
+--
+-- The API has two tiers. 'supportGraphOf' builds a 'SupportGraph' -- the
+-- support relation with its reachability closure precomputed, an @O(n^3)@
+-- construction -- and the @..In@ variants answer any number of queries against
+-- it cheaply. The one-shot functions ('accessible', 'communicates', 'period',
+-- ...) are conveniences that rebuild the graph on every call: fine for a
+-- single question, wasteful in a loop.
 module Dtmc.Classification (
-    -- * Support graph
+    -- * Precomputed support graph
+    SupportGraph,
+    supportGraphOf,
+    supportEdgeIn,
+    accessibleIn,
+    communicatesIn,
+    communicatingClassesIn,
+    irreducibleIn,
+    periodIn,
+    aperiodicIn,
+    classifyIn,
+
+    -- * One-shot support-graph queries
     supportEdge,
     accessible,
     communicates,
@@ -57,6 +75,7 @@ import Dtmc.Internal.Graph (
 import Dtmc.Internal.Types (TransitionMatrix, unTransitionMatrix)
 import GHC.TypeNats (
     KnownNat,
+    Nat,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
@@ -77,6 +96,20 @@ supportGraph p =
     rows = LA.toLists (S.extract (unTransitionMatrix p))
     dim = length rows
 
+-- | The support graph of a chain with its reachability closure precomputed.
+-- Build it once with 'supportGraphOf' (@O(n^3)@), then run any number of
+-- queries against it via the @..In@ functions. The phantom @n@ ties the
+-- 'Finite' state indices to the graph's dimension, just as for
+-- 'Dtmc.Distribution.Distribution'.
+newtype SupportGraph (n :: Nat) = SupportGraph Graph
+
+type role SupportGraph nominal
+
+-- | Build the 'SupportGraph' of a chain: the single @O(n^3)@ closure
+-- computation that every query in this module ultimately reads from.
+supportGraphOf :: (KnownNat n) => TransitionMatrix n -> SupportGraph n
+supportGraphOf = SupportGraph . supportGraph
+
 -- Convert a raw @Int@ state index into the bounded 'Finite' @n@ index.
 toFinite :: (KnownNat n) => Int -> Finite n
 toFinite = finite . fromIntegral
@@ -85,57 +118,90 @@ toFinite = finite . fromIntegral
 toIndex :: Finite n -> Int
 toIndex = fromIntegral . getFinite
 
--- | Direct one-step reachability: @True@ iff @P(i,j) > 0@.
-supportEdge :: (KnownNat n) => TransitionMatrix n -> Finite n -> Finite n -> Bool
-supportEdge p i j = edge (supportGraph p) (toIndex i) (toIndex j)
+-- | Direct one-step reachability in a prebuilt graph: @True@ iff @P(i,j) > 0@.
+supportEdgeIn :: SupportGraph n -> Finite n -> Finite n -> Bool
+supportEdgeIn (SupportGraph g) i j = edge g (toIndex i) (toIndex j)
 
--- | Accessibility @i -> j@: @j@ is reachable from @i@ in zero or more steps.
-accessible :: (KnownNat n) => TransitionMatrix n -> Finite n -> Finite n -> Bool
-accessible p i j = reachable (supportGraph p) (toIndex i) (toIndex j)
+-- | Accessibility @i -> j@ in a prebuilt graph: @j@ is reachable from @i@ in
+-- zero or more steps.
+accessibleIn :: SupportGraph n -> Finite n -> Finite n -> Bool
+accessibleIn (SupportGraph g) i j = reachable g (toIndex i) (toIndex j)
 
--- | Communication @i <-> j@: @i@ and @j@ are mutually accessible. This is the
--- equivalence relation whose classes are the communicating classes.
-communicates :: (KnownNat n) => TransitionMatrix n -> Finite n -> Finite n -> Bool
-communicates p i j =
+-- | Communication @i <-> j@ in a prebuilt graph: mutual accessibility.
+communicatesIn :: SupportGraph n -> Finite n -> Finite n -> Bool
+communicatesIn (SupportGraph g) i j =
     reachable g a b && reachable g b a
   where
-    g = supportGraph p
     a = toIndex i
     b = toIndex j
 
+-- | The communicating classes of a prebuilt graph, each as a list of states.
+communicatingClassesIn :: (KnownNat n) => SupportGraph n -> [[Finite n]]
+communicatingClassesIn (SupportGraph g) =
+    map (map toFinite) (components g)
+
+-- | Irreducibility of a prebuilt graph: all states form a single (non-empty)
+-- communicating class.
+irreducibleIn :: SupportGraph n -> Bool
+irreducibleIn (SupportGraph g) =
+    case components g of
+        [c] -> not (null c)
+        _ -> False
+
+-- | Period of state @i@ in a prebuilt graph (see 'period').
+periodIn :: SupportGraph n -> Finite n -> Maybe Natural
+periodIn (SupportGraph g) i =
+    componentPeriod g (componentOf g (toIndex i))
+
+-- | Aperiodicity of a prebuilt graph (see 'aperiodic').
+aperiodicIn :: SupportGraph n -> Bool
+aperiodicIn (SupportGraph g) =
+    not (null cs) && all ((== Just 1) . componentPeriod g) cs
+  where
+    cs = components g
+
+-- | Direct one-step reachability: @True@ iff @P(i,j) > 0@. Rebuilds the
+-- support graph on every call; for repeated queries build one 'SupportGraph'
+-- with 'supportGraphOf' and use 'supportEdgeIn'.
+supportEdge :: (KnownNat n) => TransitionMatrix n -> Finite n -> Finite n -> Bool
+supportEdge p = supportEdgeIn (supportGraphOf p)
+
+-- | Accessibility @i -> j@: @j@ is reachable from @i@ in zero or more steps.
+-- One-shot; see 'accessibleIn' for the amortised variant.
+accessible :: (KnownNat n) => TransitionMatrix n -> Finite n -> Finite n -> Bool
+accessible p = accessibleIn (supportGraphOf p)
+
+-- | Communication @i <-> j@: @i@ and @j@ are mutually accessible. This is the
+-- equivalence relation whose classes are the communicating classes.
+-- One-shot; see 'communicatesIn' for the amortised variant.
+communicates :: (KnownNat n) => TransitionMatrix n -> Finite n -> Finite n -> Bool
+communicates p = communicatesIn (supportGraphOf p)
+
 -- | The communicating classes of the chain, each as a list of states.
+-- One-shot; see 'communicatingClassesIn' for the amortised variant.
 communicatingClasses :: (KnownNat n) => TransitionMatrix n -> [[Finite n]]
-communicatingClasses p =
-    map (map toFinite) (components (supportGraph p))
+communicatingClasses = communicatingClassesIn . supportGraphOf
 
 -- | Whether the chain is irreducible: all states form a single (non-empty)
 -- communicating class, so every state is reachable from every other.
+-- One-shot; see 'irreducibleIn' for the amortised variant.
 irreducible :: (KnownNat n) => TransitionMatrix n -> Bool
-irreducible p =
-    case components (supportGraph p) of
-        [c] -> not (null c)
-        _ -> False
+irreducible = irreducibleIn . supportGraphOf
 
 -- | Period of state @i@: the gcd of the lengths of all closed walks through
 -- @i@, computed within @i@'s communicating class. 'Nothing' when the class has
 -- no cycles (the period is undefined).
+-- One-shot; see 'periodIn' for the amortised variant.
 period :: (KnownNat n) => TransitionMatrix n -> Finite n -> Maybe Natural
-period p i =
-    componentPeriod g (componentOf g (toIndex i))
-  where
-    g = supportGraph p
+period p = periodIn (supportGraphOf p)
 
 -- | Whether the chain is aperiodic: every communicating class has period @1@
 -- (and there is at least one state). A class with undefined period -- a
 -- cycle-free transient class, where 'period' is 'Nothing' -- does not have
 -- period one, so its presence makes the chain non-aperiodic under this
--- definition. Derived from 'classify' so the support graph and closure are
--- built only once, rather than per state.
+-- definition. One-shot; see 'aperiodicIn' for the amortised variant.
 aperiodic :: (KnownNat n) => TransitionMatrix n -> Bool
-aperiodic p =
-    not (null classes) && all ((== Just 1) . classPeriod) classes
-  where
-    classes = classesOf (classify p)
+aperiodic = aperiodicIn . supportGraphOf
 
 -- | A summary of one communicating class: its member states, its 'period'
 -- (@Nothing@ if undefined), and whether it is 'classClosed' -- i.e. no edge
@@ -163,10 +229,10 @@ deriving instance (KnownNat n) => Show (Classification n)
 classesOf :: Classification n -> [CommClass n]
 classesOf (Classification cs) = cs
 
--- | Decompose a chain into communicating classes, annotating each with its
--- period and whether it is closed.
-classify :: (KnownNat n) => TransitionMatrix n -> Classification n
-classify p =
+-- | Decompose a prebuilt graph into communicating classes, annotating each
+-- with its period and whether it is closed.
+classifyIn :: (KnownNat n) => SupportGraph n -> Classification n
+classifyIn (SupportGraph g) =
     Classification
         [ CommClass
             { classMembers = map toFinite c
@@ -175,8 +241,12 @@ classify p =
             }
         | c <- components g
         ]
-  where
-    g = supportGraph p
+
+-- | Decompose a chain into communicating classes, annotating each with its
+-- period and whether it is closed. One-shot; see 'classifyIn' for the
+-- amortised variant.
+classify :: (KnownNat n) => TransitionMatrix n -> Classification n
+classify = classifyIn . supportGraphOf
 
 -- | A transition matrix carrying a proof that it is irreducible, obtainable
 -- only via 'witnessIrreducible'. Lets downstream code demand irreducibility in

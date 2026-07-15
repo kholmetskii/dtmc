@@ -13,14 +13,21 @@ import Data.Finite (
 import Dtmc.Classification (
     CommClass (..),
     accessible,
+    accessibleIn,
     aperiodic,
+    aperiodicIn,
     classesOf,
     classify,
-    communicatingClasses,
     communicates,
+    communicatesIn,
+    communicatingClasses,
+    communicatingClassesIn,
     irreducible,
+    irreducibleIn,
     irreducibleMatrix,
     period,
+    periodIn,
+    supportGraphOf,
     witnessIrreducible,
  )
 import Dtmc.TestSupport (
@@ -254,6 +261,27 @@ spec = do
                 `shouldBe` [[0, 1], [2, 3, 4, 5], [6]]
             map classPeriod cs `shouldBe` [Just 2, Just 1, Just 1]
             map classClosed cs `shouldBe` [True, False, True]
+
+    describe "SupportGraph" $ do
+        it "answers every seven-state query from a single build" $ do
+            let sg = supportGraphOf sevenState
+            map (map getFinite) (communicatingClassesIn sg)
+                `shouldBe` [[0, 1], [2, 3, 4, 5], [6]]
+            map (periodIn sg) (finites :: [Finite 7])
+                `shouldBe` [Just 2, Just 2, Just 1, Just 1, Just 1, Just 1, Just 1]
+            irreducibleIn sg `shouldBe` False
+            aperiodicIn sg `shouldBe` False
+            accessibleIn sg 2 6 `shouldBe` True
+            accessibleIn sg 6 2 `shouldBe` False
+            communicatesIn sg 0 1 `shouldBe` True
+            communicatesIn sg 0 2 `shouldBe` False
+
+        it "matches the one-shot classification of the three-cycle" $ do
+            let sg = supportGraphOf threeCycle
+            irreducibleIn sg `shouldBe` True
+            aperiodicIn sg `shouldBe` False
+            map (periodIn sg) (finites :: [Finite 3])
+                `shouldBe` [Just 3, Just 3, Just 3]
 
     describe "witnessIrreducible" $ do
         it "produces a witness exactly for irreducible chains" $ do
