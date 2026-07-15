@@ -126,8 +126,11 @@ period p i =
     g = supportGraph p
 
 -- | Whether the chain is aperiodic: every communicating class has period @1@
--- (and there is at least one state). Derived from 'classify' so the support
--- graph and closure are built only once, rather than per state.
+-- (and there is at least one state). A class with undefined period -- a
+-- cycle-free transient class, where 'period' is 'Nothing' -- does not have
+-- period one, so its presence makes the chain non-aperiodic under this
+-- definition. Derived from 'classify' so the support graph and closure are
+-- built only once, rather than per state.
 aperiodic :: (KnownNat n) => TransitionMatrix n -> Bool
 aperiodic p =
     not (null classes) && all ((== Just 1) . classPeriod) classes
