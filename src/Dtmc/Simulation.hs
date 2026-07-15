@@ -19,7 +19,7 @@ import Data.Finite (
     Finite,
     finite,
  )
-import Dtmc.Approx (
+import Dtmc.Internal.Simplex (
     snapToSimplex,
  )
 import Dtmc.Internal.Types (

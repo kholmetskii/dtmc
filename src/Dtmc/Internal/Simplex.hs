@@ -6,10 +6,12 @@
 -- constructors: it decides whether a raw vector is a valid probability
 -- distribution (a point on the standard simplex). All comparisons allow the
 -- shared 'tolerance' of slack (from "Dtmc.Approx") so floating-point values are
--- not spuriously rejected.
+-- not spuriously rejected. It also hosts 'snapToSimplex', the floating-point
+-- repair applied before categorical sampling.
 module Dtmc.Internal.Simplex (
     SimplexError (..),
     validateSimplex,
+    snapToSimplex,
 ) where
 
 import Dtmc.Approx (
@@ -59,3 +61,21 @@ firstInvalidEntry index (entry : rest)
         Just (EntryAboveOne index entry)
     | otherwise =
         firstInvalidEntry (index + 1) rest
+
+-- | Snap small negative coordinates -- those within 'tolerance' of zero, an
+-- artefact of floating-point arithmetic -- to exactly zero, so a probability
+-- vector is accepted by a categorical sampler. A coordinate more negative than
+-- that signals a real invariant violation (a programmer error) and fails loudly.
+snapToSimplex :: LA.Vector Double -> LA.Vector Double
+snapToSimplex =
+    LA.cmap snap
+  where
+    snap value
+        | value >= 0 = value
+        | value >= negate tolerance = 0
+        | otherwise =
+            error
+                ( "Dtmc.Internal.Simplex.snapToSimplex: probability coordinate "
+                    <> show value
+                    <> " is below -tolerance"
+                )
