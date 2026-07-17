@@ -47,6 +47,7 @@ library
       Dtmc.Internal.Types
       Dtmc.Internal.Simplex
       Dtmc.Internal.Graph
+      Dtmc.Internal.Block
 
   build-depends:
       base >=4.20 && <5
