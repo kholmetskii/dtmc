@@ -8,7 +8,6 @@ import Dtmc.Approx (
     approxEq,
     approxEqDist,
     approxEqMatrix,
-    approxEqR,
     tolerance,
  )
 import Dtmc.Distribution (
@@ -73,19 +72,6 @@ spec = do
         prop "is reflexive on probabilities" $
             forAll (choose (0, 1 :: Double)) $ \x ->
                 approxEq x x
-
-    describe "approxEqR" $ do
-        it "accepts vectors differing within tolerance" $
-            approxEqR
-                (S.vector [0.5, 0.5] :: S.R 2)
-                (S.vector [0.5 + 1e-10, 0.5 - 1e-10])
-                `shouldBe` True
-
-        it "rejects vectors differing beyond tolerance" $
-            approxEqR
-                (S.vector [0.5, 0.5] :: S.R 2)
-                (S.vector [0.5 + 1e-6, 0.5 - 1e-6])
-                `shouldBe` False
 
     describe "approxEqDist" $ do
         it "accepts distributions differing within tolerance" $

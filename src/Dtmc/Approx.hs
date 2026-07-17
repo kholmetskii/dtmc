@@ -10,7 +10,6 @@
 module Dtmc.Approx (
     tolerance,
     approxEq,
-    approxEqR,
     approxEqDist,
     approxEqMatrix,
 ) where
@@ -38,7 +37,9 @@ tolerance = 1e-9
 approxEq :: Double -> Double -> Bool
 approxEq x y = abs (x - y) <= tolerance
 
--- | Coordinatewise approximate equality of two static vectors.
+-- Coordinatewise approximate equality of two static vectors: the shared core
+-- of 'approxEqDist'. Unexported -- raw 'S.R' vectors are representation, not
+-- part of the public vocabulary.
 approxEqR :: (KnownNat n) => S.R n -> S.R n -> Bool
 approxEqR a b =
     and (zipWith approxEq (entries a) (entries b))
