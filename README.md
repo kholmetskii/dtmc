@@ -68,4 +68,4 @@ On macOS, `hmatrix` can use Apple Accelerate.
 
 ## Status
 
-The library is in early development. The current API covers the finite-state objects, single- and multi-step dynamics (Chapman–Kolmogorov), and the combinatorial structure theory of the support graph (communicating classes, irreducibility, and periodicity). Hitting/return times, recurrence, absorbing chains, and stationary/limiting behaviour are planned.
+The library is in early development. The current API covers the finite-state objects, single- and multi-step dynamics (Chapman–Kolmogorov), and the combinatorial structure theory of the support graph (communicating classes, irreducibility, periodicity, and recurrence/transience). Hitting/return times, absorbing chains, and stationary/limiting behaviour are planned.

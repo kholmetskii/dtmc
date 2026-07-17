@@ -6,7 +6,7 @@
 -- surface -- the 'Distribution' and 'TransitionMatrix' types with their
 -- validating constructors and error types, the analytic forward dynamics
 -- ('evolve' and 'matrixPower'), the qualitative structure
--- theory ('communicatingClasses', 'irreducible', 'period', 'classify'), the
+-- theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
 -- random simulation primitives, and the shared numeric tolerance with its
 -- approximate-equality helpers -- while hiding the "Dtmc.Internal" modules.
 -- Import this module to build, analyse, and run chains.
@@ -44,6 +44,14 @@ module Dtmc (
     periodIn,
     aperiodic,
     aperiodicIn,
+    recurrentState,
+    recurrentStateIn,
+    transientState,
+    transientStateIn,
+    recurrentStates,
+    recurrentStatesIn,
+    transientStates,
+    transientStatesIn,
     CommClass (..),
     Classification,
     classesOf,
@@ -108,9 +116,17 @@ import Dtmc.Classification (
     irreducibleMatrix,
     period,
     periodIn,
+    recurrentState,
+    recurrentStateIn,
+    recurrentStates,
+    recurrentStatesIn,
     supportEdge,
     supportEdgeIn,
     supportGraphOf,
+    transientState,
+    transientStateIn,
+    transientStates,
+    transientStatesIn,
     witnessIrreducible,
  )
 

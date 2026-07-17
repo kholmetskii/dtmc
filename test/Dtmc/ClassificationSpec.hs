@@ -10,6 +10,9 @@ import Data.Finite (
     finites,
     getFinite,
  )
+import Data.List (
+    sort,
+ )
 import Dtmc.Classification (
     CommClass (..),
     accessible,
@@ -27,7 +30,15 @@ import Dtmc.Classification (
     irreducibleMatrix,
     period,
     periodIn,
+    recurrentState,
+    recurrentStateIn,
+    recurrentStates,
+    recurrentStatesIn,
     supportGraphOf,
+    transientState,
+    transientStateIn,
+    transientStates,
+    transientStatesIn,
     witnessIrreducible,
  )
 import Dtmc.TestSupport (
@@ -108,6 +119,17 @@ sevenState =
                 , 0, 0, 0.3, 0.4, 0, 0.3, 0
                 , 0, 0, 0, 0, 0.2, 0, 0.8
                 , 0, 0, 0, 0, 0, 0, 1
+                ]
+            )
+
+identityThree :: TransitionMatrix 3
+identityThree =
+    fromRows $
+        mkTransitionMatrix
+            ( S.matrix
+                [ 1, 0, 0
+                , 0, 1, 0
+                , 0, 0, 1
                 ]
             )
 
@@ -275,6 +297,10 @@ spec = do
             accessibleIn sg 6 2 `shouldBe` False
             communicatesIn sg 0 1 `shouldBe` True
             communicatesIn sg 0 2 `shouldBe` False
+            map getFinite (recurrentStatesIn sg) `shouldBe` [0, 1, 6]
+            map getFinite (transientStatesIn sg) `shouldBe` [2, 3, 4, 5]
+            recurrentStateIn sg 0 `shouldBe` True
+            transientStateIn sg 2 `shouldBe` True
 
         it "matches the one-shot classification of the three-cycle" $ do
             let sg = supportGraphOf threeCycle
@@ -282,6 +308,67 @@ spec = do
             aperiodicIn sg `shouldBe` False
             map (periodIn sg) (finites :: [Finite 3])
                 `shouldBe` [Just 3, Just 3, Just 3]
+
+    describe "recurrence and transience" $ do
+        it "matches the closed classes of the seven-state chain" $ do
+            map getFinite (recurrentStates sevenState) `shouldBe` [0, 1, 6]
+            map getFinite (transientStates sevenState) `shouldBe` [2, 3, 4, 5]
+
+        it "marks every state of the irreducible three-cycle recurrent" $ do
+            map getFinite (recurrentStates threeCycle) `shouldBe` [0, 1, 2]
+            transientStates threeCycle `shouldBe` []
+
+        it "marks every state of the identity chain recurrent" $ do
+            map getFinite (recurrentStates identityThree) `shouldBe` [0, 1, 2]
+            transientStates identityThree `shouldBe` []
+
+        prop "recurrent and transient states partition the state space (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                case mkTransitionMatrix matrix of
+                    Right p ->
+                        sort
+                            ( map getFinite (recurrentStates p)
+                                <> map getFinite (transientStates p)
+                            )
+                            === [0 .. 3]
+                    Left err ->
+                        counterexample ("generated matrix was rejected: " <> show err) False
+
+        prop "every finite chain has a recurrent state (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                case mkTransitionMatrix matrix of
+                    Right p ->
+                        property (not (null (recurrentStates p)))
+                    Left err ->
+                        counterexample ("generated matrix was rejected: " <> show err) False
+
+        prop "transient iff some reachable state cannot reach back (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                case mkTransitionMatrix matrix of
+                    Right p ->
+                        let states = finites :: [Finite 4]
+                         in conjoin
+                                [ transientState p i
+                                    === or
+                                        [ accessible p i j && not (accessible p j i)
+                                        | j <- states
+                                        ]
+                                | i <- states
+                                ]
+                    Left err ->
+                        counterexample ("generated matrix was rejected: " <> show err) False
+
+        prop "predicates agree with the state lists (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                case mkTransitionMatrix matrix of
+                    Right p ->
+                        let states = finites :: [Finite 4]
+                         in conjoin
+                                [ recurrentState p i === (i `elem` recurrentStates p)
+                                | i <- states
+                                ]
+                    Left err ->
+                        counterexample ("generated matrix was rejected: " <> show err) False
 
     describe "witnessIrreducible" $ do
         it "produces a witness exactly for irreducible chains" $ do

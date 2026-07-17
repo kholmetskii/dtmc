@@ -1,12 +1,14 @@
 -- |
 -- Module      : Dtmc.Classification
--- Description : Communicating classes, irreducibility, and periodicity.
+-- Description : Communicating classes, irreducibility, periodicity, and recurrence.
 --
 -- Qualitative structure of a chain derived purely from the support graph of @P@
 -- (a directed edge @i -> j@ whenever @P(i,j) > 0@). Because it depends only on
 -- which entries are positive, everything here is exact combinatorics, independent
 -- of the actual probabilities: reachability, the partition into communicating
--- classes, irreducibility, and the period of each state/class.
+-- classes, irreducibility, the period of each state/class, and the
+-- recurrence/transience of each state (for a finite chain, recurrent means
+-- exactly that the communicating class is closed).
 --
 -- The graph combinatorics live in "Dtmc.Internal.Graph"; this module is the thin
 -- bridge that reads a chain's support into a 'Graph' and renames the graph facts
@@ -30,6 +32,10 @@ module Dtmc.Classification (
     irreducibleIn,
     periodIn,
     aperiodicIn,
+    recurrentStateIn,
+    transientStateIn,
+    recurrentStatesIn,
+    transientStatesIn,
     classifyIn,
 
     -- * One-shot support-graph queries
@@ -44,6 +50,12 @@ module Dtmc.Classification (
     -- * Periodicity
     period,
     aperiodic,
+
+    -- * Recurrence and transience
+    recurrentState,
+    transientState,
+    recurrentStates,
+    transientStates,
 
     -- * Classification summary
     CommClass (..),
@@ -160,6 +172,25 @@ aperiodicIn (SupportGraph g) =
   where
     cs = components g
 
+-- | Recurrence of state @i@ in a prebuilt graph (see 'recurrentState').
+recurrentStateIn :: SupportGraph n -> Finite n -> Bool
+recurrentStateIn (SupportGraph g) i =
+    closed g (componentOf g (toIndex i))
+
+-- | Transience of state @i@ in a prebuilt graph (see 'transientState').
+transientStateIn :: SupportGraph n -> Finite n -> Bool
+transientStateIn sg i = not (recurrentStateIn sg i)
+
+-- | All recurrent states of a prebuilt graph (see 'recurrentStates').
+recurrentStatesIn :: (KnownNat n) => SupportGraph n -> [Finite n]
+recurrentStatesIn (SupportGraph g) =
+    concatMap (map toFinite) (filter (closed g) (components g))
+
+-- | All transient states of a prebuilt graph (see 'transientStates').
+transientStatesIn :: (KnownNat n) => SupportGraph n -> [Finite n]
+transientStatesIn (SupportGraph g) =
+    concatMap (map toFinite) (filter (not . closed g) (components g))
+
 -- | Direct one-step reachability: @True@ iff @P(i,j) > 0@. Rebuilds the
 -- support graph on every call; for repeated queries build one 'SupportGraph'
 -- with 'supportGraphOf' and use 'supportEdgeIn'.
@@ -202,6 +233,40 @@ period p = periodIn (supportGraphOf p)
 -- definition. One-shot; see 'aperiodicIn' for the amortised variant.
 aperiodic :: (KnownNat n) => TransitionMatrix n -> Bool
 aperiodic = aperiodicIn . supportGraphOf
+
+-- | Whether state @i@ is recurrent: started at @i@, the chain returns to @i@
+-- with probability one. For a /finite/ chain this is purely combinatorial:
+-- A state of a finite chain is recurrent iff its communicating
+-- class is closed.
+--
+-- The equivalence is specific to finite chains: on an infinite state space a
+-- closed class may be transient (e.g. the asymmetric random walk on the
+-- integers), so this must not be read as a statement about infinite chains
+-- truncated to finite matrices.
+-- One-shot; see 'recurrentStateIn' for the amortised variant.
+recurrentState :: (KnownNat n) => TransitionMatrix n -> Finite n -> Bool
+recurrentState p = recurrentStateIn (supportGraphOf p)
+
+-- | Whether state @i@ is transient: positive probability of never returning;
+-- the negation of 'recurrentState'. One-shot; see 'transientStateIn' for the
+-- amortised variant.
+transientState :: (KnownNat n) => TransitionMatrix n -> Finite n -> Bool
+transientState p = transientStateIn (supportGraphOf p)
+
+-- | All recurrent states: the members of the closed communicating classes, in
+-- the order 'classify' lists them. Never empty: the classes of a finite chain
+-- form an acyclic reachability digraph (a cycle of classes would merge them
+-- into one class), so some class has no outgoing edges, and a sink class is
+-- closed. One-shot; see 'recurrentStatesIn' for the amortised variant.
+recurrentStates :: (KnownNat n) => TransitionMatrix n -> [Finite n]
+recurrentStates = recurrentStatesIn . supportGraphOf
+
+-- | All transient states: the members of the non-closed communicating
+-- classes, in the order 'classify' lists them. Empty iff every class is
+-- closed (in particular for any irreducible chain). One-shot; see
+-- 'transientStatesIn' for the amortised variant.
+transientStates :: (KnownNat n) => TransitionMatrix n -> [Finite n]
+transientStates = transientStatesIn . supportGraphOf
 
 -- | A summary of one communicating class: its member states, its 'period'
 -- (@Nothing@ if undefined), and whether it is 'classClosed' -- i.e. no edge
