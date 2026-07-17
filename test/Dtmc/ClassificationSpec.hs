@@ -21,6 +21,7 @@ import Dtmc.Classification (
     aperiodicIn,
     classesOf,
     classify,
+    classifyIn,
     communicates,
     communicatesIn,
     communicatingClasses,
@@ -34,6 +35,8 @@ import Dtmc.Classification (
     recurrentStateIn,
     recurrentStates,
     recurrentStatesIn,
+    supportEdge,
+    supportEdgeIn,
     supportGraphOf,
     transientState,
     transientStateIn,
@@ -301,6 +304,14 @@ spec = do
             map getFinite (transientStatesIn sg) `shouldBe` [2, 3, 4, 5]
             recurrentStateIn sg 0 `shouldBe` True
             transientStateIn sg 2 `shouldBe` True
+            supportEdgeIn sg 0 1 `shouldBe` True
+            supportEdgeIn sg 0 2 `shouldBe` False
+            supportEdgeIn sg 0 0 `shouldBe` False
+            classifyIn sg `shouldBe` classify sevenState
+
+        it "one-shot supportEdge agrees with the prebuilt variant" $ do
+            supportEdge sevenState 0 1 `shouldBe` True
+            supportEdge sevenState 0 0 `shouldBe` False
 
         it "matches the one-shot classification of the three-cycle" $ do
             let sg = supportGraphOf threeCycle
