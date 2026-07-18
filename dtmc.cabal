@@ -42,6 +42,7 @@ library
       Dtmc.Simulation
       Dtmc.Dynamics
       Dtmc.Classification
+      Dtmc.Hitting
 
   other-modules:
       Dtmc.Internal.Types
@@ -70,6 +71,7 @@ test-suite spec
       Dtmc.SimulationSpec
       Dtmc.DynamicsSpec
       Dtmc.ClassificationSpec
+      Dtmc.HittingSpec
       Dtmc.TestSupport
 
   build-depends:
