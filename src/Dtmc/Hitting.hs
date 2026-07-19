@@ -19,10 +19,14 @@
 -- rounding. Infinity is likewise a constructor ('InfiniteMean'), not an IEEE
 -- value.
 module Dtmc.Hitting (
-    MeanHittingTime (..),
+    MeanTime (..),
     hittingProbabilities,
+    hittingProbability,
     expectedHittingTimes,
+    expectedHittingTime,
+    returnProbabilities,
     returnProbability,
+    expectedReturnTimes,
     expectedReturnTime,
 ) where
 
@@ -39,21 +43,24 @@ import Data.Maybe (
  )
 import Dtmc.Classification (
     accessibleIn,
+    recurrentStateIn,
     supportEdgeIn,
     supportGraphOf,
- )
-import Dtmc.Internal.Types ( 
-    unDistribution 
+    transientStatesIn,
  )
 import Dtmc.Internal.Block (
+    fundamental,
     rowSums,
     solveIminusQVector,
     subMatrix,
  )
-import Dtmc.TransitionMatrix (
+import Dtmc.Internal.Types (
     TransitionMatrix,
-    rowAt,
+    unDistribution,
     unTransitionMatrix,
+ )
+import Dtmc.TransitionMatrix (
+    rowAt,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -67,7 +74,7 @@ import Numeric.LinearAlgebra.Static qualified as S
 -- the outcome of float arithmetic. The derived 'Ord' agrees with the order of
 -- the extended reals: finite means compare by value and every finite mean is
 -- below 'InfiniteMean'.
-data MeanHittingTime
+data MeanTime
     = FiniteMean Double
     | InfiniteMean
     deriving (Eq, Ord, Show)
@@ -134,9 +141,24 @@ hittingProbabilities p targets =
         | inTarget i = 1
         | otherwise = fromMaybe 0 (lookup i interiorValue)
 
+-- | The probability of ever hitting the target set from one supplied state.
+-- This is an indexed view of 'hittingProbabilities'; partial application to a
+-- matrix and target set shares the one global solve across subsequent state
+-- queries.
+hittingProbability ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    [Finite n] ->
+    Finite n ->
+    Double
+hittingProbability p targets =
+    \i -> probabilities `LA.atIndex` toIndex i
+  where
+    probabilities = S.extract (hittingProbabilities p targets)
+
 -- | The expected hitting times @eta_iA = E(H_A | X_0 = i)@ of the target set
--- @A@, as a total function of the start state (backed by a table computed
--- once, so partial application shares the work).
+-- @A@, one entry per state in state order.
 --
 -- /Theorem./ @eta_iA = 0@ on @A@; @eta_iA@ is infinite exactly
 -- when @h_iA < 1@; and on the states with @h_iA = 1@ the family is the
@@ -167,10 +189,9 @@ expectedHittingTimes ::
     (KnownNat n) =>
     TransitionMatrix n ->
     [Finite n] ->
-    Finite n ->
-    MeanHittingTime
+    [MeanTime]
 expectedHittingTimes p targets =
-    \i -> table !! toIndex i
+    table
   where
     sg = supportGraphOf p
     targetSet = nub targets
@@ -218,68 +239,178 @@ expectedHittingTimes p targets =
                 FiniteMean
                 (lookup i certainValue)
 
--- | The return probability @f_i = P(T_i < infinity | X_0 = i)@, where @T_i@
--- is the time of the /first return/ to @i@ (at least one step -- unlike the
--- hitting probability of @{i}@ from @i@, which is trivially one).
+-- | The expected time to hit the target set from one supplied state. This is
+-- an indexed view of 'expectedHittingTimes'; partial application shares the
+-- table and its linear solve across subsequent state queries.
+expectedHittingTime ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    [Finite n] ->
+    Finite n ->
+    MeanTime
+expectedHittingTime p targets =
+    \i -> table !! toIndex i
+  where
+    table = expectedHittingTimes p targets
+
+-- | The vector of first-return probabilities
+-- @f_i = P(T_i < infinity | X_0 = i)@, one entry per state, where @T_i@ is
+-- the first return time to @i@ after at least one step.
 --
--- /Theorem (first-step decomposition)./ @f_i = sum_j P_ij h_j{i}@.
---
--- /Proof./ Condition on the first step: the chain moves to @j@ with
--- probability @P_ij@, after which returning to @i@ is exactly hitting @{i}@
--- from @j@. The term @j = i@ is covered by the boundary value
--- @h_i{i} = 1@: a self-loop is an immediate return.
---
--- Recurrence of a state is classically defined by @f_i = 1@; for finite
--- chains this agrees
--- with the closed-class criterion of 'Dtmc.Classification.recurrentState',
--- and the spec checks the two implementations against each other. Note the
--- result is a floating-point value from the hitting solve: recurrence of a
--- state is decided exactly by 'Dtmc.Classification.recurrentState', not by
--- comparing this number to one.
+-- Recurrent states are assigned exactly @1@ from the support-graph
+-- classification. For all transient states at once, let @Q@ be the transient
+-- block and @N = (I - Q)^-1@ its fundamental matrix. Since @N_ii@ is the
+-- expected number of visits to @i@ starting from @i@, including time zero,
+-- the renewal identity @N_ii = 1 + f_i N_ii@ gives
+-- @f_i = 1 - 1 / N_ii@. Thus the whole vector needs one matrix solve rather
+-- than one singleton hitting solve per state.
+returnProbabilities ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    S.R n
+returnProbabilities p =
+    S.vector [valueAt i | i <- finites]
+  where
+    sg = supportGraphOf p
+    transient = transientStatesIn sg
+    transientIdx = map toIndex transient
+    matrix = S.extract (unTransitionMatrix p)
+    transientValue
+        | null transient = []
+        | otherwise =
+            case fundamental (subMatrix transientIdx transientIdx matrix) of
+                Just nMatrix ->
+                    zip
+                        transient
+                        [ 1 - 1 / (nMatrix `LA.atIndex` (k, k))
+                        | k <- [0 .. length transient - 1]
+                        ]
+                Nothing ->
+                    error
+                        "Dtmc.Hitting.returnProbabilities: transient system \
+                        \singular or numerically ill-conditioned"
+    valueAt i
+        | recurrentStateIn sg i = 1
+        | otherwise =
+            fromMaybe
+                (error "Dtmc.Hitting.returnProbabilities: state escaped the partition")
+                (lookup i transientValue)
+
+-- | The probability of returning to one supplied state after at least one
+-- step. This is an indexed view of 'returnProbabilities'; partial application
+-- shares the support analysis and fundamental-matrix solve.
 returnProbability ::
+    forall n.
     (KnownNat n) =>
     TransitionMatrix n ->
     Finite n ->
     Double
-returnProbability p i =
-    LA.dot
-        (S.extract (unDistribution (rowAt p i)))
-        (S.extract (hittingProbabilities p [i]))
+returnProbability p =
+    \i -> probabilities `LA.atIndex` toIndex i
+  where
+    probabilities = S.extract (returnProbabilities p)
 
--- | The expected return time @m_i = E(T_i | X_0 = i)@, where @T_i@ is the
--- time of the /first return/ to @i@ (at least one step, unlike the hitting
--- time of @{i}@, which is zero when starting there).
+-- | The expected first-return times @m_i = E(T_i | X_0 = i)@, one entry per
+-- state. The implementation uses only the already established first-step
+-- decomposition: after the first move @i -> j@, returning to @i@ is the same
+-- as hitting the singleton target @{i}@ from @j@. Thus
 --
--- /Theorem (first-return decomposition)./
--- @m_i = 1 + sum_j P_ij eta_j{i}@, with the convention @0 * infinity = 0@:
--- successors with zero probability do not contribute, and any successor with
--- positive probability and infinite expected hitting time makes @m_i@
--- infinite.
+-- @m_i = 1 + sum_j P_ij eta_j{i}@,
 --
--- /Proof./ Condition on the first step: from @i@ the chain moves to @j@ with
--- probability @P_ij@, after which the time to reach @i@ is the hitting time
--- of @{i}@ from @j@ (with @eta_i{i} = 0@ covering a self-loop). Adding the
--- one step already taken gives the formula.
---
--- For a finite chain @m_i@ is finite exactly when @i@ is recurrent
--- ('Dtmc.Classification.recurrentState'): a recurrent class is closed and
--- finite, so every state in it hits @i@ almost surely in uniformly bounded
--- expected time, while a transient @i@ has a successor with
--- @h_j{i} < 1@ (otherwise the return probability would be one). The spec
--- verifies this equivalence -- combinatorics against linear algebra -- on
--- random chains.
+-- where @eta_i{i} = 0@ handles an immediate self-loop. A positive-probability
+-- successor with infinite singleton hitting mean makes @m_i@ infinite; zero
+-- probability times infinity contributes zero. Computing all entries this way
+-- may require one hitting-time solve per state, hence @O(n^4)@ worst-case time.
+expectedReturnTimes ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    [MeanTime]
+expectedReturnTimes p =
+    [expectedReturnTimeFrom p i | i <- finites]
+
+-- | The expected first-return time for one supplied state, computed directly
+-- from its singleton hitting-time table. Unlike indexing the plural result,
+-- this performs only the one required hitting solve, taking @O(n^3)@ worst-case
+-- time rather than computing return means for every possible starting state.
 expectedReturnTime ::
+    forall n.
     (KnownNat n) =>
     TransitionMatrix n ->
     Finite n ->
-    MeanHittingTime
-expectedReturnTime p i =
+    MeanTime
+expectedReturnTime = expectedReturnTimeFrom
+
+expectedReturnTimeFrom ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    Finite n ->
+    MeanTime
+expectedReturnTimeFrom p i =
     foldl' addTerm (FiniteMean 1) (zip finites row)
   where
-    eta = expectedHittingTimes p [i]
+    eta = expectedHittingTime p [i]
     row = LA.toList (S.extract (unDistribution (rowAt p i)))
     addTerm acc (j, pij)
         | pij <= 0 = acc
-        | otherwise = case (acc, eta j) of
-            (FiniteMean s, FiniteMean e) -> FiniteMean (s + pij * e)
-            _ -> InfiniteMean
+        | otherwise =
+            case (acc, eta j) of
+                (FiniteMean total, FiniteMean hittingTime) ->
+                    FiniteMean (total + pij * hittingTime)
+                _ -> InfiniteMean
+
+{-
+More efficient all-states alternative, intentionally kept out of the active
+implementation until stationary distributions and Kac's return-time theorem
+have been introduced. It computes every expected return time in O(n^3): solve
+one stationary system per closed recurrent class, assign 1 / pi_i to its
+members, and assign InfiniteMean to transient states. To activate this code,
+also import communicatingClassesIn from Dtmc.Classification.
+
+stationaryDistribution :: LA.Matrix Double -> Maybe (LA.Vector Double)
+stationaryDistribution q
+    | LA.rows q == 0 = Just (LA.fromList [])
+    | otherwise =
+        LA.flatten <$> LA.linearSolve coefficients (LA.asColumn rhs)
+  where
+    size = LA.rows q
+    balanceRows = take (size - 1) (LA.toRows (LA.tr q - LA.ident size))
+    coefficients = LA.fromRows (balanceRows ++ [LA.konst 1 size])
+    rhs = LA.fromList (replicate (size - 1) 0 ++ [1])
+
+expectedReturnTimesViaStationary ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    [MeanTime]
+expectedReturnTimesViaStationary p =
+    [valueAt i | i <- finites]
+  where
+    sg = supportGraphOf p
+    matrix = S.extract (unTransitionMatrix p)
+    recurrentClasses =
+        [ members
+        | members@(representative : _) <- communicatingClassesIn sg
+        , recurrentStateIn sg representative
+        ]
+    recurrentValue = concatMap solveClass recurrentClasses
+    solveClass members =
+        case stationaryDistribution (subMatrix indices indices matrix) of
+            Just piVector -> zip members (map meanFromMass (LA.toList piVector))
+            Nothing ->
+                error
+                    "Dtmc.Hitting.expectedReturnTimesViaStationary: stationary system \
+                    \singular or numerically ill-conditioned"
+      where
+        indices = map toIndex members
+    meanFromMass mass
+        | mass > 0 = FiniteMean (1 / mass)
+        | otherwise =
+            error
+                "Dtmc.Hitting.expectedReturnTimesViaStationary: \
+                \non-positive stationary mass"
+    valueAt i = fromMaybe InfiniteMean (lookup i recurrentValue)
+-}

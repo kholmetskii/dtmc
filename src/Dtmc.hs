@@ -7,7 +7,9 @@
 -- validating constructors and error types, the analytic forward dynamics
 -- ('evolve' and 'matrixPower'), the qualitative structure
 -- theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
--- hitting theory ('hittingProbabilities', 'expectedHittingTimes', 'returnProbability', 'expectedReturnTime'), the
+-- hitting theory ('hittingProbabilities', 'hittingProbability',
+-- 'expectedHittingTimes', 'expectedHittingTime', 'returnProbabilities',
+-- 'returnProbability', 'expectedReturnTimes', and 'expectedReturnTime'), the
 -- random simulation primitives, and the shared numeric tolerance with its
 -- approximate-equality helpers -- while hiding the "Dtmc.Internal" modules.
 -- Import this module to build, analyse, and run chains.
@@ -61,10 +63,14 @@ module Dtmc (
     Irreducible,
     witnessIrreducible,
     irreducibleMatrix,
-    MeanHittingTime (..),
+    MeanTime (..),
     hittingProbabilities,
+    hittingProbability,
     expectedHittingTimes,
+    expectedHittingTime,
+    returnProbabilities,
     returnProbability,
+    expectedReturnTimes,
     expectedReturnTime,
     tolerance,
     approxEq,
@@ -144,9 +150,13 @@ import Dtmc.Approx (
  )
 
 import Dtmc.Hitting (
-    MeanHittingTime (..),
+    MeanTime (..),
+    expectedHittingTime,
     expectedHittingTimes,
     expectedReturnTime,
+    expectedReturnTimes,
+    hittingProbability,
     hittingProbabilities,
     returnProbability,
+    returnProbabilities,
  )

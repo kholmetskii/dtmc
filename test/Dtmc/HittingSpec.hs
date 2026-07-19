@@ -18,11 +18,15 @@ import Dtmc.Classification (
     recurrentState,
  )
 import Dtmc.Hitting (
-    MeanHittingTime (..),
+    MeanTime (..),
+    expectedHittingTime,
     expectedHittingTimes,
     expectedReturnTime,
+    expectedReturnTimes,
+    hittingProbability,
     hittingProbabilities,
     returnProbability,
+    returnProbabilities,
  )
 import Dtmc.TestSupport (
     genTransitionMatrix,
@@ -98,6 +102,16 @@ twoCycle =
                 ]
             )
 
+nonUniformRecurrent :: TransitionMatrix 2
+nonUniformRecurrent =
+    fromRows $
+        mkTransitionMatrix
+            ( S.matrix
+                [ 0.9, 0.1
+                , 0.4, 0.6
+                ]
+            )
+
 -- Ruin probability from i with N = 4: (r^i - r^N) / (1 - r^N), r = (1-p)/p.
 -- Only for p /= 1/2 (the symmetric case is 1 - i/N).
 ruinProbability :: Double -> Int -> Double
@@ -123,7 +137,7 @@ entries = LA.toList . S.extract
 closeTo :: Double -> Double -> Bool
 closeTo expected x = abs (x - expected) <= tolerance
 
-meanCloseTo :: Double -> MeanHittingTime -> Bool
+meanCloseTo :: Double -> MeanTime -> Bool
 meanCloseTo expected (FiniteMean v) = closeTo expected v
 meanCloseTo _ InfiniteMean = False
 
@@ -167,6 +181,10 @@ spec = do
             entries (hittingProbabilities oscillator [])
                 `shouldBe` [0, 0, 0, 0]
 
+        it "supports a single-state lookup without changing the result" $
+            hittingProbability oscillator [2] 0
+                `shouldSatisfy` closeTo (2 / 3)
+
         prop "is exactly one on the target and zero off its basin (random @4)" $
             forAll (genTransitionMatrix @4) $ \matrix ->
                 checkedChain matrix $ \p ->
@@ -197,29 +215,33 @@ spec = do
                             ]
 
     describe "expectedHittingTimes" $ do
+        it "returns one entry per state" $
+            expectedHittingTimes oscillator [2, 3]
+                `shouldBe` map FiniteMean [2, 2, 0, 0]
+
         it "matches the gambler duration closed form (p = 0.4)" $ do
-            let eta = expectedHittingTimes (gambler 0.4) [0, 4]
+            let eta = expectedHittingTime (gambler 0.4) [0, 4]
             sequence_
                 [ eta i `shouldSatisfy` meanCloseTo (ruinDuration 0.4 (fromIntegral i))
                 | i <- finites :: [Finite 5]
                 ]
 
         it "matches the symmetric duration i (4 - i) (p = 0.5)" $ do
-            let eta = expectedHittingTimes (gambler 0.5) [0, 4]
+            let eta = expectedHittingTime (gambler 0.5) [0, 4]
             sequence_
                 [ eta i `shouldSatisfy` meanCloseTo (fromIntegral i * (4 - fromIntegral i))
                 | i <- finites :: [Finite 5]
                 ]
 
         it "expects two steps to absorption from either oscillator state" $ do
-            let eta = expectedHittingTimes oscillator [2, 3]
+            let eta = expectedHittingTime oscillator [2, 3]
             eta 0 `shouldSatisfy` meanCloseTo 2
             eta 1 `shouldSatisfy` meanCloseTo 2
             eta 2 `shouldBe` FiniteMean 0
             eta 3 `shouldBe` FiniteMean 0
 
         it "is infinite when a competing absorbing state is reachable" $ do
-            let eta = expectedHittingTimes oscillator [2]
+            let eta = expectedHittingTime oscillator [2]
             eta 0 `shouldBe` InfiniteMean
             eta 1 `shouldBe` InfiniteMean
             eta 2 `shouldBe` FiniteMean 0
@@ -228,7 +250,7 @@ spec = do
         prop "finite entries satisfy the first-step equations (random @4)" $
             forAll (genTransitionMatrix @4) $ \matrix ->
                 checkedChain matrix $ \p ->
-                    let eta = expectedHittingTimes p [0]
+                    let eta = expectedHittingTime p [0]
                         rows = LA.toLists (S.extract (unTransitionMatrix p))
                         firstStep i row =
                             case eta i of
@@ -258,6 +280,10 @@ spec = do
                             ]
 
     describe "returnProbability" $ do
+        it "returns all state values in one solve" $
+            entries (returnProbabilities oscillator)
+                `shouldBe` [0.25, 0.25, 1, 1]
+
         it "is one for an absorbing state" $
             returnProbability (gambler 0.5) 0 `shouldSatisfy` closeTo 1
 
@@ -285,12 +311,20 @@ spec = do
                         ]
 
     describe "expectedReturnTime" $ do
+        it "returns all state values in one table" $
+            expectedReturnTimes oscillator
+                `shouldBe` [InfiniteMean, InfiniteMean, FiniteMean 1, FiniteMean 1]
+
         it "is one for an absorbing state" $
             expectedReturnTime oscillator 2 `shouldBe` FiniteMean 1
 
         it "is two for either state of the two-cycle" $ do
             expectedReturnTime twoCycle 0 `shouldSatisfy` meanCloseTo 2
             expectedReturnTime twoCycle 1 `shouldSatisfy` meanCloseTo 2
+
+        it "handles a non-uniform recurrent class" $ do
+            expectedReturnTime nonUniformRecurrent 0 `shouldSatisfy` meanCloseTo 1.25
+            expectedReturnTime nonUniformRecurrent 1 `shouldSatisfy` meanCloseTo 5
 
         it "is infinite for the oscillator's transient states" $ do
             expectedReturnTime oscillator 0 `shouldBe` InfiniteMean
