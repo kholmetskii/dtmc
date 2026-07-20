@@ -240,7 +240,7 @@ spec = do
                 `shouldBe` [Just 2, Just 2]
             aperiodic bipartiteTwo `shouldBe` False
 
-        it "matches the notes for the seven-state chain" $
+        it "matches the hand-computed periods of the seven-state chain" $
             map (period sevenState) (finites :: [Finite 7])
                 `shouldBe` [Just 2, Just 2, Just 1, Just 1, Just 1, Just 1, Just 1]
 
