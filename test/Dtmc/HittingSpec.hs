@@ -215,9 +215,16 @@ spec = do
                             ]
 
     describe "expectedHittingTimes" $ do
-        it "returns one entry per state" $
-            expectedHittingTimes oscillator [2, 3]
-                `shouldBe` map FiniteMean [2, 2, 0, 0]
+        it "returns one entry per state" $ do
+            -- The transient entries come from the linear solve, so they are
+            -- compared within tolerance; the target entries are assigned
+            -- exactly and checked exactly.
+            let eta = expectedHittingTimes oscillator [2, 3]
+            sequence_
+                [ e `shouldSatisfy` meanCloseTo 2
+                | e <- take 2 eta
+                ]
+            drop 2 eta `shouldBe` [FiniteMean 0, FiniteMean 0]
 
         it "matches the gambler duration closed form (p = 0.4)" $ do
             let eta = expectedHittingTime (gambler 0.4) [0, 4]
@@ -279,10 +286,43 @@ spec = do
                             , i /= 0
                             ]
 
-    describe "returnProbability" $ do
-        it "returns all state values in one solve" $
-            entries (returnProbabilities oscillator)
-                `shouldBe` [0.25, 0.25, 1, 1]
+    describe "returnProbabilities" $ do
+        it "returns all state values in one solve" $ do
+            -- The transient entries come from the fundamental-matrix solve,
+            -- so they are compared within tolerance; the recurrent entries
+            -- are assigned exactly one by the classification and checked
+            -- exactly.
+            let f = entries (returnProbabilities oscillator)
+            sequence_
+                [ x `shouldSatisfy` closeTo 0.25
+                | x <- take 2 f
+                ]
+            drop 2 f `shouldBe` [1, 1]
+
+        prop "agrees with the first-step decomposition (random @4)" $
+            -- Two independent theorems for the same quantity: the
+            -- implementation computes f_i = 1 - 1/N_ii from the renewal
+            -- identity, while conditioning on the first step gives
+            -- f_i = sum_j P_ij h_j{i}.
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                checkedChain matrix $ \p ->
+                    let rows = LA.toLists (S.extract (unTransitionMatrix p))
+                     in conjoin
+                            [ counterexample (show (i, f, firstStep)) $
+                                property (closeTo firstStep f)
+                            | (i, row, f) <-
+                                zip3
+                                    (finites :: [Finite 4])
+                                    rows
+                                    (entries (returnProbabilities p))
+                            , let firstStep =
+                                    sum
+                                        ( zipWith
+                                            (*)
+                                            row
+                                            (entries (hittingProbabilities p [i]))
+                                        )
+                            ]
 
         it "is one for an absorbing state" $
             returnProbability (gambler 0.5) 0 `shouldSatisfy` closeTo 1
@@ -310,7 +350,7 @@ spec = do
                         , let f = returnProbability p i
                         ]
 
-    describe "expectedReturnTime" $ do
+    describe "expectedReturnTimes" $ do
         it "returns all state values in one table" $
             expectedReturnTimes oscillator
                 `shouldBe` [InfiniteMean, InfiniteMean, FiniteMean 1, FiniteMean 1]
