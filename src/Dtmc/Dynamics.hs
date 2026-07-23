@@ -1,25 +1,23 @@
 -- |
 -- Module      : Dtmc.Dynamics
--- Description : Deterministic forward dynamics and multi-step transitions.
+-- Description : Deterministic forward evolution of distributions.
 --
--- The analytic (non-random) evolution of a chain: how a distribution is pushed
--- forward by the transition matrix, and how one-step matrices compose into
--- @k@-step matrices. Row-stochastic @p@ acts on a column distribution @mu@ by
--- @mu' = transpose p #> mu@, i.e. @mu'(j) = sum_i mu(i) * p(i,j)@. Powers and
--- products reuse the 'Monoid' structure of t'TransitionMatrix'.
+-- The analytic (non-random) push-forward of a distribution by the chain: how
+-- the law of the current state becomes the law of the next. Row-stochastic @p@
+-- acts on a column distribution @mu@ by @mu' = transpose p #> mu@, i.e.
+-- @mu'(j) = sum_i mu(i) * p(i,j)@. The @k@-step version reuses 'matrixPower'
+-- from "Dtmc.TransitionMatrix".
 module Dtmc.Dynamics (
     evolve,
     evolveN,
-    identityMatrix,
-    matrixPower,
 ) where
 
-import Data.Semigroup (
-    mtimesDefault,
- )
 import Dtmc.Internal.Types (
     Distribution (..),
     TransitionMatrix (..),
+ )
+import Dtmc.TransitionMatrix (
+    matrixPower,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -34,16 +32,6 @@ evolve (Distribution v) p =
     Distribution
         { unDistribution = S.tr (unTransitionMatrix p) S.#> v
         }
-
--- | The @n*n@ identity as a transition matrix: the zero-step transition
--- (@mempty@), which leaves any distribution unchanged.
-identityMatrix :: (KnownNat n) => TransitionMatrix n
-identityMatrix = mempty
-
--- | The @k@-step transition matrix @p^k@, formed by @k@-fold monoidal product
--- (@matrixPower 0 = identityMatrix@).
-matrixPower :: (KnownNat n) => Natural -> TransitionMatrix n -> TransitionMatrix n
-matrixPower = mtimesDefault
 
 -- | @k@-step push-forward: @evolveN k mu p = evolve mu (p^k)@, the law of the
 -- state after @k@ transitions.

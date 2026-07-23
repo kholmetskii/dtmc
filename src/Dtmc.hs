@@ -83,6 +83,8 @@ import Dtmc.Simulation (
 import Dtmc.TransitionMatrix (
     TransitionMatrixError (..),
     TransitionMatrix,
+    identityMatrix,
+    matrixPower,
     mkTransitionMatrix,
     mulTransitionMatrix,
     rowAt,
@@ -92,8 +94,6 @@ import Dtmc.TransitionMatrix (
 import Dtmc.Dynamics (
     evolve,
     evolveN,
-    identityMatrix,
-    matrixPower,
  )
 
 import Dtmc.Classification (
