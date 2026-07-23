@@ -15,33 +15,28 @@ import Data.List (
  )
 import Dtmc.Classification (
     CommClass (..),
+    absorbingStates,
     accessible,
-    accessibleIn,
     aperiodic,
-    aperiodicIn,
+    chainPeriod,
     classesOf,
     classify,
-    classifyIn,
     communicates,
-    communicatesIn,
     communicatingClasses,
-    communicatingClassesIn,
+    cyclicClasses,
     irreducible,
-    irreducibleIn,
     irreducibleMatrix,
+    isAperiodic,
+    isErgodic,
+    isIrreducible,
     period,
-    periodIn,
     recurrentState,
-    recurrentStateIn,
     recurrentStates,
-    recurrentStatesIn,
+    recurrentStatesOf,
     supportEdge,
-    supportEdgeIn,
-    supportGraphOf,
     transientState,
-    transientStateIn,
     transientStates,
-    transientStatesIn,
+    transientStatesOf,
     witnessIrreducible,
  )
 import Dtmc.TestSupport (
@@ -136,6 +131,19 @@ identityThree =
                 ]
             )
 
+-- Exercise 3.2.2: irreducible, period 2, cyclic classes {A,B} and {C,D}.
+fourStateCyclic :: TransitionMatrix 4
+fourStateCyclic =
+    fromRows $
+        mkTransitionMatrix
+            ( S.matrix
+                [ 0, 0, 1, 0
+                , 0, 0, 0, 1
+                , 0.5, 0.5, 0, 0
+                , 1, 0, 0, 0
+                ]
+            )
+
 matrixSupport :: (KnownNat n) => TransitionMatrix n -> [[Bool]]
 matrixSupport =
     map (map (> 0)) . LA.toLists . S.extract . unTransitionMatrix
@@ -164,6 +172,9 @@ referencePeriod s i =
 
 classesAsInts :: (KnownNat n) => TransitionMatrix n -> [[Integer]]
 classesAsInts = map (map getFinite) . communicatingClasses
+
+cyclicClassesAsInts :: (KnownNat n) => TransitionMatrix n -> Maybe [[Integer]]
+cyclicClassesAsInts = fmap (map (map getFinite)) . cyclicClasses
 
 sortUnique :: (Ord a) => [a] -> [a]
 sortUnique = foldr insert []
@@ -273,6 +284,55 @@ spec = do
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False
 
+        prop "communication agrees with the class partition (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                case mkTransitionMatrix matrix of
+                    Right p ->
+                        let states = finites :: [Finite 4]
+                            classIx = communicatingClasses p
+                            sameClass i j = or [i `elem` c && j `elem` c | c <- classIx]
+                         in conjoin
+                                [ counterexample (show (i, j)) $
+                                    communicates p i j === sameClass i j
+                                | i <- states
+                                , j <- states
+                                ]
+                    Left err ->
+                        counterexample ("generated matrix was rejected: " <> show err) False
+
+    describe "cyclicClasses" $ do
+        it "splits the period-2 four-state chain into {A,B} and {C,D}" $
+            cyclicClassesAsInts fourStateCyclic `shouldBe` Just [[0, 1], [2, 3]]
+
+        it "splits the three-cycle into three singletons" $
+            cyclicClassesAsInts threeCycle `shouldBe` Just [[0], [1], [2]]
+
+        it "is Nothing for the reducible seven-state chain" $
+            cyclicClassesAsInts sevenState `shouldBe` Nothing
+
+        prop "classes partition the states and advance one step (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                case mkTransitionMatrix matrix of
+                    Right p ->
+                        case cyclicClasses p of
+                            Nothing -> property True
+                            Just cs ->
+                                let d = length cs
+                                    states = finites :: [Finite 4]
+                                 in conjoin
+                                        [ counterexample "partition" (sort (concat cs) === states)
+                                        , conjoin
+                                            [ counterexample (show (i, j)) $
+                                                property (j `elem` (cs !! ((r + 1) `mod` d)))
+                                            | (r, c) <- zip [0 ..] cs
+                                            , i <- c
+                                            , j <- states
+                                            , supportEdge p i j
+                                            ]
+                                        ]
+                    Left err ->
+                        counterexample ("generated matrix was rejected: " <> show err) False
+
     describe "irreducible" $ do
         it "holds for the three-cycle and swap, fails for the seven-state chain" $ do
             irreducible threeCycle `shouldBe` True
@@ -287,38 +347,47 @@ spec = do
             map classPeriod cs `shouldBe` [Just 2, Just 1, Just 1]
             map classClosed cs `shouldBe` [True, False, True]
 
-    describe "SupportGraph" $ do
-        it "answers every seven-state query from a single build" $ do
-            let sg = supportGraphOf sevenState
-            map (map getFinite) (communicatingClassesIn sg)
-                `shouldBe` [[0, 1], [2, 3, 4, 5], [6]]
-            map (periodIn sg) (finites :: [Finite 7])
-                `shouldBe` [Just 2, Just 2, Just 1, Just 1, Just 1, Just 1, Just 1]
-            irreducibleIn sg `shouldBe` False
-            aperiodicIn sg `shouldBe` False
-            accessibleIn sg 2 6 `shouldBe` True
-            accessibleIn sg 6 2 `shouldBe` False
-            communicatesIn sg 0 1 `shouldBe` True
-            communicatesIn sg 0 2 `shouldBe` False
-            map getFinite (recurrentStatesIn sg) `shouldBe` [0, 1, 6]
-            map getFinite (transientStatesIn sg) `shouldBe` [2, 3, 4, 5]
-            recurrentStateIn sg 0 `shouldBe` True
-            transientStateIn sg 2 `shouldBe` True
-            supportEdgeIn sg 0 1 `shouldBe` True
-            supportEdgeIn sg 0 2 `shouldBe` False
-            supportEdgeIn sg 0 0 `shouldBe` False
-            classifyIn sg `shouldBe` classify sevenState
+    describe "classify report" $ do
+        it "finds the absorbing states" $ do
+            map getFinite (absorbingStates (classify sevenState)) `shouldBe` [6]
+            map getFinite (absorbingStates (classify identityThree)) `shouldBe` [0, 1, 2]
+            map getFinite (absorbingStates (classify threeCycle)) `shouldBe` []
 
-        it "one-shot supportEdge agrees with the prebuilt variant" $ do
-            supportEdge sevenState 0 1 `shouldBe` True
-            supportEdge sevenState 0 0 `shouldBe` False
+        prop "absorbing states have only a self-loop (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                case mkTransitionMatrix matrix of
+                    Right p ->
+                        conjoin
+                            [ counterexample (show i) $
+                                [j | j <- finites :: [Finite 4], supportEdge p i j] === [i]
+                            | i <- absorbingStates (classify p)
+                            ]
+                    Left err ->
+                        counterexample ("generated matrix was rejected: " <> show err) False
 
-        it "matches the one-shot classification of the three-cycle" $ do
-            let sg = supportGraphOf threeCycle
-            irreducibleIn sg `shouldBe` True
-            aperiodicIn sg `shouldBe` False
-            map (periodIn sg) (finites :: [Finite 3])
-                `shouldBe` [Just 3, Just 3, Just 3]
+        prop "report fields agree with the standalone queries (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                case mkTransitionMatrix matrix of
+                    Right p ->
+                        let c = classify p
+                            firstState = minBound :: Finite 4
+                         in conjoin
+                                [ counterexample "isIrreducible" $
+                                    isIrreducible c === irreducible p
+                                , counterexample "isAperiodic" $
+                                    isAperiodic c === aperiodic p
+                                , counterexample "isErgodic" $
+                                    isErgodic c === (irreducible p && aperiodic p)
+                                , counterexample "recurrentStatesOf" $
+                                    recurrentStatesOf c === recurrentStates p
+                                , counterexample "transientStatesOf" $
+                                    transientStatesOf c === transientStates p
+                                , counterexample "chainPeriod" $
+                                    chainPeriod c
+                                        === (if irreducible p then period p firstState else Nothing)
+                                ]
+                    Left err ->
+                        counterexample ("generated matrix was rejected: " <> show err) False
 
     describe "recurrence and transience" $ do
         it "matches the closed classes of the seven-state chain" $ do
