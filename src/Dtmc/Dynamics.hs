@@ -5,8 +5,8 @@
 -- The analytic (non-random) evolution of a chain: how a distribution is pushed
 -- forward by the transition matrix, and how one-step matrices compose into
 -- @k@-step matrices. Row-stochastic @p@ acts on a column distribution @mu@ by
--- @mu' = transpose p '#>' mu@, i.e. @mu'(j) = sum_i mu(i) * p(i,j)@. Powers and
--- products reuse the 'Monoid' structure of 'TransitionMatrix'.
+-- @mu' = transpose p #> mu@, i.e. @mu'(j) = sum_i mu(i) * p(i,j)@. Powers and
+-- products reuse the 'Monoid' structure of t'TransitionMatrix'.
 module Dtmc.Dynamics (
     evolve,
     evolveN,
@@ -27,7 +27,7 @@ import GHC.TypeNats (
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (Natural)
 
--- | One-step push-forward of a distribution: @evolve mu p = transpose p '#>' mu@.
+-- | One-step push-forward of a distribution: @evolve mu p = transpose p #> mu@.
 -- Maps the law of the current state to the law of the next state.
 evolve :: (KnownNat n) => Distribution n -> TransitionMatrix n -> Distribution n
 evolve (Distribution v) p =

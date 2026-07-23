@@ -3,7 +3,7 @@
 -- Description : Sampling states and running the chain forward.
 --
 -- Stochastic-simulation layer over the pure types. 'sampleFrom' draws a single
--- state from a 'Distribution', and 'step' advances the chain one transition by
+-- state from a t'Distribution', and 'step' advances the chain one transition by
 -- sampling from the current state's row. Both run in any 'PrimMonad' with an MWC
 -- generator, so threading a single 'MWC.Gen' realises a trajectory.
 module Dtmc.Simulation (
@@ -39,7 +39,7 @@ import System.Random.MWC.Distributions qualified as MWCD
 
 -- | Draw one state index from a distribution, using its entries as categorical
 -- weights. The result is a valid 'Finite' @n@ because the weight vector has
--- length @n@; coordinates first pass through 'snapToSimplex' to absorb tiny
+-- length @n@; coordinates first pass through @snapToSimplex@ to absorb tiny
 -- negative rounding artefacts the sampler would otherwise reject.
 sampleFrom ::
     (KnownNat n, PrimMonad m) =>
