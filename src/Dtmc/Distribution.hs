@@ -17,11 +17,13 @@ import Data.Bifunctor (
     first,
  )
 import Dtmc.Internal.Simplex (
-    SimplexError,
     validateSimplex,
  )
 import Dtmc.Internal.Types (
     Distribution (..),
+ )
+import Dtmc.Simplex (
+    SimplexError,
  )
 import GHC.TypeNats (
     KnownNat,

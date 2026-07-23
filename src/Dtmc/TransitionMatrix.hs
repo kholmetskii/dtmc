@@ -27,13 +27,15 @@ import Data.Foldable (
     traverse_,
  )
 import Dtmc.Internal.Simplex (
-    SimplexError,
     validateSimplex,
  )
 import Dtmc.Internal.Types (
     Distribution (..),
     TransitionMatrix (..),
     unsafeTransitionMatrix,
+ )
+import Dtmc.Simplex (
+    SimplexError,
  )
 import GHC.TypeNats (
     KnownNat,

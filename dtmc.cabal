@@ -37,6 +37,7 @@ library
   exposed-modules:
       Dtmc
       Dtmc.Approx
+      Dtmc.Simplex
       Dtmc.Distribution
       Dtmc.TransitionMatrix
       Dtmc.Simulation

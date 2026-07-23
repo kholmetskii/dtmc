@@ -78,7 +78,7 @@ import Dtmc.Distribution (
     mkDistribution,
     unDistribution,
  )
-import Dtmc.Internal.Simplex (
+import Dtmc.Simplex (
     SimplexError (..),
  )
 import Dtmc.Simulation (

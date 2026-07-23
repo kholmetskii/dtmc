@@ -9,7 +9,6 @@
 -- not spuriously rejected. It also hosts 'snapToSimplex', the floating-point
 -- repair applied before categorical sampling.
 module Dtmc.Internal.Simplex (
-    SimplexError (..),
     validateSimplex,
     snapToSimplex,
 ) where
@@ -17,22 +16,14 @@ module Dtmc.Internal.Simplex (
 import Dtmc.Approx (
     tolerance,
  )
+import Dtmc.Simplex (
+    SimplexError (..),
+ )
 import GHC.TypeNats (
     KnownNat,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
-
--- | Why a vector failed to be a probability distribution. Indices are
--- zero-based and each 'Double' echoes the offending value for diagnostics.
-data SimplexError
-    -- | Entry at this index is negative beyond tolerance.
-    = NegativeEntry Int Double
-    -- | Entry at this index exceeds one beyond tolerance.
-    | EntryAboveOne Int Double
-    -- | Entries were individually in range but summed to this value, not one.
-    | SumOffBy Double
-    deriving (Eq, Show)
 
 -- | Check that @vector@ is a probability distribution: scan for the first
 -- out-of-range coordinate, and if none is found require the total to be one
