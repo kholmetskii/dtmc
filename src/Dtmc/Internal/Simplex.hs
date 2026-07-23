@@ -4,18 +4,15 @@
 --
 -- Shared numeric check used by both the distribution and transition-matrix smart
 -- constructors: it decides whether a raw vector is a valid probability
--- distribution (a point on the standard simplex). All comparisons allow the
--- shared 'tolerance' of slack (from "Dtmc.Approx") so floating-point values are
--- not spuriously rejected. It also hosts 'snapToSimplex', the floating-point
--- repair applied before categorical sampling.
+-- distribution (a point on the standard simplex). All comparisons allow a small
+-- 'tolerance' of slack so floating-point values are not spuriously rejected. It
+-- also hosts 'snapToSimplex', the floating-point repair applied before
+-- categorical sampling.
 module Dtmc.Internal.Simplex (
     validateSimplex,
     snapToSimplex,
 ) where
 
-import Dtmc.Approx (
-    tolerance,
- )
 import Dtmc.Simplex (
     SimplexError (..),
  )
@@ -24,6 +21,15 @@ import GHC.TypeNats (
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
+
+-- | Absolute slack allowed when checking the probability-simplex invariant: a
+-- coordinate may stray this far outside @[0,1]@ and the row sum this far from
+-- one before the vector is rejected, and negatives within this band are snapped
+-- to zero by 'snapToSimplex'. Small enough to catch real modelling errors while
+-- tolerating floating-point rounding. A private validation threshold, not part
+-- of the public API and not a general-purpose numeric policy.
+tolerance :: Double
+tolerance = 1e-9
 
 -- | Check that @vector@ is a probability distribution: scan for the first
 -- out-of-range coordinate, and if none is found require the total to be one

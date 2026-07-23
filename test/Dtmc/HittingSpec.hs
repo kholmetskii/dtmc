@@ -10,9 +10,6 @@ import Data.Finite (
     Finite,
     finites,
  )
-import Dtmc.Approx (
-    tolerance,
- )
 import Dtmc.Classification (
     accessible,
     recurrentState,
@@ -30,6 +27,7 @@ import Dtmc.Hitting (
  )
 import Dtmc.TestSupport (
     genTransitionMatrix,
+    testTolerance,
  )
 import Dtmc.TransitionMatrix (
     TransitionMatrix,
@@ -135,7 +133,7 @@ entries :: (KnownNat n) => S.R n -> [Double]
 entries = LA.toList . S.extract
 
 closeTo :: Double -> Double -> Bool
-closeTo expected x = abs (x - expected) <= tolerance
+closeTo expected x = abs (x - expected) <= testTolerance
 
 meanCloseTo :: Double -> MeanTime -> Bool
 meanCloseTo expected (FiniteMean v) = closeTo expected v
@@ -195,7 +193,7 @@ spec = do
                                     | i == 0 -> x === 1
                                     | accessible p i 0 ->
                                         property
-                                            (x >= -tolerance && x <= 1 + tolerance)
+                                            (x >= -testTolerance && x <= 1 + testTolerance)
                                     | otherwise -> x === 0
                             | (i, x) <- zip (finites :: [Finite 4]) h
                             ]
@@ -342,8 +340,8 @@ spec = do
                     conjoin
                         [ counterexample (show (i, f)) $
                             property
-                                ( f >= -tolerance
-                                    && f <= 1 + tolerance
+                                ( f >= -testTolerance
+                                    && f <= 1 + testTolerance
                                     && (not (recurrentState p i) || closeTo 1 f)
                                 )
                         | i <- finites :: [Finite 4]

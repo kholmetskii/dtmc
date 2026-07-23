@@ -9,9 +9,8 @@
 -- theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
 -- hitting theory ('hittingProbabilities', 'hittingProbability',
 -- 'expectedHittingTimes', 'expectedHittingTime', 'returnProbabilities',
--- 'returnProbability', 'expectedReturnTimes', and 'expectedReturnTime'), the
--- random simulation primitives, and the shared numeric tolerance with its
--- approximate-equality helpers -- while hiding the "Dtmc.Internal" modules.
+-- 'returnProbability', 'expectedReturnTimes', and 'expectedReturnTime'), and the
+-- random simulation primitives -- while hiding the "Dtmc.Internal" modules.
 -- Import this module to build, analyse, and run chains.
 module Dtmc (
     Distribution,
@@ -66,10 +65,6 @@ module Dtmc (
     returnProbability,
     expectedReturnTimes,
     expectedReturnTime,
-    tolerance,
-    approxEq,
-    approxEqDist,
-    approxEqMatrix,
 ) where
 
 import Dtmc.Distribution (
@@ -128,13 +123,6 @@ import Dtmc.Classification (
     transientStatesOf,
     unIrreducible,
     witnessIrreducible,
- )
-
-import Dtmc.Approx (
-    approxEq,
-    approxEqDist,
-    approxEqMatrix,
-    tolerance,
  )
 
 import Dtmc.Hitting (

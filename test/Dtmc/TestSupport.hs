@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Dtmc.TestSupport (
+    testTolerance,
     approxDistributionEq,
     approxTransitionMatrixEq,
     genSimplexPoint,
@@ -35,6 +36,12 @@ import Test.QuickCheck (
     frequency,
     vectorOf,
  )
+
+-- | Absolute slack the tests use when comparing floating-point results. Kept
+-- independent of the library's private validation threshold so a change there
+-- cannot silently mask a regression here; the two happen to share a value.
+testTolerance :: Double
+testTolerance = 1e-9
 
 genSimplexPoint :: Int -> Gen [Double]
 genSimplexPoint dimension = do
