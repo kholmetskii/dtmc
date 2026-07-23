@@ -42,11 +42,10 @@ import Data.Maybe (
     fromMaybe,
  )
 import Dtmc.Classification (
-    accessibleIn,
-    recurrentStateIn,
-    supportEdgeIn,
-    supportGraphOf,
-    transientStatesIn,
+    backwardReachable,
+    reachesAny,
+    recurrentState,
+    transientStates,
  )
 import Dtmc.Internal.Block (
     fundamental,
@@ -117,10 +116,9 @@ hittingProbabilities ::
 hittingProbabilities p targets =
     S.vector [valueAt i | i <- finites]
   where
-    sg = supportGraphOf p
     targetSet = nub targets
     inTarget i = i `elem` targetSet
-    canReach i = any (accessibleIn sg i) targetSet
+    canReach i = reachesAny p i targetSet
     interior = [i | i <- finites, not (inTarget i), canReach i]
     matrix = S.extract (unTransitionMatrix p)
     interiorIdx = map toIndex interior
@@ -193,26 +191,18 @@ expectedHittingTimes ::
 expectedHittingTimes p targets =
     table
   where
-    sg = supportGraphOf p
     targetSet = nub targets
     inTarget i = i `elem` targetSet
     offTarget = [i | i <- finites, not (inTarget i)]
     -- Z: cannot reach the target at all.
-    unreachable = [i | i <- offTarget, not (any (accessibleIn sg i) targetSet)]
+    unreachable = [i | i <- offTarget, not (reachesAny p i targetSet)]
     -- Doomed: can reach Z by a support path avoiding the target, i.e. the
     -- backward closure of Z along edges from non-target states. On these
-    -- states h < 1, hence eta is infinite.
-    doomed = grow unreachable
-    grow current
-        | null newcomers = current
-        | otherwise = grow (current ++ newcomers)
-      where
-        newcomers =
-            [ i
-            | i <- offTarget
-            , i `notElem` current
-            , any (supportEdgeIn sg i) current
-            ]
+    -- states h < 1, hence eta is infinite. This is exactly reverse reachability
+    -- from Z within the off-target subgraph, delegated to 'backwardReachable'
+    -- (O(V + E)). Membership below is list @elem@ -- an O(n) test, dominated by
+    -- the surrounding linear solve.
+    doomed = backwardReachable p (not . inTarget) unreachable
     -- B: off the target and certain to hit it.
     certain = [i | i <- offTarget, i `notElem` doomed]
     matrix = S.extract (unTransitionMatrix p)
@@ -273,8 +263,7 @@ returnProbabilities ::
 returnProbabilities p =
     S.vector [valueAt i | i <- finites]
   where
-    sg = supportGraphOf p
-    transient = transientStatesIn sg
+    transient = transientStates p
     transientIdx = map toIndex transient
     matrix = S.extract (unTransitionMatrix p)
     transientValue
@@ -292,7 +281,7 @@ returnProbabilities p =
                         "Dtmc.Hitting.returnProbabilities: transient system \
                         \singular or numerically ill-conditioned"
     valueAt i
-        | recurrentStateIn sg i = 1
+        | recurrentState p i = 1
         | otherwise =
             fromMaybe
                 (error "Dtmc.Hitting.returnProbabilities: state escaped the partition")
@@ -321,15 +310,25 @@ returnProbability p =
 --
 -- where @eta_i{i} = 0@ handles an immediate self-loop. A positive-probability
 -- successor with infinite singleton hitting mean makes @m_i@ infinite; zero
--- probability times infinity contributes zero. Computing all entries this way
--- may require one hitting-time solve per state, hence @O(n^4)@ worst-case time.
+-- probability times infinity contributes zero.
+--
+-- For a finite chain a state is transient exactly when its mean return time is
+-- infinite, so transient states are read off as 'InfiniteMean' directly from
+-- the support-graph classification and skip the solve; only recurrent states
+-- run the @O(n^3)@ hitting-time solve. The worst case is still @O(n^4)@ -- an
+-- irreducible chain, where every state is recurrent -- but chains with
+-- transient states are markedly cheaper.
 expectedReturnTimes ::
     forall n.
     (KnownNat n) =>
     TransitionMatrix n ->
     [MeanTime]
 expectedReturnTimes p =
-    [expectedReturnTimeFrom p i | i <- finites]
+    [ if recurrentState p i
+        then expectedReturnTimeFrom p i
+        else InfiniteMean
+    | i <- finites
+    ]
 
 -- | The expected first-return time for one supplied state, computed directly
 -- from its singleton hitting-time table. Unlike indexing the plural result,
@@ -368,7 +367,7 @@ implementation until stationary distributions and Kac's return-time theorem
 have been introduced. It computes every expected return time in O(n^3): solve
 one stationary system per closed recurrent class, assign 1 / pi_i to its
 members, and assign InfiniteMean to transient states. To activate this code,
-also import communicatingClassesIn from Dtmc.Classification.
+also import communicatingClasses from Dtmc.Classification.
 
 stationaryDistribution :: LA.Matrix Double -> Maybe (LA.Vector Double)
 stationaryDistribution q
@@ -389,12 +388,11 @@ expectedReturnTimesViaStationary ::
 expectedReturnTimesViaStationary p =
     [valueAt i | i <- finites]
   where
-    sg = supportGraphOf p
     matrix = S.extract (unTransitionMatrix p)
     recurrentClasses =
         [ members
-        | members@(representative : _) <- communicatingClassesIn sg
-        , recurrentStateIn sg representative
+        | members@(representative : _) <- communicatingClasses p
+        , recurrentState p representative
         ]
     recurrentValue = concatMap solveClass recurrentClasses
     solveClass members =
