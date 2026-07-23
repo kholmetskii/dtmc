@@ -33,6 +33,7 @@ import Dtmc.Internal.Simplex (
 import Dtmc.Internal.Types (
     Distribution (..),
     TransitionMatrix (..),
+    transitionMatrix,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -49,7 +50,7 @@ data TransitionError = InRow Int SimplexError
 -- sanctioned way to build a 'TransitionMatrix'.
 mkTransitionMatrix :: (KnownNat n) => S.Sq n -> Either TransitionError (TransitionMatrix n)
 mkTransitionMatrix matrix =
-    TransitionMatrix{unTransitionMatrix = matrix} <$ traverse_ validateRow (zip [0 ..] (S.toRows matrix))
+    transitionMatrix matrix <$ traverse_ validateRow (zip [0 ..] (S.toRows matrix))
   where
     validateRow (index, row) =
         first (InRow index) (validateSimplex row)
@@ -64,5 +65,5 @@ mulTransitionMatrix = (<>)
 -- given the chain is currently in state @i@. The 'Finite' index keeps @i@
 -- statically in range, so the lookup is total.
 rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> Distribution n
-rowAt (TransitionMatrix matrix) index =
-    Distribution{unDistribution = S.toRows matrix !! fromIntegral (getFinite index)}
+rowAt p index =
+    Distribution{unDistribution = S.toRows (unTransitionMatrix p) !! fromIntegral (getFinite index)}

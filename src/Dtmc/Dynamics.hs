@@ -30,9 +30,9 @@ import Numeric.Natural (Natural)
 -- | One-step push-forward of a distribution: @evolve mu p = transpose p '#>' mu@.
 -- Maps the law of the current state to the law of the next state.
 evolve :: (KnownNat n) => Distribution n -> TransitionMatrix n -> Distribution n
-evolve (Distribution v) (TransitionMatrix m) =
+evolve (Distribution v) p =
     Distribution
-        { unDistribution = S.tr m S.#> v
+        { unDistribution = S.tr (unTransitionMatrix p) S.#> v
         }
 
 -- | The @n*n@ identity as a transition matrix: the zero-step transition
