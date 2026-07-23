@@ -19,7 +19,7 @@ module Dtmc (
     mkDistribution,
     unDistribution,
     TransitionMatrix,
-    TransitionError (..),
+    TransitionMatrixError (..),
     mkTransitionMatrix,
     unTransitionMatrix,
     mulTransitionMatrix,
@@ -56,7 +56,7 @@ module Dtmc (
     classify,
     Irreducible,
     witnessIrreducible,
-    irreducibleMatrix,
+    unIrreducible,
     MeanTime (..),
     hittingProbabilities,
     hittingProbability,
@@ -86,7 +86,7 @@ import Dtmc.Simulation (
     step,
  )
 import Dtmc.TransitionMatrix (
-    TransitionError (..),
+    TransitionMatrixError (..),
     TransitionMatrix,
     mkTransitionMatrix,
     mulTransitionMatrix,
@@ -115,7 +115,6 @@ import Dtmc.Classification (
     communicatingClasses,
     cyclicClasses,
     irreducible,
-    irreducibleMatrix,
     isAperiodic,
     isErgodic,
     isIrreducible,
@@ -127,6 +126,7 @@ import Dtmc.Classification (
     transientState,
     transientStates,
     transientStatesOf,
+    unIrreducible,
     witnessIrreducible,
  )
 

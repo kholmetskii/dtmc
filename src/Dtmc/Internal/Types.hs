@@ -12,7 +12,7 @@
 module Dtmc.Internal.Types (
     Distribution (..),
     TransitionMatrix (..),
-    transitionMatrix,
+    unsafeTransitionMatrix,
 ) where
 
 import Dtmc.Internal.Graph (
@@ -32,6 +32,7 @@ import Numeric.LinearAlgebra.Static qualified as S
 -- 'Dtmc.Distribution.mkDistribution'.
 newtype Distribution (n :: Nat) = Distribution
     { unDistribution :: S.R n
+    -- ^ Recover the underlying statically sized probability vector.
     }
 
 -- Nominal role: forbids 'Data.Coerce.coerce' from changing @n@. 'S.R' is
@@ -43,21 +44,22 @@ deriving instance (KnownNat n) => Show (Distribution n)
 
 -- | The one-step transition matrix of a chain on @n@ states, stored as an
 -- @n*n@ real matrix. A well-formed value is row-stochastic (every row is a
--- 'Distribution'), guaranteed only via 'Dtmc.TransitionMatrix.mkTransitionMatrix'.
+-- t'Distribution'), guaranteed only via 'Dtmc.TransitionMatrix.mkTransitionMatrix'.
 -- Entry @(i,j)@ is @P(next = j | now = i)@.
 --
 -- Each value also carries its support graph as a /lazy/ field, so any number of
 -- graph-based analyses on the same value share one graph build, while purely
 -- linear-algebraic uses never force it. Build values only through
--- 'transitionMatrix' (or the instances below), which keep 'tmSupport' in step
+-- @unsafeTransitionMatrix@ (or the instances below), which keep @tmSupport@ in step
 -- with the matrix.
 data TransitionMatrix (n :: Nat) = TransitionMatrix
     { unTransitionMatrix :: S.Sq n
+    -- ^ Recover the underlying statically sized transition matrix.
     , tmSupport :: Graph
     -- ^ Lazy support graph: a directed edge @i -> j@ for each @P(i,j) > 0@.
     }
 
--- Nominal role on @n@, for the same reason as 'Distribution'.
+-- Nominal role on @n@, for the same reason as t'Distribution'.
 type role TransitionMatrix nominal
 
 -- Manual 'Show' (not derived): 'Graph' has no 'Show', and the support graph is a
@@ -71,19 +73,19 @@ instance (KnownNat n) => Show (TransitionMatrix n) where
 
 -- | The single sanctioned builder: pair a raw matrix with its /lazy/ support
 -- graph. Every other constructor in the library goes through this, so
--- 'tmSupport' is always the support of 'unTransitionMatrix'.
-transitionMatrix :: (KnownNat n) => S.Sq n -> TransitionMatrix n
-transitionMatrix matrix =
+-- @tmSupport@ is always the support of 'unTransitionMatrix'.
+unsafeTransitionMatrix :: (KnownNat n) => S.Sq n -> TransitionMatrix n
+unsafeTransitionMatrix matrix =
     TransitionMatrix
         { unTransitionMatrix = matrix
-        , tmSupport = supportGraphOfMatrix matrix
+        , tmSupport = supportGraphOf matrix
         }
 
 -- The support graph of a raw matrix: edge @i -> j@ iff @P(i,j) > 0@. Lives here
 -- so the builder and the instances can attach it; "Dtmc.Classification" merely
--- projects 'tmSupport'.
-supportGraphOfMatrix :: (KnownNat n) => S.Sq n -> Graph
-supportGraphOfMatrix matrix =
+-- projects @tmSupport@.
+supportGraphOf :: (KnownNat n) => S.Sq n -> Graph
+supportGraphOf matrix =
     fromAdjacency
         dim
         [ ((i, j), entry > 0)
@@ -100,11 +102,11 @@ supportGraphOfMatrix matrix =
 -- preserved and this is associative.
 instance (KnownNat n) => Semigroup (TransitionMatrix n) where
     (<>) :: TransitionMatrix n -> TransitionMatrix n -> TransitionMatrix n
-    p <> q = transitionMatrix (unTransitionMatrix p S.<> unTransitionMatrix q)
+    p <> q = unsafeTransitionMatrix (unTransitionMatrix p S.<> unTransitionMatrix q)
 
 -- | The identity matrix is the unit: the zero-step transition that leaves the
 -- state unchanged. Together with '<>' this makes @Pow p k@ (via 'mconcat' /
--- 'mtimesDefault') the @k@-step transition matrix.
+-- 'Data.Semigroup.mtimesDefault') the @k@-step transition matrix.
 instance (KnownNat n) => Monoid (TransitionMatrix n) where
     mempty :: TransitionMatrix n
-    mempty = transitionMatrix S.eye
+    mempty = unsafeTransitionMatrix S.eye

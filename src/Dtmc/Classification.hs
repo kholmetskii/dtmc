@@ -59,7 +59,7 @@ module Dtmc.Classification (
     -- * Irreducibility witness
     Irreducible,
     witnessIrreducible,
-    irreducibleMatrix,
+    unIrreducible,
 ) where
 
 import Data.Finite (
@@ -220,7 +220,7 @@ deriving instance (KnownNat n) => Show (CommClass n)
 
 -- | A full qualitative report of a chain: its communicating classes together
 -- with the chain-level facts derived from them. Built only by 'classify' (the
--- constructor is hidden), so a 'Classification' is always internally consistent.
+-- constructor is hidden), so a t'Classification' is always internally consistent.
 -- The fact fields are plain projections, so reading them carries no 'KnownNat'
 -- constraint -- all the type-level work happens once, in 'classify'.
 data Classification n = Classification
@@ -302,6 +302,6 @@ witnessIrreducible p
     | irreducible p = Just (Irreducible p)
     | otherwise = Nothing
 
--- | Recover the underlying transition matrix from an 'Irreducible' witness.
-irreducibleMatrix :: Irreducible n -> TransitionMatrix n
-irreducibleMatrix (Irreducible p) = p
+-- | Recover the underlying transition matrix from a t'Irreducible' witness.
+unIrreducible :: Irreducible n -> TransitionMatrix n
+unIrreducible (Irreducible p) = p

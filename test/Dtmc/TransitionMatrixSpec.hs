@@ -6,7 +6,7 @@ module Dtmc.TransitionMatrixSpec (
 
 import Dtmc (
     SimplexError (..),
-    TransitionError (..),
+    TransitionMatrixError (..),
     TransitionMatrix,
     mkDistribution,
     mkTransitionMatrix,

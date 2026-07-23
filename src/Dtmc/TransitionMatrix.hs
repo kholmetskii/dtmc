@@ -2,14 +2,14 @@
 -- Module      : Dtmc.TransitionMatrix
 -- Description : Row-stochastic one-step transition matrices.
 --
--- Public interface for 'TransitionMatrix', the one-step dynamics of a
+-- Public interface for t'TransitionMatrix', the one-step dynamics of a
 -- discrete-time Markov chain on @n@ states. 'mkTransitionMatrix' enforces the
--- row-stochastic invariant (each row is a 'Distribution' over next states);
+-- row-stochastic invariant (each row is a t'Distribution' over next states);
 -- composition of steps is inherited from the 'Semigroup' instance in
 -- "Dtmc.Internal.Types" and exposed here as 'mulTransitionMatrix'.
 module Dtmc.TransitionMatrix (
     TransitionMatrix,
-    TransitionError (..),
+    TransitionMatrixError (..),
     mkTransitionMatrix,
     unTransitionMatrix,
     mulTransitionMatrix,
@@ -33,7 +33,7 @@ import Dtmc.Internal.Simplex (
 import Dtmc.Internal.Types (
     Distribution (..),
     TransitionMatrix (..),
-    transitionMatrix,
+    unsafeTransitionMatrix,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -42,15 +42,15 @@ import Numeric.LinearAlgebra.Static qualified as S
 
 -- | A row of the matrix was not a valid distribution: carries the zero-based
 -- row index together with the underlying simplex failure.
-data TransitionError = InRow Int SimplexError
+data TransitionMatrixError = InRow Int SimplexError
     deriving (Eq, Show)
 
 -- | Smart constructor: accept a raw matrix only if every row passes
--- 'validateSimplex', reporting the first offending row otherwise. The sole
--- sanctioned way to build a 'TransitionMatrix'.
-mkTransitionMatrix :: (KnownNat n) => S.Sq n -> Either TransitionError (TransitionMatrix n)
+-- @validateSimplex@, reporting the first offending row otherwise. The sole
+-- sanctioned way to build a t'TransitionMatrix'.
+mkTransitionMatrix :: (KnownNat n) => S.Sq n -> Either TransitionMatrixError (TransitionMatrix n)
 mkTransitionMatrix matrix =
-    transitionMatrix matrix <$ traverse_ validateRow (zip [0 ..] (S.toRows matrix))
+    unsafeTransitionMatrix matrix <$ traverse_ validateRow (zip [0 ..] (S.toRows matrix))
   where
     validateRow (index, row) =
         first (InRow index) (validateSimplex row)
@@ -61,7 +61,7 @@ mkTransitionMatrix matrix =
 mulTransitionMatrix :: (KnownNat n) => TransitionMatrix n -> TransitionMatrix n -> TransitionMatrix n
 mulTransitionMatrix = (<>)
 
--- | The @i@-th row as a 'Distribution': the conditional law of the next state
+-- | The @i@-th row as a t'Distribution': the conditional law of the next state
 -- given the chain is currently in state @i@. The 'Finite' index keeps @i@
 -- statically in range, so the lookup is total.
 rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> Distribution n

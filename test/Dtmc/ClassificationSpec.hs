@@ -25,7 +25,6 @@ import Dtmc.Classification (
     communicatingClasses,
     cyclicClasses,
     irreducible,
-    irreducibleMatrix,
     isAperiodic,
     isErgodic,
     isIrreducible,
@@ -37,6 +36,7 @@ import Dtmc.Classification (
     transientState,
     transientStates,
     transientStatesOf,
+    unIrreducible,
     witnessIrreducible,
  )
 import Dtmc.TestSupport (
@@ -452,7 +452,7 @@ spec = do
 
     describe "witnessIrreducible" $ do
         it "produces a witness exactly for irreducible chains" $ do
-            fmap (sameMatrix threeCycle . irreducibleMatrix) (witnessIrreducible threeCycle)
+            fmap (sameMatrix threeCycle . unIrreducible) (witnessIrreducible threeCycle)
                 `shouldBe` Just True
             (witnessIrreducible sevenState >> Just ()) `shouldBe` Nothing
 
