@@ -2,24 +2,16 @@
 Module      : Dtmc.Classification
 Description : Communicating classes, irreducibility, periodicity, and recurrence.
 
-Qualitative structure of a chain derived purely from the support graph of @P@
-(a directed edge @i -> j@ whenever @P(i,j) > 0@). Because it depends only on
-which entries are positive, everything here is exact combinatorics, independent
-of the actual probabilities: reachability, the partition into communicating
-classes, irreducibility, the period of each state/class, and the
-recurrence/transience of each state (for a finite chain, recurrent means
-exactly that the communicating class is closed).
+Qualitative DTMC properties derived from the support graph of @P@: there is an
+edge @i -> j@ exactly when the stored @P(i,j) > 0@. The comparison has no
+tolerance, so a tiny positive value is a transition while zero or a negative
+value is not. Results depend on which entries are positive, not their
+magnitudes. Recurrence statements assume a finite, valid transition matrix.
 
-The graph combinatorics live in "Dtmc.Internal.Graph"; this module is the thin
-bridge that reads a chain's support into a graph and renames the graph facts
-into Markov-chain vocabulary: communicating classes are the strongly connected
-components, and a class's period is the period of that component.
-
-Every function takes a 'TransitionMatrix' and reads its support graph, which
-the matrix carries as a lazy field ('Dtmc.TransitionMatrix.Internal.tmSupport') built
-once on first use. Repeated queries on the /same/ matrix value therefore share
-that single build automatically -- there is no separate prebuilt-graph object
-to construct and thread.
+For @n@ states and @E@ support edges, the first graph query scans @n^2@
+entries and may spend @O(n log n + E)@ building the requested cached graph
+facts. Queries on the same matrix share those lazy caches. A @0 x 0@ matrix
+has no communicating classes and is neither irreducible nor aperiodic here.
 -}
 module Dtmc.Classification (
     -- * Reachability
@@ -74,34 +66,44 @@ import Dtmc.TransitionMatrix.Internal (TransitionMatrix, tmSupport)
 import GHC.TypeNats (KnownNat)
 import Numeric.Natural (Natural)
 
--- Convert a raw @Int@ state index into the bounded 'Finite' @n@ index.
 toFinite :: (KnownNat n) => Int -> Finite n
 toFinite = finite . fromIntegral
 
--- Convert a bounded 'Finite' @n@ index back to a raw @Int@.
 toIndex :: Finite n -> Int
 toIndex = fromIntegral . getFinite
 
--- | Direct one-step reachability: @True@ iff @P(i,j) > 0@.
+{- | Whether @P(i,j) > 0@: a direct transition in the support graph. No
+tolerance is applied.
+
+Time: @O(outDegree(i))@ after the support graph is built.
+-}
 supportEdge :: TransitionMatrix n -> Finite n -> Finite n -> Bool
 supportEdge p i j = G.hasEdge (tmSupport p) (toIndex i) (toIndex j)
 
--- | Accessibility @i -> j@: @j@ is reachable from @i@ in zero or more steps.
+{- | Whether @j@ is reachable from @i@ in zero or more transitions. Hence every
+state is reachable from itself, even without a self-transition.
+
+Time: @O(n + E)@; traversal space: @O(n)@.
+-}
 accessible :: TransitionMatrix n -> Finite n -> Finite n -> Bool
 accessible p i j = G.reachable (tmSupport p) (toIndex i) (toIndex j)
 
-{- | Whether state @i@ can reach /any/ of the given targets in zero or more
-steps. Expands @i@'s reachable set once and tests every target against it,
-rather than searching afresh per target as @'any' ('accessible' p i)@ would.
+{- | Whether any target is reachable from @i@ in zero or more transitions.
+An empty target list gives 'False'; including @i@ gives 'True'.
+
+The graph is traversed once rather than once per target. Worst-case time:
+@O(n + E + t)@ for @t@ supplied targets; space: @O(n)@.
 -}
 reachesAny :: TransitionMatrix n -> Finite n -> [Finite n] -> Bool
 reachesAny p i targets =
     G.reachesAny (tmSupport p) (toIndex i) (map toIndex targets)
 
-{- | Reverse reachability within an induced subgraph: the states from which some
-@seed@ is reachable along a directed support path whose states /all/ satisfy
-@allowed@ (seeds included, when allowed). Unlike 'accessible', which ranges
-over the whole graph, the path here must stay inside @allowed@.
+{- | States from which an allowed seed is reachable along a support path
+containing only states accepted by @allowed@. Disallowed seeds are ignored;
+the result is duplicate-free and ordered by state index.
+
+Time: @O(n + E + s)@ plus @n@ predicate evaluations for @s@ seeds. Temporary
+space: @O(n + E)@.
 -}
 backwardReachable ::
     (KnownNat n) =>
@@ -112,21 +114,28 @@ backwardReachable ::
 backwardReachable p allowed seeds =
     map toFinite (G.backwardReachable (tmSupport p) (allowed . toFinite) (map toIndex seeds))
 
-{- | Communication @i <-> j@: @i@ and @j@ are mutually accessible. This is the
-equivalence relation whose classes are the communicating classes.
+{- | Whether @i@ and @j@ communicate: each state is reachable from the other.
+This is an equivalence relation on the state space.
+
+Time: @O(1)@ after strongly connected components are cached.
 -}
 communicates :: TransitionMatrix n -> Finite n -> Finite n -> Bool
 communicates p i j =
     G.sameComponent (tmSupport p) (toIndex i) (toIndex j)
 
-{- | The communicating classes of the chain, each as a list of states: the
-strongly connected components of the support graph, ordered by least member.
+{- | The communicating classes, equivalent to the strongly connected
+components of the support graph. States within a class and the classes by
+least member are both in ascending order.
+
+Result construction takes @O(n)@ after components are cached.
 -}
 communicatingClasses :: (KnownNat n) => TransitionMatrix n -> [[Finite n]]
 communicatingClasses p = map (map toFinite) (G.components (tmSupport p))
 
-{- | Whether the chain is irreducible: all states form a single (non-empty)
-communicating class, so every state is reachable from every other.
+{- | Whether every state communicates with every other state. The empty chain
+is not irreducible.
+
+Time: @O(1)@ after communicating classes are cached.
 -}
 irreducible :: TransitionMatrix n -> Bool
 irreducible p =
@@ -134,18 +143,21 @@ irreducible p =
         [c] -> not (null c)
         _ -> False
 
-{- | Period of state @i@: the gcd of the lengths of all closed walks through
-@i@, computed within @i@'s communicating class. 'Nothing' when the class has
-no cycles (a single state with no self-loop), where the period is undefined.
+{- | The period of @i@:
+@gcd { k >= 1 | (P^k)(i,i) > 0 }@. Returns 'Nothing' when @i@ has no
+positive-length return path, necessarily a singleton class without a
+self-transition.
+
+Time: @O(1)@ after periods are cached.
 -}
 period :: TransitionMatrix n -> Finite n -> Maybe Natural
 period p i = G.periodOf (tmSupport p) (toIndex i)
 
-{- | Whether the chain is aperiodic: every communicating class has period @1@
-(and there is at least one state). A class with undefined period -- a
-cycle-free transient class, where 'period' is 'Nothing' -- does not have
-period one, so its presence makes the chain non-aperiodic under this
+{- | Whether every communicating class has period @1@. The empty chain and a
+chain containing a class with undefined period are not aperiodic under this
 definition.
+
+Time: @O(c)@ for @c@ cached communicating classes.
 -}
 aperiodic :: TransitionMatrix n -> Bool
 aperiodic p =
@@ -154,13 +166,12 @@ aperiodic p =
     g = tmSupport p
     cs = G.components g
 
-{- | The cyclic (periodicity) classes of an /irreducible/ chain, in cyclic order
-@C_0, C_1, ..., C_{d-1}@ where @d@ is the period: from any state in @C_r@,
-every one-step move lands in @C_{(r+1) mod d}@. 'Nothing' when the chain is
-not irreducible or its period is undefined (a single state with no self-loop).
+{- | Partition an irreducible chain of period @d@ into cyclic classes
+@C_0, ..., C_(d-1)@. Every transition from @C_r@ enters
+@C_((r+1) mod d)@; @C_0@ contains the least state. Returns 'Nothing' for a
+reducible chain or an undefined period.
 
-States are grouped by their phase within the (single) communicating class, so
-this is @O(n)@ on top of the shared support graph.
+Time and result space: @O(n)@ after graph facts are cached.
 -}
 cyclicClasses :: (KnownNat n) => TransitionMatrix n -> Maybe [[Finite n]]
 cyclicClasses p
@@ -182,28 +193,28 @@ cyclicClasses p
   where
     g = tmSupport p
 
-{- | Whether state @i@ is recurrent: started at @i@, the chain returns to @i@
-with probability one. For a /finite/ chain this is purely combinatorial: a
-state of a finite chain is recurrent iff its communicating class is closed.
+{- | Whether the chain returns to @i@ with probability one when started there.
+For a finite DTMC this holds exactly when @i@ belongs to a closed communicating
+class.
 
-The equivalence is specific to finite chains: on an infinite state space a
-closed class may be transient (e.g. the asymmetric random walk on the
-integers), so this must not be read as a statement about infinite chains
-truncated to finite matrices.
+Time: @O(1)@ after class closedness is cached.
 -}
 recurrentState :: TransitionMatrix n -> Finite n -> Bool
 recurrentState p i = G.inClosedComponent (tmSupport p) (toIndex i)
 
-{- | Whether state @i@ is transient: positive probability of never returning;
-the negation of 'recurrentState'.
+{- | Whether @i@ is transient: the probability of returning from @i@ is less
+than one. This is the negation of 'recurrentState' for a finite DTMC.
+
+Time: @O(1)@ after class closedness is cached.
 -}
 transientState :: TransitionMatrix n -> Finite n -> Bool
 transientState p i = not (recurrentState p i)
 
-{- | All recurrent states: the members of the closed communicating classes, in
-the order 'classify' lists them. Never empty: the classes of a finite chain
-form an acyclic reachability digraph (a cycle of classes would merge them into
-one class), so some class has no outgoing edges, and a sink class is closed.
+{- | Members of the closed communicating classes, ordered by class and state
+index. Every non-empty finite DTMC has at least one; the empty chain returns
+the empty list.
+
+Time and result space: @O(n)@ after class closedness is cached.
 -}
 recurrentStates :: (KnownNat n) => TransitionMatrix n -> [Finite n]
 recurrentStates p =
@@ -215,9 +226,10 @@ recurrentStates p =
     closedComponents =
         [component | component@(v : _) <- G.components g, G.inClosedComponent g v]
 
-{- | All transient states: the members of the non-closed communicating classes,
-in the order 'classify' lists them. Empty iff every class is closed (in
-particular for any irreducible chain).
+{- | Members of the non-closed communicating classes, ordered by class and
+state index. The result is empty exactly when every class is closed.
+
+Time and result space: @O(n)@ after class closedness is cached.
 -}
 transientStates :: (KnownNat n) => TransitionMatrix n -> [Finite n]
 transientStates p =
@@ -230,25 +242,24 @@ transientStates p =
         , not (G.inClosedComponent g v)
         ]
 
-{- | A summary of one communicating class: its member states, its 'period'
-(@Nothing@ if undefined), and whether it is 'classClosed' -- i.e. no edge
-leaves the class, making it a recurrent/absorbing set.
+{- | Structural facts about one communicating class. For a finite valid DTMC,
+a closed class consists of recurrent states.
 -}
 data CommClass n = CommClass
     { classMembers :: [Finite n]
+    -- ^ Member states in ascending order.
     , classPeriod :: Maybe Natural
+    -- ^ Shared state period, or 'Nothing' when the class has no cycle.
     , classClosed :: Bool
+    -- ^ Whether no positive-probability transition leaves the class.
     }
 
 deriving instance (KnownNat n) => Eq (CommClass n)
 
 deriving instance (KnownNat n) => Show (CommClass n)
 
-{- | A full qualitative report of a chain: its communicating classes together
-with the chain-level facts derived from them. Built only by 'classify' (the
-constructor is hidden), so a t'Classification' is always internally consistent.
-The fact fields are plain projections, so reading them carries no 'KnownNat'
-constraint -- all the type-level work happens once, in 'classify'.
+{- | A consistent structural report built by 'classify'. The hidden constructor
+keeps its summary fields aligned with its communicating classes.
 -}
 data Classification n = Classification
     { classesOf :: [CommClass n]
@@ -258,8 +269,8 @@ data Classification n = Classification
     , isAperiodic :: Bool
     -- ^ Whether every class has period @1@ (and there is at least one class).
     , isErgodic :: Bool
-    {- ^ Whether the chain is ergodic -- irreducible and aperiodic -- the
-    condition under which it converges to a unique stationary distribution.
+    {- ^ Whether the chain is irreducible and aperiodic. For a finite DTMC this
+    implies convergence to its unique stationary distribution.
     -}
     , chainPeriod :: Maybe Natural
     {- ^ The period of the chain when it is irreducible (@Just d@); @Nothing@ for
@@ -271,8 +282,9 @@ data Classification n = Classification
     , transientStatesOf :: [Finite n]
     -- ^ States lying in non-closed classes -- transient.
     , absorbingStates :: [Finite n]
-    {- ^ Absorbing states: those forming a closed singleton class, i.e. states
-    @i@ with @P(i,i) = 1@.
+    {- ^ Singleton closed classes. For exact stochastic rows these are
+    absorbing states with @P(i,i) = 1@; tolerated or unchecked rows are
+    classified only by strict-positive support.
     -}
     }
 
@@ -282,10 +294,11 @@ deriving instance (KnownNat n) => Eq (Classification n)
 
 deriving instance (KnownNat n) => Show (Classification n)
 
-{- | Decompose a chain into its communicating classes and summarise the
-chain-level structure. Every field is computed from a single shared support
-graph, so this one call answers "classes, irreducibility, aperiodicity,
-recurrent and transient states" together.
+{- | Build all exported class, period, recurrence, absorbing-state,
+irreducibility, and aperiodicity summaries from one shared support graph.
+
+On an unforced matrix, time is @O(n^2 + n log n + E)@ and cached graph plus
+report space is @O(n + E)@.
 -}
 classify :: (KnownNat n) => TransitionMatrix n -> Classification n
 classify p =
@@ -317,9 +330,9 @@ classify p =
         [c] -> classPeriod c
         _ -> Nothing
 
-{- | A transition matrix carrying a proof that it is irreducible, obtainable
-only via 'witnessIrreducible'. Lets downstream code demand irreducibility in
-a type rather than re-checking it.
+{- | A transition matrix certified as irreducible by 'witnessIrreducible'.
+The constructor is hidden, so the witness cannot be forged through this
+module.
 -}
 newtype Irreducible n = Irreducible (TransitionMatrix n)
 
@@ -327,14 +340,16 @@ type role Irreducible nominal
 
 deriving instance (KnownNat n) => Show (Irreducible n)
 
-{- | Certify irreducibility: @Just@ the wrapped matrix when 'irreducible' holds,
-@Nothing@ otherwise.
+{- | Return a witness exactly when the matrix is irreducible. The matrix is
+wrapped unchanged.
+
+Time: @O(1)@ after communicating classes are cached.
 -}
 witnessIrreducible :: TransitionMatrix n -> Maybe (Irreducible n)
 witnessIrreducible p
     | irreducible p = Just (Irreducible p)
     | otherwise = Nothing
 
--- | Recover the underlying transition matrix from a t'Irreducible' witness.
+-- | Recover the certified transition matrix in @O(1)@ time.
 unIrreducible :: Irreducible n -> TransitionMatrix n
 unIrreducible (Irreducible p) = p
