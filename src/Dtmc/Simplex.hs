@@ -7,7 +7,7 @@
 -- 'Dtmc.Distribution.DistributionError' and
 -- 'Dtmc.TransitionMatrix.TransitionMatrixError', so it is part of the public
 -- API even though the validation that produces it lives in the internal
--- "Dtmc.Internal.Simplex".
+-- "Dtmc.Simplex.Internal".
 module Dtmc.Simplex (
     SimplexError (..),
 ) where

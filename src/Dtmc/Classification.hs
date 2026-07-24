@@ -16,7 +16,7 @@
 -- components, and a class's period is the period of that component.
 --
 -- Every function takes a 'TransitionMatrix' and reads its support graph, which
--- the matrix carries as a lazy field ('Dtmc.Internal.Types.tmSupport') built
+-- the matrix carries as a lazy field ('Dtmc.TransitionMatrix.Internal.tmSupport') built
 -- once on first use. Repeated queries on the /same/ matrix value therefore share
 -- that single build automatically -- there is no separate prebuilt-graph object
 -- to construct and thread.
@@ -68,7 +68,7 @@ import Data.Finite (
     getFinite,
  )
 import Dtmc.Internal.Graph qualified as G
-import Dtmc.Internal.Types (TransitionMatrix, tmSupport)
+import Dtmc.TransitionMatrix.Internal (TransitionMatrix, tmSupport)
 import GHC.TypeNats (KnownNat)
 import Numeric.Natural (Natural)
 

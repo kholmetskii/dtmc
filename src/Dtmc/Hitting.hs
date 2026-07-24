@@ -53,9 +53,11 @@ import Dtmc.Internal.Block (
     solveIminusQVector,
     subMatrix,
  )
-import Dtmc.Internal.Types (
-    TransitionMatrix,
+import Dtmc.Distribution.Internal (
     unDistribution,
+ )
+import Dtmc.TransitionMatrix.Internal (
+    TransitionMatrix,
     unTransitionMatrix,
  )
 import Dtmc.TransitionMatrix (

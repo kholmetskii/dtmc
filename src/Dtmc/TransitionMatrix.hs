@@ -6,7 +6,7 @@
 -- Markov chain on @n@ states. 'mkTransitionMatrix' enforces the row-stochastic
 -- invariant (each row is a t'Distribution' over next states). The one-step
 -- matrix generates a monoid of @k@-step transitions, all backed by the 'Monoid'
--- instance in "Dtmc.Internal.Types": composition ('mulTransitionMatrix', the
+-- instance in "Dtmc.TransitionMatrix.Internal": composition ('mulTransitionMatrix', the
 -- '<>' product), the zero-step identity ('identityMatrix', 'mempty'), and
 -- @k@-step powers ('matrixPower').
 module Dtmc.TransitionMatrix (
@@ -33,12 +33,15 @@ import Data.Foldable (
 import Data.Semigroup (
     mtimesDefault,
  )
-import Dtmc.Internal.Simplex (
+import Dtmc.Simplex.Internal (
     validateSimplex,
  )
-import Dtmc.Internal.Types (
-    Distribution (..),
-    TransitionMatrix (..),
+import Dtmc.Distribution.Internal (
+    Distribution (Distribution),
+ )
+import Dtmc.TransitionMatrix.Internal (
+    TransitionMatrix,
+    unTransitionMatrix,
     unsafeTransitionMatrix,
  )
 import Dtmc.Simplex (
@@ -89,4 +92,4 @@ matrixPower = mtimesDefault
 -- statically in range, so the lookup is total.
 rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> Distribution n
 rowAt p index =
-    Distribution{unDistribution = S.toRows (unTransitionMatrix p) !! fromIntegral (getFinite index)}
+    Distribution (S.toRows (unTransitionMatrix p) !! fromIntegral (getFinite index))

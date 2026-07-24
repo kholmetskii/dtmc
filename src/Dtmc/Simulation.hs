@@ -19,10 +19,10 @@ import Data.Finite (
     Finite,
     finite,
  )
-import Dtmc.Internal.Simplex (
+import Dtmc.Simplex.Internal (
     snapToSimplex,
  )
-import Dtmc.Internal.Types (
+import Dtmc.Distribution.Internal (
     Distribution,
     unDistribution,
  )

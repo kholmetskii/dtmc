@@ -12,9 +12,12 @@ module Dtmc.Dynamics (
     evolveN,
 ) where
 
-import Dtmc.Internal.Types (
-    Distribution (..),
-    TransitionMatrix (..),
+import Dtmc.Distribution.Internal (
+    Distribution (Distribution),
+ )
+import Dtmc.TransitionMatrix.Internal (
+    TransitionMatrix,
+    unTransitionMatrix,
  )
 import Dtmc.TransitionMatrix (
     matrixPower,
@@ -29,9 +32,7 @@ import Numeric.Natural (Natural)
 -- Maps the law of the current state to the law of the next state.
 evolve :: (KnownNat n) => Distribution n -> TransitionMatrix n -> Distribution n
 evolve (Distribution v) p =
-    Distribution
-        { unDistribution = S.tr (unTransitionMatrix p) S.#> v
-        }
+    Distribution (S.tr (unTransitionMatrix p) S.#> v)
 
 -- | @k@-step push-forward: @evolveN k mu p = evolve mu (p^k)@, the law of the
 -- state after @k@ transitions.

@@ -1,5 +1,5 @@
 -- |
--- Module      : Dtmc.Internal.Simplex
+-- Module      : Dtmc.Simplex.Internal
 -- Description : Validation of the probability-simplex invariant.
 --
 -- Shared numeric check used by both the distribution and transition-matrix smart
@@ -8,7 +8,11 @@
 -- 'tolerance' of slack so floating-point values are not spuriously rejected. It
 -- also hosts 'snapToSimplex', the floating-point repair applied before
 -- categorical sampling.
-module Dtmc.Internal.Simplex (
+--
+-- The unsafe underbelly of the public "Dtmc.Simplex" (which exposes only the
+-- 'Dtmc.Simplex.SimplexError' vocabulary); it lives in the cabal @other-modules@
+-- and is not part of the public API.
+module Dtmc.Simplex.Internal (
     validateSimplex,
     snapToSimplex,
 ) where
@@ -72,7 +76,7 @@ snapToSimplex =
         | value >= negate tolerance = 0
         | otherwise =
             error
-                ( "Dtmc.Internal.Simplex.snapToSimplex: probability coordinate "
+                ( "Dtmc.Simplex.Internal.snapToSimplex: probability coordinate "
                     <> show value
                     <> " is below -tolerance"
                 )

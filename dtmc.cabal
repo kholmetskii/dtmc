@@ -45,8 +45,9 @@ library
       Dtmc.Hitting
 
   other-modules:
-      Dtmc.Internal.Types
-      Dtmc.Internal.Simplex
+      Dtmc.Distribution.Internal
+      Dtmc.TransitionMatrix.Internal
+      Dtmc.Simplex.Internal
       Dtmc.Internal.Graph
       Dtmc.Internal.Block
 

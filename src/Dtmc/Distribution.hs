@@ -16,11 +16,12 @@ module Dtmc.Distribution (
 import Data.Bifunctor (
     first,
  )
-import Dtmc.Internal.Simplex (
+import Dtmc.Simplex.Internal (
     validateSimplex,
  )
-import Dtmc.Internal.Types (
-    Distribution (..),
+import Dtmc.Distribution.Internal (
+    Distribution (Distribution),
+    unDistribution,
  )
 import Dtmc.Simplex (
     SimplexError,
