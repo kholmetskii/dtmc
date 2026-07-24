@@ -49,7 +49,7 @@ library
       Dtmc.TransitionMatrix.Internal
       Dtmc.Simplex.Internal
       Dtmc.Internal.Graph
-      Dtmc.Internal.Block
+      Dtmc.Internal.LinearSystem
 
   build-depends:
       base >=4.20 && <5

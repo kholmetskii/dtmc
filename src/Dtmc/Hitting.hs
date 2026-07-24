@@ -15,7 +15,7 @@
 -- combinatorics on the support graph (reachability, never by comparing a
 -- float to one). Only the genuinely fractional values -- probabilities
 -- strictly between @0@ and @1@, finite means -- come from floating-point
--- solves of @(I - Q) x = b@ in "Dtmc.Internal.Block", and inherit its
+-- solves of @(I - Q) x = b@ in "Dtmc.Internal.LinearSystem", and inherit its
 -- rounding. Infinity is likewise a constructor ('InfiniteMean'), not an IEEE
 -- value.
 module Dtmc.Hitting (
@@ -47,7 +47,7 @@ import Dtmc.Classification (
     recurrentState,
     transientStates,
  )
-import Dtmc.Internal.Block (
+import Dtmc.Internal.LinearSystem (
     fundamental,
     rowSums,
     solveIminusQVector,

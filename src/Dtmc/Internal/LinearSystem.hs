@@ -1,6 +1,6 @@
 -- |
--- Module      : Dtmc.Internal.Block
--- Description : Sub-block extraction and @(I - Q)@ linear solves.
+-- Module      : Dtmc.Internal.LinearSystem
+-- Description : @(I - Q)@ linear solves and sub-block extraction.
 --
 -- The numeric substrate for the hitting-time and absorption theory: extract
 -- the block of a matrix indexed by chosen subsets of states, and solve the
@@ -21,7 +21,7 @@
 -- lives in the caller. It is hidden like the other internal modules and, like
 -- them, is verified through the public API: the hitting-time and absorption
 -- specs exercise every function here against closed forms and simulations.
-module Dtmc.Internal.Block (
+module Dtmc.Internal.LinearSystem (
     subMatrix,
     rowSums,
     solveIminusQ,
