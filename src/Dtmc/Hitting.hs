@@ -39,9 +39,6 @@ import Data.Finite (
     finites,
     getFinite,
  )
-import Data.Maybe (
-    fromMaybe,
- )
 import Data.Proxy (
     Proxy (..),
  )
@@ -238,7 +235,7 @@ expectedHittingTimes p targets =
     doomed =
         backwardReachable
             p
-            (\f -> not (inTarget (toIndex f)))
+            (not . inTarget . toIndex)
             (map toFinite unreachable)
     doomedMask = indexMask dim (map toIndex doomed)
     -- Certain B: off the target and not doomed.
@@ -306,33 +303,37 @@ returnProbabilities ::
 returnProbabilities p =
     S.vector [valueAt i | i <- finites]
   where
+    dim = fromIntegral (natVal (Proxy @n))
     transient = transientStates p
     transientIdx = map toIndex transient
     matrix = S.extract (unTransitionMatrix p)
-    transientValue
+    -- Transient return probabilities f_i = 1 - 1/N_ii, all from one solve.
+    transientReturns
         | null transient = []
         | otherwise =
             case fundamental (subMatrix transientIdx transientIdx matrix) of
                 Just nMatrix ->
-                    zip
-                        transient
-                        [ 1 - 1 / (nMatrix `LA.atIndex` (k, k))
-                        | k <- [0 .. length transient - 1]
-                        ]
+                    [ 1 - 1 / (nMatrix `LA.atIndex` (k, k))
+                    | k <- [0 .. length transient - 1]
+                    ]
                 Nothing ->
                     error
                         "Dtmc.Hitting.returnProbabilities: transient system \
                         \singular or numerically ill-conditioned"
+    -- Indexed by state for O(1) lookup, mirroring 'hittingProbabilities';
+    -- recurrent entries default to 0 and are never read.
+    transientValues :: Unboxed.UArray Int Double
+    transientValues =
+        Unboxed.accumArray (\_ x -> x) 0 (0, dim - 1) (zip transientIdx transientReturns)
     valueAt i
         | recurrentState p i = 1
-        | otherwise =
-            fromMaybe
-                (error "Dtmc.Hitting.returnProbabilities: state escaped the partition")
-                (lookup i transientValue)
+        | otherwise = transientValues Unboxed.! toIndex i
 
 {- | The probability of returning to one supplied state after at least one
-step. This is an indexed view of 'returnProbabilities'; partial application
-shares the support analysis and fundamental-matrix solve.
+step. This is an indexed view of 'returnProbabilities'; a recurrent state
+returns @1@ immediately from the support-graph classification, so a query
+confined to recurrent states never forces the fundamental-matrix solve.
+Partial application shares that single solve across transient-state queries.
 -}
 returnProbability ::
     forall n.
@@ -341,7 +342,10 @@ returnProbability ::
     Finite n ->
     Double
 returnProbability p =
-    \i -> probabilities `LA.atIndex` toIndex i
+    \i ->
+        if recurrentState p i
+            then 1
+            else probabilities `LA.atIndex` toIndex i
   where
     probabilities = S.extract (returnProbabilities p)
 
@@ -369,16 +373,13 @@ expectedReturnTimes ::
     TransitionMatrix n ->
     [MeanTime]
 expectedReturnTimes p =
-    [ if recurrentState p i
-        then expectedReturnTimeFrom p i
-        else InfiniteMean
-    | i <- finites
-    ]
+    map (expectedReturnTime p) finites
 
-{- | The expected first-return time for one supplied state, computed directly
-from its singleton hitting-time table. Unlike indexing the plural result,
-this performs only the one required hitting solve, taking @O(n^3)@ worst-case
-time rather than computing return means for every possible starting state.
+{- | The expected first-return time for one supplied state. A transient state
+has infinite mean return time by the finite-chain classification, returned
+immediately without any solve; a recurrent state performs only the one
+required singleton hitting solve, @O(n^3)@ worst case, rather than computing
+return means for every possible starting state.
 -}
 expectedReturnTime ::
     forall n.
@@ -386,7 +387,9 @@ expectedReturnTime ::
     TransitionMatrix n ->
     Finite n ->
     MeanTime
-expectedReturnTime = expectedReturnTimeFrom
+expectedReturnTime p i
+    | recurrentState p i = expectedReturnTimeFrom p i
+    | otherwise = InfiniteMean
 
 expectedReturnTimeFrom ::
     forall n.
