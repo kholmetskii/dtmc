@@ -2,11 +2,9 @@
 Module      : Dtmc.Dynamics
 Description : Deterministic forward evolution of distributions.
 
-The analytic (non-random) push-forward of a distribution by the chain: how
-the law of the current state becomes the law of the next. Row-stochastic @p@
-acts on a column distribution @mu@ by @mu' = transpose p #> mu@, i.e.
-@mu'(j) = sum_i mu(i) * p(i,j)@. The @k@-step version reuses 'matrixPower'
-from "Dtmc.TransitionMatrix".
+Deterministic push-forward of a state distribution through a DTMC. For a row
+transition matrix @P@ and column distribution @mu@,
+@mu'(j) = sum_i mu(i) P(i,j)@.
 -}
 module Dtmc.Dynamics (
     evolve,
@@ -29,15 +27,27 @@ import GHC.TypeNats (
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (Natural)
 
-{- | One-step push-forward of a distribution: @evolve mu p = transpose p #> mu@.
-Maps the law of the current state to the law of the next state.
+{- | The next-state distribution @mu' = transpose(P) mu@.
+
+Exact probability inputs produce a probability distribution. The result is
+wrapped without validation, clamping, or renormalisation, so tolerated input
+error and floating-point rounding are preserved and may make a subsequent
+validation fail.
+
+Time: @O(n^2)@. Result space: @O(n)@.
 -}
 evolve :: (KnownNat n) => Distribution n -> TransitionMatrix n -> Distribution n
 evolve (Distribution v) p =
     Distribution (S.tr (unTransitionMatrix p) S.#> v)
 
-{- | @k@-step push-forward: @evolveN k mu p = evolve mu (p^k)@, the law of the
-state after @k@ transitions.
+{- | The distribution after @k@ transitions, computed as
+@evolve mu (matrixPower k p)@. Exponent zero is the original distribution
+mathematically.
+
+This powers the matrix rather than iterating 'evolve', so the two calculations
+may differ by floating-point rounding. The result is not revalidated.
+
+Time: @O(n^2 + n^3 log(k + 1))@.
 -}
 evolveN ::
     (KnownNat n) =>
