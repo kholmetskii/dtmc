@@ -4,25 +4,24 @@ module Dtmc.TransitionMatrixSpec (
     spec,
 ) where
 
-import Dtmc (
-    SimplexError (..),
-    TransitionMatrixError (..),
-    TransitionMatrix,
-    identityMatrix,
-    matrixPower,
-    mkDistribution,
-    mkTransitionMatrix,
-    mulTransitionMatrix,
-    rowAt,
-    unDistribution,
-    unTransitionMatrix,
- )
+import Dtmc.Distribution (mkDistribution, unDistribution)
+import Dtmc.Simplex (SimplexError (..))
 import Dtmc.TestSupport (
     approxTransitionMatrixEq,
     bumpSmallestInFirstRow,
     genTransitionMatrix,
     modifyMatrixRows,
     setFirstEntry,
+ )
+import Dtmc.TransitionMatrix (
+    TransitionMatrix,
+    TransitionMatrixError (..),
+    identityMatrix,
+    matrixPower,
+    mkTransitionMatrix,
+    mulTransitionMatrix,
+    rowAt,
+    unTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S

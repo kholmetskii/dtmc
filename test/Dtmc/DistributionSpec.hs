@@ -2,11 +2,13 @@ module Dtmc.DistributionSpec (
     spec,
 ) where
 
-import Dtmc (
+import Dtmc.Distribution (
     DistributionError (..),
-    SimplexError (..),
     mkDistribution,
     unDistribution,
+ )
+import Dtmc.Simplex (
+    SimplexError (..),
  )
 import Dtmc.TestSupport (
     approxDistributionEq,
