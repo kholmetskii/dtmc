@@ -31,20 +31,22 @@ module Dtmc.Hitting (
     expectedReturnTime,
 ) where
 
+import Data.Array qualified as Array
+import Data.Array.Unboxed qualified as Unboxed
 import Data.Finite (
     Finite,
+    finite,
     finites,
     getFinite,
- )
-import Data.List (
-    nub,
  )
 import Data.Maybe (
     fromMaybe,
  )
+import Data.Proxy (
+    Proxy (..),
+ )
 import Dtmc.Classification (
     backwardReachable,
-    reachesAny,
     recurrentState,
     transientStates,
  )
@@ -66,6 +68,7 @@ import Dtmc.TransitionMatrix.Internal (
  )
 import GHC.TypeNats (
     KnownNat,
+    natVal,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
@@ -85,6 +88,17 @@ data MeanTime
 -- Convert a bounded 'Finite' @n@ index back to a raw @Int@.
 toIndex :: Finite n -> Int
 toIndex = fromIntegral . getFinite
+
+-- Convert a raw @Int@ index into the bounded 'Finite' @n@ index.
+toFinite :: (KnownNat n) => Int -> Finite n
+toFinite = finite . fromIntegral
+
+-- A Boolean membership mask over states @0 .. dim-1@: 'True' at exactly the
+-- listed indices (duplicates collapse). Backs O(1) membership tests, keeping
+-- the surrounding per-state assembly linear instead of quadratic list @elem@.
+indexMask :: Int -> [Int] -> Unboxed.UArray Int Bool
+indexMask dim indices =
+    Unboxed.accumArray (||) False (0, dim - 1) [(i, True) | i <- indices]
 
 {- | The vector of hitting probabilities @h_iA = P(H_A < infinity | X_0 = i)@,
 one entry per state, for the target set @A@ (order and duplicates in the
@@ -119,17 +133,24 @@ hittingProbabilities ::
     [Finite n] ->
     S.R n
 hittingProbabilities p targets =
-    S.vector [valueAt i | i <- finites]
+    S.vector [valueAt i | i <- [0 .. dim - 1]]
   where
-    targetSet = nub targets
-    inTarget i = i `elem` targetSet
-    canReach i = reachesAny p i targetSet
-    interior = [i | i <- finites, not (inTarget i), canReach i]
+    dim = fromIntegral (natVal (Proxy @n))
+    -- Target membership as an O(1) mask (duplicates collapse).
+    targetMask = indexMask dim (map toIndex targets)
+    inTarget i = targetMask Unboxed.! i
+    -- Unique target indices, ascending, for the solve's column block.
+    targetIdx = [i | i <- [0 .. dim - 1], inTarget i]
+    -- One reverse traversal replaces the per-state reachability search:
+    -- @reachMask@ marks every state that can reach the target.
+    reachMask =
+        indexMask dim (map toIndex (backwardReachable p (const True) targets))
+    canReach i = reachMask Unboxed.! i
+    -- Interior D: off the target and able to reach it.
+    interiorIdx = [i | i <- [0 .. dim - 1], not (inTarget i), canReach i]
     matrix = S.extract (unTransitionMatrix p)
-    interiorIdx = map toIndex interior
-    targetIdx = map toIndex targetSet
     solved
-        | null interior = []
+        | null interiorIdx = []
         | otherwise =
             case solveIminusQVector
                 (subMatrix interiorIdx interiorIdx matrix)
@@ -139,10 +160,14 @@ hittingProbabilities p targets =
                     error
                         "Dtmc.Hitting.hittingProbabilities: interior system \
                         \singular; impossible for a valid transition matrix"
-    interiorValue = zip interior solved
+    -- Solved interior values indexed by state for O(1) lookup.
+    interiorValues :: Unboxed.UArray Int Double
+    interiorValues =
+        Unboxed.accumArray (\_ x -> x) 0 (0, dim - 1) (zip interiorIdx solved)
     valueAt i
         | inTarget i = 1
-        | otherwise = fromMaybe 0 (lookup i interiorValue)
+        | canReach i = interiorValues Unboxed.! i
+        | otherwise = 0
 
 {- | The probability of ever hitting the target set from one supplied state.
 This is an indexed view of 'hittingProbabilities'; partial application to a
@@ -196,26 +221,32 @@ expectedHittingTimes ::
     [Finite n] ->
     [MeanTime]
 expectedHittingTimes p targets =
-    table
+    [valueAt i | i <- [0 .. dim - 1]]
   where
-    targetSet = nub targets
-    inTarget i = i `elem` targetSet
-    offTarget = [i | i <- finites, not (inTarget i)]
-    -- Z: cannot reach the target at all.
-    unreachable = [i | i <- offTarget, not (reachesAny p i targetSet)]
-    -- Doomed: can reach Z by a support path avoiding the target, i.e. the
-    -- backward closure of Z along edges from non-target states. On these
-    -- states h < 1, hence eta is infinite. This is exactly reverse reachability
-    -- from Z within the off-target subgraph, delegated to 'backwardReachable'
-    -- (O(V + E)). Membership below is list @elem@ -- an O(n) test, dominated by
-    -- the surrounding linear solve.
-    doomed = backwardReachable p (not . inTarget) unreachable
-    -- B: off the target and certain to hit it.
-    certain = [i | i <- offTarget, i `notElem` doomed]
+    dim = fromIntegral (natVal (Proxy @n))
+    targetMask = indexMask dim (map toIndex targets)
+    inTarget i = targetMask Unboxed.! i
+    -- One reverse traversal: states that can reach the target. Off the target,
+    -- its complement is Z -- the states that cannot reach the target at all.
+    reachMask =
+        indexMask dim (map toIndex (backwardReachable p (const True) targets))
+    unreachable =
+        [i | i <- [0 .. dim - 1], not (inTarget i), not (reachMask Unboxed.! i)]
+    -- Doomed: off-target states that can reach Z along a target-avoiding path
+    -- (reverse reachability of Z within the off-target subgraph, O(V + E)). On
+    -- these h < 1, so eta is infinite. Held as an O(1) membership mask.
+    doomed =
+        backwardReachable
+            p
+            (\f -> not (inTarget (toIndex f)))
+            (map toFinite unreachable)
+    doomedMask = indexMask dim (map toIndex doomed)
+    -- Certain B: off the target and not doomed.
+    certainIdx =
+        [i | i <- [0 .. dim - 1], not (inTarget i), not (doomedMask Unboxed.! i)]
     matrix = S.extract (unTransitionMatrix p)
-    certainIdx = map toIndex certain
     solved
-        | null certain = []
+        | null certainIdx = []
         | otherwise =
             case solveIminusQVector
                 (subMatrix certainIdx certainIdx matrix)
@@ -225,16 +256,16 @@ expectedHittingTimes p targets =
                     error
                         "Dtmc.Hitting.expectedHittingTimes: certain system \
                         \singular; impossible for a valid transition matrix"
-    certainValue = zip certain solved
-    table = [valueAt i | i <- finites]
+    -- Solved certain means indexed by state for O(1) lookup. Every off-target,
+    -- non-doomed state is certain, so the partition is total and no lookup can
+    -- miss.
+    certainValues :: Unboxed.UArray Int Double
+    certainValues =
+        Unboxed.accumArray (\_ x -> x) 0 (0, dim - 1) (zip certainIdx solved)
     valueAt i
         | inTarget i = FiniteMean 0
-        | i `elem` doomed = InfiniteMean
-        | otherwise =
-            maybe
-                (error "Dtmc.Hitting.expectedHittingTimes: state escaped the partition")
-                FiniteMean
-                (lookup i certainValue)
+        | doomedMask Unboxed.! i = InfiniteMean
+        | otherwise = FiniteMean (certainValues Unboxed.! i)
 
 {- | The expected time to hit the target set from one supplied state. This is
 an indexed view of 'expectedHittingTimes'; partial application shares the
@@ -248,9 +279,12 @@ expectedHittingTime ::
     Finite n ->
     MeanTime
 expectedHittingTime p targets =
-    \i -> table !! toIndex i
+    \i -> table Array.! toIndex i
   where
-    table = expectedHittingTimes p targets
+    -- Back the shared table with a boxed array so each state query is O(1)
+    -- (list @!!@ was O(index)); the single solve is still shared across queries.
+    table = Array.listArray (0, dim - 1) (expectedHittingTimes p targets)
+    dim = fromIntegral (natVal (Proxy @n))
 
 {- | The vector of first-return probabilities
 @f_i = P(T_i < infinity | X_0 = i)@, one entry per state, where @T_i@ is
