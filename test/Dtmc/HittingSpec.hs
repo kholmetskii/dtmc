@@ -20,10 +20,10 @@ import Dtmc.Hitting (
     expectedHittingTimes,
     expectedReturnTime,
     expectedReturnTimes,
-    hittingProbability,
     hittingProbabilities,
-    returnProbability,
+    hittingProbability,
     returnProbabilities,
+    returnProbability,
  )
 import Dtmc.TestSupport (
     genTransitionMatrix,
@@ -68,11 +68,31 @@ gambler p =
     fromRows $
         mkTransitionMatrix
             ( S.matrix
-                [ 1, 0, 0, 0, 0
-                , 1 - p, 0, p, 0, 0
-                , 0, 1 - p, 0, p, 0
-                , 0, 0, 1 - p, 0, p
-                , 0, 0, 0, 0, 1
+                [ 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1 - p
+                , 0
+                , p
+                , 0
+                , 0
+                , 0
+                , 1 - p
+                , 0
+                , p
+                , 0
+                , 0
+                , 0
+                , 1 - p
+                , 0
+                , p
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
                 ]
             )
 
@@ -83,10 +103,22 @@ oscillator =
     fromRows $
         mkTransitionMatrix
             ( S.matrix
-                [ 0, 0.5, 0.5, 0
-                , 0.5, 0, 0, 0.5
-                , 0, 0, 1, 0
-                , 0, 0, 0, 1
+                [ 0
+                , 0.5
+                , 0.5
+                , 0
+                , 0.5
+                , 0
+                , 0
+                , 0.5
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
                 ]
             )
 
@@ -95,8 +127,10 @@ twoCycle =
     fromRows $
         mkTransitionMatrix
             ( S.matrix
-                [ 0, 1
-                , 1, 0
+                [ 0
+                , 1
+                , 1
+                , 0
                 ]
             )
 
@@ -105,8 +139,10 @@ nonUniformRecurrent =
     fromRows $
         mkTransitionMatrix
             ( S.matrix
-                [ 0.9, 0.1
-                , 0.4, 0.6
+                [ 0.9
+                , 0.1
+                , 0.4
+                , 0.6
                 ]
             )
 

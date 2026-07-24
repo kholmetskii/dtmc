@@ -1,17 +1,18 @@
--- |
--- Module      : Dtmc
--- Description : Public facade re-exporting the library's curated API.
---
--- Single entry point for users of the library. It gathers the intended public
--- surface -- the 'Distribution' and 'TransitionMatrix' types with their
--- validating constructors and error types, the analytic forward dynamics
--- ('evolve' and 'matrixPower'), the qualitative structure
--- theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
--- hitting theory ('hittingProbabilities', 'hittingProbability',
--- 'expectedHittingTimes', 'expectedHittingTime', 'returnProbabilities',
--- 'returnProbability', 'expectedReturnTimes', and 'expectedReturnTime'), and the
--- random simulation primitives -- while hiding the "Dtmc.Internal" modules.
--- Import this module to build, analyse, and run chains.
+{- |
+Module      : Dtmc
+Description : Public facade re-exporting the library's curated API.
+
+Single entry point for users of the library. It gathers the intended public
+surface -- the 'Distribution' and 'TransitionMatrix' types with their
+validating constructors and error types, the analytic forward dynamics
+('evolve' and 'matrixPower'), the qualitative structure
+theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
+hitting theory ('hittingProbabilities', 'hittingProbability',
+'expectedHittingTimes', 'expectedHittingTime', 'returnProbabilities',
+'returnProbability', 'expectedReturnTimes', and 'expectedReturnTime'), and the
+random simulation primitives -- while hiding the "Dtmc.Internal" modules.
+Import this module to build, analyse, and run chains.
+-}
 module Dtmc (
     Distribution,
     DistributionError (..),
@@ -81,8 +82,8 @@ import Dtmc.Simulation (
     step,
  )
 import Dtmc.TransitionMatrix (
-    TransitionMatrixError (..),
     TransitionMatrix,
+    TransitionMatrixError (..),
     identityMatrix,
     matrixPower,
     mkTransitionMatrix,
@@ -131,8 +132,8 @@ import Dtmc.Hitting (
     expectedHittingTimes,
     expectedReturnTime,
     expectedReturnTimes,
-    hittingProbability,
     hittingProbabilities,
-    returnProbability,
+    hittingProbability,
     returnProbabilities,
+    returnProbability,
  )
