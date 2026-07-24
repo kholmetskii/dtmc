@@ -63,6 +63,7 @@ module Dtmc.Classification (
     unIrreducible,
 ) where
 
+import Data.Array qualified as Array
 import Data.Finite (
     Finite,
     finite,
@@ -116,11 +117,7 @@ equivalence relation whose classes are the communicating classes.
 -}
 communicates :: TransitionMatrix n -> Finite n -> Finite n -> Bool
 communicates p i j =
-    G.reachable g a b && G.reachable g b a
-  where
-    g = tmSupport p
-    a = toIndex i
-    b = toIndex j
+    G.sameComponent (tmSupport p) (toIndex i) (toIndex j)
 
 {- | The communicating classes of the chain, each as a list of states: the
 strongly connected components of the support graph, ordered by least member.
@@ -172,10 +169,16 @@ cyclicClasses p
         case G.periodOf g 0 of
             Nothing -> Nothing
             Just d ->
-                Just
-                    [ [toFinite v | v <- [0 .. G.graphDim g - 1], G.phaseOf g v == r]
-                    | r <- [0 .. fromIntegral d - 1]
-                    ]
+                let dInt = fromIntegral d
+                    -- One pass buckets every vertex by its phase (@O(V + d)@),
+                    -- instead of scanning all vertices once per phase (@O(dV)@).
+                    buckets =
+                        Array.accumArray
+                            (flip (:))
+                            []
+                            (0, dInt - 1)
+                            [(G.phaseOf g v, toFinite v) | v <- [0 .. G.graphDim g - 1]]
+                 in Just [reverse (buckets Array.! r) | r <- [0 .. dInt - 1]]
   where
     g = tmSupport p
 
@@ -204,9 +207,13 @@ one class), so some class has no outgoing edges, and a sink class is closed.
 -}
 recurrentStates :: (KnownNat n) => TransitionMatrix n -> [Finite n]
 recurrentStates p =
-    concatMap (map toFinite) (filter (G.isClosed g) (G.components g))
+    concatMap (map toFinite) closedComponents
   where
     g = tmSupport p
+    -- Closedness is read per component in O(1) from the cached table (via the
+    -- representative vertex @v@), rather than recomputed by 'G.isClosed'.
+    closedComponents =
+        [component | component@(v : _) <- G.components g, G.inClosedComponent g v]
 
 {- | All transient states: the members of the non-closed communicating classes,
 in the order 'classify' lists them. Empty iff every class is closed (in
@@ -214,9 +221,14 @@ particular for any irreducible chain).
 -}
 transientStates :: (KnownNat n) => TransitionMatrix n -> [Finite n]
 transientStates p =
-    concatMap (map toFinite) (filter (not . G.isClosed g) (G.components g))
+    concatMap (map toFinite) openComponents
   where
     g = tmSupport p
+    openComponents =
+        [ component
+        | component@(v : _) <- G.components g
+        , not (G.inClosedComponent g v)
+        ]
 
 {- | A summary of one communicating class: its member states, its 'period'
 (@Nothing@ if undefined), and whether it is 'classClosed' -- i.e. no edge

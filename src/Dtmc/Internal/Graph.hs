@@ -20,6 +20,7 @@ module Dtmc.Internal.Graph (
     backwardReachable,
     components,
     componentOf,
+    sameComponent,
     isClosed,
     inClosedComponent,
     componentPeriod,
@@ -60,6 +61,13 @@ data Graph = Graph
     -- ^ Normalised strongly connected components.
     , graphComponentOf :: Array.Array Int [Int]
     -- ^ Constant-time vertex-to-component lookup after SCC construction.
+    , graphComponentId :: Unboxed.UArray Int Int
+    {- ^ Constant-time vertex-to-component-/index/ lookup: two vertices share a
+    strongly connected component (communicate) iff they map to the same index.
+    Backs 'sameComponent'. The table is also used while deriving component
+    closedness; retaining it here adds @O(V)@ unboxed storage and makes
+    same-component queries @O(1)@.
+    -}
     , graphClosedComponentTable :: Unboxed.UArray Int Bool
     {- ^ Per-vertex closedness of its component: @True@ iff the vertex's
     strongly connected component is a sink of the condensation (no edge
@@ -95,6 +103,7 @@ fromAdjacency dim entries
             , graphPredecessors = DG.transposeG successors
             , graphSccs = sccs
             , graphComponentOf = componentTable
+            , graphComponentId = componentIds
             , graphClosedComponentTable = closedComponentTable
             , graphPeriodOf = periodTable
             , graphPhaseOf = phaseTable
@@ -297,6 +306,21 @@ componentOf graph vertex
     | vertex < 0 || vertex >= graphDim graph =
         error "Dtmc.Internal.Graph.componentOf: vertex out of bounds"
     | otherwise = graphComponentOf graph Array.! vertex
+
+{- | Whether two vertices lie in the same strongly connected component -- i.e.
+communicate. A constant-time comparison of their cached component indices,
+replacing two reachability searches.
+
+Time: @O(1)@ after the one-off SCC construction.
+-}
+sameComponent :: Graph -> Int -> Int -> Bool
+sameComponent graph a b
+    | outOfRange a || outOfRange b =
+        error "Dtmc.Internal.Graph.sameComponent: vertex out of bounds"
+    | otherwise =
+        graphComponentId graph Unboxed.! a == graphComponentId graph Unboxed.! b
+  where
+    outOfRange v = v < 0 || v >= graphDim graph
 
 {- | Whether a vertex set is closed: no direct edge leaves it.
 
