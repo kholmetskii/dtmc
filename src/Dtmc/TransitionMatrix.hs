@@ -2,13 +2,10 @@
 Module      : Dtmc.TransitionMatrix
 Description : Row-stochastic transition matrices and their monoid.
 
-Public interface for t'TransitionMatrix', the one-step law of a discrete-time
-Markov chain on @n@ states. 'mkTransitionMatrix' enforces the row-stochastic
-invariant (each row is a t'Distribution' over next states). The one-step
-matrix generates a monoid of @k@-step transitions, all backed by the 'Monoid'
-instance in "Dtmc.TransitionMatrix.Internal": composition ('mulTransitionMatrix', the
-'<>' product), the zero-step identity ('identityMatrix', 'mempty'), and
-@k@-step powers ('matrixPower').
+One-step transition probabilities for a DTMC on @n@ states.
+'mkTransitionMatrix' validates each row with the simplex tolerance;
+'mulTransitionMatrix', 'identityMatrix', and 'matrixPower' provide
+multi-step transitions.
 -}
 module Dtmc.TransitionMatrix (
     TransitionMatrix,
@@ -56,15 +53,19 @@ import Numeric.Natural (
     Natural,
  )
 
-{- | A row of the matrix was not a valid distribution: carries the zero-based
-row index together with the underlying simplex failure.
+{- | A row failed simplex validation. Carries its zero-based index and the
+underlying error, whose coordinate index is the zero-based column.
 -}
-data TransitionMatrixError = InRow Int SimplexError
+data TransitionMatrixError
+    = -- | The row index and its simplex failure.
+      InRow Int SimplexError
     deriving (Eq, Show)
 
-{- | Smart constructor: accept a raw matrix only if every row passes
-@validateSimplex@, reporting the first offending row otherwise. The sole
-sanctioned way to build a t'TransitionMatrix'.
+{- | Validate every row as a next-state distribution, stopping at the first
+failure. Accepted entries are preserved without clamping or renormalisation;
+the support graph remains lazy. The empty @0 x 0@ matrix is accepted.
+
+Time: @O(n^2)@. Additional validation space: @O(n)@.
 -}
 mkTransitionMatrix :: (KnownNat n) => S.Sq n -> Either TransitionMatrixError (TransitionMatrix n)
 mkTransitionMatrix matrix =
@@ -73,29 +74,41 @@ mkTransitionMatrix matrix =
     validateRow (index, row) =
         first (InRow index) (validateSimplex row)
 
-{- | Compose two steps by matrix multiplication (the 'Semigroup' '<>'). No
-re-validation is needed: the product of two row-stochastic matrices is
-row-stochastic, so the result is valid by construction.
+{- | Compose two transitions: @mulTransitionMatrix p q@ means take a @p@ step,
+then a @q@ step, and stores the matrix product @P Q@.
+
+The product is not revalidated. Exact row-stochastic matrices are closed under
+multiplication, but tolerated input error and floating-point rounding can
+accumulate, so the result may fail 'mkTransitionMatrix' if checked again.
+
+Time: @O(n^3)@. Result space: @O(n^2)@; its support graph is built lazily.
 -}
 mulTransitionMatrix :: (KnownNat n) => TransitionMatrix n -> TransitionMatrix n -> TransitionMatrix n
 mulTransitionMatrix = (<>)
 
-{- | The @n*n@ identity as a transition matrix: the zero-step transition
-(@mempty@), which leaves any distribution unchanged.
+{- | The @n x n@ identity: the zero-step transition that leaves every state
+unchanged. For @n = 0@ this is the empty matrix.
+
+Time and result space: @O(n^2)@.
 -}
 identityMatrix :: (KnownNat n) => TransitionMatrix n
 identityMatrix = mempty
 
-{- | The @k@-step transition matrix @p^k@, the @k@-fold monoidal product
-(@matrixPower 0 = identityMatrix@). This is Chapman--Kolmogorov in matrix
-form: @matrixPower (m + n) p == matrixPower m p <> matrixPower n p@.
+{- | The @k@-step transition matrix @p^k@. Exponent zero returns
+'identityMatrix'; positive exponents use repeated squaring through
+'Data.Semigroup.mtimesDefault'.
+
+Chapman-Kolmogorov gives @p^(m+n) = p^m p^n@ mathematically; computed matrices
+may differ by floating-point rounding and are not revalidated.
+
+Time: @O(n^2 + n^3 log(k + 1))@.
 -}
 matrixPower :: (KnownNat n) => Natural -> TransitionMatrix n -> TransitionMatrix n
 matrixPower = mtimesDefault
 
-{- | The @i@-th row as a t'Distribution': the conditional law of the next state
-given the chain is currently in state @i@. The 'Finite' index keeps @i@
-statically in range, so the lookup is total.
+{- | The stored row for state @i@: its next-state distribution. The 'Finite'
+index makes the lookup total. The row is wrapped without revalidation, so any
+floating-point drift from matrix arithmetic is preserved.
 -}
 rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> Distribution n
 rowAt p index =
