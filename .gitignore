@@ -1,1 +1,32 @@
-dist-newstyle/
+# Cabal
+/dist-newstyle/
+/cabal.project.local
+/cabal.project.local~
+/cabal.project.freeze
+/.ghc.environment.*
+
+# GHC and test artefacts
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+*.prof
+*.aux
+*.hp
+*.eventlog
+*.tix
+/.hpc/
+
+# Haskell tooling
+/.hie-bios/
+/.hls/
+
+# Editors
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# Operating system metadata
+.DS_Store
