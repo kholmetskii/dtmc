@@ -2,16 +2,10 @@
 Module      : Dtmc.Simplex.Internal
 Description : Validation of the probability-simplex invariant.
 
-Shared numeric check used by both the distribution and transition-matrix smart
-constructors: it decides whether a raw vector is a valid probability
-distribution (a point on the standard simplex). All comparisons allow a small
-'tolerance' of slack so floating-point values are not spuriously rejected. It
-also hosts 'snapToSimplex', the floating-point repair applied before
-categorical sampling.
-
-The unsafe underbelly of the public "Dtmc.Simplex" (which exposes only the
-'Dtmc.Simplex.SimplexError' vocabulary); it lives in the cabal @other-modules@
-and is not part of the public API.
+Shared simplex validation for distribution and transition-matrix smart
+constructors. It also provides the small-negative repair used before
+categorical sampling. Successful validation preserves the input; it does not
+clamp or renormalise coordinates.
 -}
 module Dtmc.Simplex.Internal (
     validateSimplex,
@@ -27,20 +21,20 @@ import GHC.TypeNats (
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 
-{- | Absolute slack allowed when checking the probability-simplex invariant: a
-coordinate may stray this far outside @[0,1]@ and the row sum this far from
-one before the vector is rejected, and negatives within this band are snapped
-to zero by 'snapToSimplex'. Small enough to catch real modelling errors while
-tolerating floating-point rounding. A private validation threshold, not part
-of the public API and not a general-purpose numeric policy.
--}
+-- Keep validation and sampling repair on one private absolute threshold.
 tolerance :: Double
 tolerance = 1e-9
 
-{- | Check that @vector@ is a probability distribution: scan for the first
-out-of-range coordinate, and if none is found require the total to be one
-within 'tolerance'. The per-entry scan runs first so a malformed coordinate is
-reported at its index rather than masked by the sum check.
+{- | Accept a vector iff every coordinate is in
+@[-tolerance, 1 + tolerance]@ and its total is in
+@[1 - tolerance, 1 + tolerance]@. Reports the first coordinate error before
+checking the total and does not modify accepted values.
+
+An empty vector yields @Left (SumOffBy 0)@. If the coordinate scan finds no
+bound violation, @NaN@ yields @Left (SumOffBy NaN)@; infinities fail their
+coordinate bound.
+
+Time: @O(n)@. Space: @O(n)@ for dynamic-vector conversion.
 -}
 validateSimplex :: (KnownNat n) => S.R n -> Either SimplexError ()
 validateSimplex vector =
@@ -53,10 +47,7 @@ validateSimplex vector =
     entries = LA.toList (S.extract vector)
     total = sum entries
 
-{- | Walk the coordinates left to right, returning the first that is negative
-or greater than one (each beyond 'tolerance'), tagged with its index.
-'Nothing' means every coordinate is individually within @[0,1]@.
--}
+-- Scan separately so a coordinate error reports its index before the total.
 firstInvalidEntry :: Int -> [Double] -> Maybe SimplexError
 firstInvalidEntry _ [] = Nothing
 firstInvalidEntry index (entry : rest)
@@ -67,10 +58,14 @@ firstInvalidEntry index (entry : rest)
     | otherwise =
         firstInvalidEntry (index + 1) rest
 
-{- | Snap small negative coordinates -- those within 'tolerance' of zero, an
-artefact of floating-point arithmetic -- to exactly zero, so a probability
-vector is accepted by a categorical sampler. A coordinate more negative than
-that signals a real invariant violation (a programmer error) and fails loudly.
+{- | Replace coordinates in @[-tolerance, 0)@ with zero before categorical
+sampling. Non-negative values are unchanged; the result is not renormalised
+or clamped above one.
+
+Raises an error for a coordinate below @-tolerance@ or a @NaN@ coordinate.
+An empty vector remains empty.
+
+Time and result space: @O(n)@.
 -}
 snapToSimplex :: LA.Vector Double -> LA.Vector Double
 snapToSimplex =
