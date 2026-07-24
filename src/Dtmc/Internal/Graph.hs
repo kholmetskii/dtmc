@@ -9,6 +9,9 @@ positive entries of the transition matrix's support.
 The graph is stored as adjacency lists in both directions. Keeping the
 transpose makes forward and reverse traversals proportional to the graph
 actually visited instead of requiring matrix row or column scans.
+
+Unless stated otherwise, every vertex argument must be in @{0 .. V-1}@.
+Passing an out-of-range vertex may raise an array-bounds error.
 -}
 module Dtmc.Internal.Graph (
     Graph,
@@ -86,12 +89,17 @@ data Graph = Graph
     -}
     }
 
-{- | Build a graph from its dimension and a complete Boolean adjacency
-association list. Only entries whose value is 'True' become edges.
+{- | Build a graph from a complete Boolean adjacency association list. Only
+entries whose value is 'True' become edges.
 
-The input format contains @V^2@ entries, so reading it necessarily takes
-@O(V^2)@ even when the resulting support graph is sparse. Once built, the
-graph itself occupies @O(V + E)@ space.
+The dimension must be non-negative, and the list is expected to contain
+exactly one entry for each pair in @{0 .. V-1}^2@. Completeness and uniqueness
+are not validated: missing pairs act as 'False', and repeated 'True' entries
+create duplicate edges. A negative dimension raises an error; an out-of-range
+endpoint may fail when a lazy field is forced.
+
+Reading the @V^2@ entries takes @O(V^2)@ time. The resulting graph occupies
+@O(V + E)@ space.
 -}
 fromAdjacency :: Int -> [((Int, Int), Bool)] -> Graph
 fromAdjacency dim entries
@@ -124,11 +132,8 @@ fromAdjacency dim entries
             , vertex <- component
             ]
 
-    -- Component id per vertex, then the closed-component table. A component is
-    -- closed (its states recurrent) iff no edge leaves it -- i.e. it is a sink
-    -- of the condensation. One pass over all edges settles every component: an
-    -- edge whose endpoints lie in different components marks the source
-    -- component open.
+    -- A component is closed iff no edge leaves it. Record component ids so one
+    -- pass over cross-component edges can mark every open component.
     componentIds :: Unboxed.UArray Int Int
     componentIds =
         Unboxed.array
@@ -324,11 +329,10 @@ sameComponent graph a b
 
 {- | Whether a vertex set is closed: no direct edge leaves it.
 
-This examines only actual outgoing edges of vertices in the set.
+Duplicates are ignored, and the empty set is closed.
 
-Time: @O(V + E_C)@, where @E_C@ is the total out-degree of the set's vertices
-(all their outgoing edges, not only the ones that leave the set).
-Space: @O(V)@ for constant-time set membership.
+Time: @O(V + S + E_C)@, where @S@ is the supplied list length and @E_C@ is
+the total out-degree of its vertices. Space: @O(V)@ for set membership.
 -}
 isClosed :: Graph -> [Int] -> Bool
 isClosed graph suppliedVertices =
@@ -403,7 +407,8 @@ edge @u -> v@ /internal to a component/ satisfies
 @phaseOf v == (phaseOf u + 1) `mod` d@ -- so grouping a component's vertices
 by phase yields its cyclic (periodicity) classes -- whereas an edge leaving a
 component relates two independent phasings and carries no such relation. A
-vertex whose component has no cycles has phase @0@.
+component of period @d@ has phases in @{0 .. d-1}@; a vertex whose component
+has no cycles has phase @0@.
 
 Time: @O(1)@ after the one-off phasing pass. Space: @O(1)@ per query.
 -}
@@ -413,11 +418,9 @@ phaseOf graph vertex
         error "Dtmc.Internal.Graph.phaseOf: vertex out of bounds"
     | otherwise = graphPhaseOf graph Unboxed.! vertex
 
--- Period and phases of one component from a single BFS. @Nothing@ period for a
--- component with no cycles (a singleton without a self-loop, or -- defensively
--- -- a set the BFS fails to cover), in which case every supplied vertex is
--- given phase 0. Otherwise the period is the gcd of the edge-level
--- discrepancies and each vertex's phase is its BFS level modulo that period.
+-- The sole caller supplies strongly connected components, but retain a
+-- defensive fallback for an incomplete BFS: avoid missing-level lookups and
+-- assign no period and phase 0. Otherwise one BFS supplies both cached tables.
 componentPhasing :: DG.Graph -> [Int] -> (Maybe Natural, [(Int, Int)])
 componentPhasing _ [] = (Nothing, [])
 componentPhasing successors component@(root : _)
