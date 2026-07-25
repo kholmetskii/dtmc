@@ -11,6 +11,7 @@ validating constructors and error types, the analytic forward dynamics
 'conditionalProbability' over 'Observation' values), the qualitative structure
 theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
 hitting theory ('hittingProbabilities', 'hittingProbability',
+'hittingBeforeProbabilities', 'hittingBeforeProbability',
 'expectedHittingTimes', 'expectedHittingTime', 'returnProbabilities',
 'returnProbability', 'expectedReturnTimes', and 'expectedReturnTime'), and the
 random simulation primitives -- while hiding the "Dtmc.Internal" modules.
@@ -72,6 +73,8 @@ module Dtmc (
     MeanTime (..),
     hittingProbabilities,
     hittingProbability,
+    hittingBeforeProbabilities,
+    hittingBeforeProbability,
     expectedHittingTimes,
     expectedHittingTime,
     returnProbabilities,
@@ -155,6 +158,8 @@ import Dtmc.Hitting (
     expectedHittingTimes,
     expectedReturnTime,
     expectedReturnTimes,
+    hittingBeforeProbabilities,
+    hittingBeforeProbability,
     hittingProbabilities,
     hittingProbability,
     returnProbabilities,

@@ -20,6 +20,8 @@ import Dtmc.Hitting (
     expectedHittingTimes,
     expectedReturnTime,
     expectedReturnTimes,
+    hittingBeforeProbabilities,
+    hittingBeforeProbability,
     hittingProbabilities,
     hittingProbability,
     returnProbabilities,
@@ -146,6 +148,42 @@ nonUniformRecurrent =
                 ]
             )
 
+-- Assignment 4 cafe chain, states [T, M, D, F, W, C, L].
+cafe :: TransitionMatrix 7
+cafe =
+    fromRows $
+        mkTransitionMatrix
+            ( S.matrix
+                [ 0, 1 / 5, 0, 1 / 5, 1 / 5, 1 / 5, 1 / 5 -- T
+                , 1 / 5, 0, 2 / 5, 0, 2 / 5, 0, 0 -- M
+                , 0, 0, 0, 1 / 2, 0, 0, 1 / 2 -- D
+                , 1 / 2, 0, 0, 0, 0, 1 / 2, 0 -- F
+                , 0, 0, 0, 0, 0, 0, 1 -- W
+                , 0, 0, 0, 0, 0, 0, 1 -- C
+                , 0, 0, 0, 0, 0, 0, 1 -- L
+                ]
+            )
+
+-- Named cafe states used by the tests (order [T, M, D, F, W, C, L]).
+thinking, drink, plainWaffle, chocolateWaffle, leave :: Finite 7
+thinking = 0
+drink = 2
+plainWaffle = 4
+chocolateWaffle = 5
+leave = 6
+
+-- 0 -> 1 -> 2 (absorbing): reaching 2 requires passing through 1 first.
+pathChain :: TransitionMatrix 3
+pathChain =
+    fromRows $
+        mkTransitionMatrix
+            ( S.matrix
+                [ 0, 1, 0
+                , 0, 0, 1
+                , 0, 0, 1
+                ]
+            )
+
 -- Ruin probability from i with N = 4: (r^i - r^N) / (1 - r^N), r = (1-p)/p.
 -- Only for p /= 1/2 (the symmetric case is 1 - i/N).
 ruinProbability :: Double -> Int -> Double
@@ -247,6 +285,168 @@ spec = do
                                 zip3 (finites :: [Finite 4]) (entries h) pushed
                             , i /= 0
                             ]
+
+    describe "hittingBeforeProbabilities" $ do
+        it "is exactly one on an effective successful state" $
+            hittingBeforeProbability (gambler 0.5) [4] [0] 4 `shouldBe` 1
+
+        it "is exactly zero on a competing state" $
+            hittingBeforeProbability (gambler 0.5) [4] [0] 0 `shouldBe` 0
+
+        it "is exactly zero on an overlapping (tied) state" $
+            -- drink is in both boundaries, so the tie loses: value zero.
+            hittingBeforeProbability cafe [plainWaffle, drink] [drink, leave] drink
+                `shouldBe` 0
+
+        it "gives all zeros for identical successful and competing sets" $
+            entries
+                ( hittingBeforeProbabilities
+                    cafe
+                    [plainWaffle, chocolateWaffle]
+                    [plainWaffle, chocolateWaffle]
+                )
+                `shouldBe` replicate 7 0
+
+        it "gives all zeros for an empty successful set" $
+            entries (hittingBeforeProbabilities cafe [] [drink, leave])
+                `shouldBe` replicate 7 0
+
+        it "agrees with hittingProbabilities for an empty competing set" $ do
+            let before =
+                    entries
+                        ( hittingBeforeProbabilities
+                            cafe
+                            [plainWaffle, chocolateWaffle]
+                            []
+                        )
+                plain =
+                    entries
+                        (hittingProbabilities cafe [plainWaffle, chocolateWaffle])
+            sequence_
+                [ x `shouldSatisfy` closeTo y
+                | (x, y) <- zip before plain
+                ]
+
+        it "is exactly zero when the successful set is unreachable" $
+            -- From C only L is ever reached, so a plain waffle never is.
+            hittingBeforeProbability cafe [plainWaffle] [] chocolateWaffle
+                `shouldBe` 0
+
+        it "is exactly zero when success needs a competitor first" $
+            -- 0 -> 1 -> 2 with 1 competing: 2 is reachable only through 1.
+            hittingBeforeProbability pathChain [2] [1] 0 `shouldBe` 0
+
+        it "ignores duplicate targets" $ do
+            let withDuplicates =
+                    entries
+                        ( hittingBeforeProbabilities
+                            cafe
+                            [plainWaffle, chocolateWaffle, plainWaffle]
+                            [drink, leave, drink]
+                        )
+                once =
+                    entries
+                        ( hittingBeforeProbabilities
+                            cafe
+                            [plainWaffle, chocolateWaffle]
+                            [drink, leave]
+                        )
+            sequence_
+                [ x `shouldSatisfy` closeTo y
+                | (x, y) <- zip withDuplicates once
+                ]
+
+        it "ignores target order" $ do
+            let reordered =
+                    entries
+                        ( hittingBeforeProbabilities
+                            cafe
+                            [chocolateWaffle, plainWaffle]
+                            [leave, drink]
+                        )
+                ordered =
+                    entries
+                        ( hittingBeforeProbabilities
+                            cafe
+                            [plainWaffle, chocolateWaffle]
+                            [drink, leave]
+                        )
+            sequence_
+                [ x `shouldSatisfy` closeTo y
+                | (x, y) <- zip reordered ordered
+                ]
+
+        it "single-state lookups match the all-state vector" $
+            sequence_
+                [ hittingBeforeProbability
+                    cafe
+                    [plainWaffle, chocolateWaffle]
+                    [drink, leave]
+                    i
+                    `shouldSatisfy` closeTo x
+                | (i, x) <-
+                    zip
+                        (finites :: [Finite 7])
+                        ( entries
+                            ( hittingBeforeProbabilities
+                                cafe
+                                [plainWaffle, chocolateWaffle]
+                                [drink, leave]
+                            )
+                        )
+                ]
+
+        it "solves the oscillator race against a competing absorber" $ do
+            let h = entries (hittingBeforeProbabilities oscillator [2] [3])
+            sequence_
+                [ x `shouldSatisfy` closeTo v
+                | (x, v) <- zip h [2 / 3, 1 / 3, 1, 0]
+                ]
+
+        it "matches a hand-computed symmetric race (gambler p = 0.5)" $ do
+            let h = entries (hittingBeforeProbabilities (gambler 0.5) [4] [0])
+            sequence_
+                [ x `shouldSatisfy` closeTo (fromIntegral i / 4)
+                | (i, x) <- zip [0 :: Int ..] h
+                ]
+
+        it "disjoint races sum to one when the union is hit almost surely" $
+            sequence_
+                [ (x + y) `shouldSatisfy` closeTo 1
+                | pp <- [0.3, 0.5, 0.7]
+                , let g = gambler pp
+                , (x, y) <-
+                    zip
+                        (entries (hittingBeforeProbabilities g [4] [0]))
+                        (entries (hittingBeforeProbabilities g [0] [4]))
+                ]
+
+        it "matches the Assignment 4 cafe results" $ do
+            -- Existing ordinary hitting results.
+            hittingProbability cafe [leave] thinking `shouldSatisfy` closeTo 1
+            hittingProbability cafe [drink] thinking
+                `shouldSatisfy` closeTo (4 / 43)
+            -- New competing result: reach a waffle before a drink or leaving.
+            hittingBeforeProbability
+                cafe
+                [plainWaffle, chocolateWaffle]
+                [drink, leave]
+                thinking
+                `shouldSatisfy` closeTo (29 / 43)
+            sequence_
+                [ x `shouldSatisfy` closeTo (29 / 43)
+                | (i, x) <-
+                    zip
+                        (finites :: [Finite 7])
+                        ( entries
+                            ( hittingBeforeProbabilities
+                                cafe
+                                [plainWaffle, chocolateWaffle]
+                                [drink, leave]
+                            )
+                        )
+                , i == thinking
+                ]
 
     describe "expectedHittingTimes" $ do
         it "returns one entry per state" $ do

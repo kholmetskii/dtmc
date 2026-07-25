@@ -21,6 +21,8 @@ module Dtmc.Hitting (
     MeanTime (..),
     hittingProbabilities,
     hittingProbability,
+    hittingBeforeProbabilities,
+    hittingBeforeProbability,
     expectedHittingTimes,
     expectedHittingTime,
     returnProbabilities,
@@ -108,43 +110,14 @@ Raises an error if the backend rejects the interior solve. Worst-case time:
 @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
 hittingProbabilities ::
-    forall n.
     (KnownNat n) =>
     TransitionMatrix n ->
     [Finite n] ->
     S.R n
 hittingProbabilities p targets =
-    S.vector [valueAt i | i <- [0 .. dim - 1]]
-  where
-    dim = fromIntegral (natVal (Proxy @n))
-    -- Masks keep target and solution lookup constant-time during assembly.
-    targetMask = indexMask dim (map toIndex targets)
-    inTarget i = targetMask Unboxed.! i
-    targetIdx = [i | i <- [0 .. dim - 1], inTarget i]
-    -- One reverse traversal avoids a reachability search for every state.
-    reachMask =
-        indexMask dim (map toIndex (backwardReachable p (const True) targets))
-    canReach i = reachMask Unboxed.! i
-    interiorIdx = [i | i <- [0 .. dim - 1], not (inTarget i), canReach i]
-    matrix = S.extract (unTransitionMatrix p)
-    solved
-        | null interiorIdx = []
-        | otherwise =
-            case solveIminusQVector
-                (subMatrix interiorIdx interiorIdx matrix)
-                (rowSums (subMatrix interiorIdx targetIdx matrix)) of
-                Just x -> LA.toList x
-                Nothing ->
-                    error
-                        "Dtmc.Hitting.hittingProbabilities: interior system \
-                        \singular; impossible for a valid transition matrix"
-    interiorValues :: Unboxed.UArray Int Double
-    interiorValues =
-        Unboxed.accumArray (\_ x -> x) 0 (0, dim - 1) (zip interiorIdx solved)
-    valueAt i
-        | inTarget i = 1
-        | canReach i = interiorValues Unboxed.! i
-        | otherwise = 0
+    -- The ordinary hitting problem is the competing problem with no competing
+    -- boundary (@H_B = infinity@), so it reuses the same single solve.
+    hittingBeforeProbabilities p targets []
 
 {- | The probability of ever hitting the target set from one state. This has
 the same edge cases, numerical behavior, and errors as 'hittingProbabilities'.
@@ -164,6 +137,122 @@ hittingProbability p targets =
     \i -> probabilities `LA.atIndex` toIndex i
   where
     probabilities = S.extract (hittingProbabilities p targets)
+
+{- | Competing hitting probabilities
+@h_i = P(H_A < H_B | X_0 = i)@ in state order, for a successful boundary @A@
+(first argument) and a competing boundary @B@ (second argument). Hitting times
+include time zero, @H_A = inf { t >= 0 | X_t in A }@ and likewise for @B@, and
+the comparison is /strict/: @A@ must be reached strictly before @B@.
+
+Target order and duplicate states are ignored in both lists.
+
+Overlap and ties. The two boundaries need not be disjoint. Reaching a state in
+both @A@ and @B@ ties the two hitting times (@H_A = H_B@), and a tie fails the
+strict inequality, so the competing boundary claims every shared state. Writing
+the effective successful set as @A' = A \\ B@:
+
+* states in @A'@ have value exactly @1@;
+* states in @B@ -- including states shared with @A@ -- have value exactly @0@;
+* if @A@ and @B@ are identical, every result is @0@.
+
+Empty boundaries. Because @H_(empty) = infinity@:
+
+* an empty successful set gives an all-zero vector;
+* an empty competing set agrees with 'hittingProbabilities' on the same
+  successful set;
+* two empty sets give an all-zero vector.
+
+Reachability is structural. Using the strict-positive support graph, one reverse
+traversal from @A'@ that is forbidden to pass through @B@ marks the states that
+can reach @A'@ before @B@. This never consults floating-point probabilities, so
+a state that cannot reach @A'@ at all, or can reach it only by first entering
+@B@, is assigned exactly @0@ without a solve. For the remaining interior states
+@D@ the values are the minimal non-negative solution of
+@h_i = sum_j P(i,j) h_j@, i.e. @(I - P[D,D]) x = P[D,A'] 1@; these entries come
+from the shared 'Double' linear solver, inherit its rounding, and are not
+clamped to @[0, 1]@, renormalised, or given any tolerance.
+
+Raises an error if the backend rejects the interior solve; for a valid
+transition matrix that system is nonsingular in exact arithmetic. The all-state
+result performs at most one linear solve.
+
+Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
+-}
+hittingBeforeProbabilities ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    [Finite n] ->
+    [Finite n] ->
+    S.R n
+hittingBeforeProbabilities p successful competing =
+    S.vector [valueAt i | i <- [0 .. dim - 1]]
+  where
+    dim = fromIntegral (natVal (Proxy @n))
+    -- Masks keep boundary and solution lookup constant-time during assembly.
+    competingMask = indexMask dim (map toIndex competing)
+    inCompeting i = competingMask Unboxed.! i
+    successfulMask = indexMask dim (map toIndex successful)
+    -- Effective successful set A' = A \ B. A state on both boundaries is a
+    -- tie, and a tie loses, so the competing boundary claims it.
+    inEffective i = successfulMask Unboxed.! i && not (inCompeting i)
+    effectiveIdx = [i | i <- [0 .. dim - 1], inEffective i]
+    -- One reverse traversal to A', forbidden to cross B, marks every state
+    -- that can reach A' before B; this is structural, not numerical.
+    reachMask =
+        indexMask
+            dim
+            ( map
+                toIndex
+                ( backwardReachable
+                    p
+                    (not . inCompeting . toIndex)
+                    (map toFinite effectiveIdx)
+                )
+            )
+    canReach i = reachMask Unboxed.! i
+    interiorIdx = [i | i <- [0 .. dim - 1], not (inEffective i), canReach i]
+    matrix = S.extract (unTransitionMatrix p)
+    solved
+        | null interiorIdx = []
+        | otherwise =
+            case solveIminusQVector
+                (subMatrix interiorIdx interiorIdx matrix)
+                (rowSums (subMatrix interiorIdx effectiveIdx matrix)) of
+                Just x -> LA.toList x
+                Nothing ->
+                    error
+                        "Dtmc.Hitting.hittingBeforeProbabilities: interior system \
+                        \singular; impossible for a valid transition matrix"
+    interiorValues :: Unboxed.UArray Int Double
+    interiorValues =
+        Unboxed.accumArray (\_ x -> x) 0 (0, dim - 1) (zip interiorIdx solved)
+    valueAt i
+        | inEffective i = 1
+        | canReach i = interiorValues Unboxed.! i
+        | otherwise = 0
+
+{- | The probability of hitting the successful boundary strictly before the
+competing boundary from one state, @P(H_A < H_B | X_0 = i)@. This has the same
+overlap, empty-set, structural, numerical, and error behaviour as
+'hittingBeforeProbabilities'.
+
+Partially applying the matrix and both boundaries shares one lazy all-state
+solve: the first forced query costs @O(n^3)@ worst case and later lookups cost
+@O(1)@.
+-}
+hittingBeforeProbability ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    [Finite n] ->
+    [Finite n] ->
+    Finite n ->
+    Double
+hittingBeforeProbability p successful competing =
+    \i -> probabilities `LA.atIndex` toIndex i
+  where
+    probabilities = S.extract (hittingBeforeProbabilities p successful competing)
 
 {- | Expected hitting times @E(H_A | X_0 = i)@ in state order. Targets have
 exact mean zero. A non-target state is 'InfiniteMean' exactly when the target
