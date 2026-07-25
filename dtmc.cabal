@@ -49,6 +49,7 @@ library
       Dtmc.Distribution.Internal
       Dtmc.TransitionMatrix.Internal
       Dtmc.Simplex.Internal
+      Dtmc.Probability.Internal
       Dtmc.Internal.Graph
       Dtmc.Internal.LinearSystem
 

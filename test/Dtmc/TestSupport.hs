@@ -12,6 +12,8 @@ module Dtmc.TestSupport (
     bumpSmallest,
     bumpSmallestInFirstRow,
     setFirstEntry,
+    assignment1Matrix,
+    assignment1Lambda,
 ) where
 
 import Data.Proxy (
@@ -19,10 +21,12 @@ import Data.Proxy (
  )
 import Dtmc.Distribution (
     Distribution,
+    mkDistribution,
     unDistribution,
  )
 import Dtmc.TransitionMatrix (
     TransitionMatrix,
+    mkTransitionMatrix,
     unTransitionMatrix,
  )
 import GHC.TypeNats (
@@ -131,3 +135,26 @@ approxDistributionEq tolerance left right =
   where
     entries = LA.toList . S.extract . unDistribution
     close x y = abs (x - y) <= tolerance
+
+{- | Assignment 1 transition matrix over states @[A, B, C, D, E]@, shared by the
+transition, dynamics, and probability specs.
+-}
+assignment1Matrix :: TransitionMatrix 5
+assignment1Matrix =
+    either (error . show) id $
+        mkTransitionMatrix
+            ( S.matrix
+                [ 0, 0, 0, 1, 0
+                , 1 / 3, 0, 0, 0, 2 / 3
+                , 0, 0, 0, 0, 1
+                , 0, 0, 1 / 3, 2 / 3, 0
+                , 1 / 4, 1 / 4, 0, 0, 1 / 2
+                ] ::
+                S.Sq 5
+            )
+
+-- | Assignment 1 initial law @lambda = [1/4, 1/2, 0, 1/4, 0]@.
+assignment1Lambda :: Distribution 5
+assignment1Lambda =
+    either (error . show) id $
+        mkDistribution (S.vector [1 / 4, 1 / 2, 0, 1 / 4, 0] :: S.R 5)
