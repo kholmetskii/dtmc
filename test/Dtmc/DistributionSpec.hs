@@ -5,6 +5,7 @@ module Dtmc.DistributionSpec (
 import Dtmc.Distribution (
     DistributionError (..),
     mkDistribution,
+    probabilityAt,
     unDistribution,
  )
 import Dtmc.Simplex (
@@ -12,8 +13,10 @@ import Dtmc.Simplex (
  )
 import Dtmc.TestSupport (
     approxDistributionEq,
+    approxEq,
     bumpSmallest,
     genSimplexPoint,
+    testTolerance,
  )
 import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
@@ -105,6 +108,30 @@ spec = do
                             counterexample
                                 ("generated vector was rejected: " <> show err)
                                 False
+
+    describe "probabilityAt" $ do
+        let known =
+                either (error . show) id $
+                    mkDistribution (S.vector [0.2, 0.5, 0.3] :: S.R 3)
+
+        it "returns each coordinate of a known distribution" $ do
+            approxEq testTolerance (probabilityAt known 0) 0.2 `shouldBe` True
+            approxEq testTolerance (probabilityAt known 1) 0.5 `shouldBe` True
+            approxEq testTolerance (probabilityAt known 2) 0.3 `shouldBe` True
+
+        it "reads the first and last valid states" $ do
+            approxEq testTolerance (probabilityAt known minBound) 0.2
+                `shouldBe` True
+            approxEq testTolerance (probabilityAt known maxBound) 0.3
+                `shouldBe` True
+
+        it "returns tolerated stored values without clamping" $ do
+            let tolerated =
+                    either (error . show) id $
+                        mkDistribution (S.vector [-1e-17, 1] :: S.R 2)
+
+            probabilityAt tolerated 0 `shouldBe` (-1e-17)
+            probabilityAt tolerated 1 `shouldBe` 1
 
     describe "approxDistributionEq" $
         prop "is reflexive at zero tolerance" $

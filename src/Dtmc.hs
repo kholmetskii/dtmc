@@ -5,7 +5,9 @@ Description : Public facade re-exporting the library's curated API.
 Single entry point for users of the library. It gathers the intended public
 surface -- the 'Distribution' and 'TransitionMatrix' types with their
 validating constructors and error types, the analytic forward dynamics
-('evolve' and 'matrixPower'), the qualitative structure
+('evolve' and 'matrixPower'), the scalar probability queries ('probabilityAt',
+'transitionProbability', 'transitionProbabilityN', 'probabilityAtTime', and
+'pathProbability'), the qualitative structure
 theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
 hitting theory ('hittingProbabilities', 'hittingProbability',
 'expectedHittingTimes', 'expectedHittingTime', 'returnProbabilities',
@@ -18,17 +20,22 @@ module Dtmc (
     DistributionError (..),
     mkDistribution,
     unDistribution,
+    probabilityAt,
     TransitionMatrix,
     TransitionMatrixError (..),
     mkTransitionMatrix,
     unTransitionMatrix,
     mulTransitionMatrix,
     rowAt,
+    transitionProbability,
+    transitionProbabilityN,
     SimplexError (..),
     sampleFrom,
     step,
     evolve,
     evolveN,
+    probabilityAtTime,
+    pathProbability,
     identityMatrix,
     matrixPower,
     supportEdge,
@@ -72,7 +79,11 @@ import Dtmc.Distribution (
     Distribution,
     DistributionError (..),
     mkDistribution,
+    probabilityAt,
     unDistribution,
+ )
+import Dtmc.Probability (
+    pathProbability,
  )
 import Dtmc.Simplex (
     SimplexError (..),
@@ -89,12 +100,15 @@ import Dtmc.TransitionMatrix (
     mkTransitionMatrix,
     mulTransitionMatrix,
     rowAt,
+    transitionProbability,
+    transitionProbabilityN,
     unTransitionMatrix,
  )
 
 import Dtmc.Dynamics (
     evolve,
     evolveN,
+    probabilityAtTime,
  )
 
 import Dtmc.Classification (

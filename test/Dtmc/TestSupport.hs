@@ -3,6 +3,7 @@
 
 module Dtmc.TestSupport (
     testTolerance,
+    approxEq,
     approxDistributionEq,
     approxTransitionMatrixEq,
     genSimplexPoint,
@@ -43,6 +44,13 @@ cannot silently mask a regression here; the two happen to share a value.
 -}
 testTolerance :: Double
 testTolerance = 1e-9
+
+{- | Absolute-tolerance comparison of two scalar 'Double' results, matching the
+@abs (x - y) <= tolerance@ convention of the vector and matrix helpers.
+-}
+approxEq :: Double -> Double -> Double -> Bool
+approxEq tolerance left right =
+    abs (left - right) <= tolerance
 
 genSimplexPoint :: Int -> Gen [Double]
 genSimplexPoint dimension = do

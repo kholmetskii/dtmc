@@ -9,8 +9,15 @@ transition matrix @P@ and column distribution @mu@,
 module Dtmc.Dynamics (
     evolve,
     evolveN,
+    probabilityAtTime,
 ) where
 
+import Data.Finite (
+    Finite,
+ )
+import Dtmc.Distribution (
+    probabilityAt,
+ )
 import Dtmc.Distribution.Internal (
     Distribution (Distribution),
  )
@@ -57,3 +64,31 @@ evolveN ::
     Distribution n
 evolveN k mu p =
     evolve mu (matrixPower k p)
+
+{- | The marginal probability @P(X_k = j)@ that the chain occupies state @j@
+after @k@ steps, started from the initial law @initial@ and driven by @p@. It
+reads the target coordinate of the evolved distribution:
+
+@
+probabilityAtTime k initial p j == 'probabilityAt' ('evolveN' k initial p) j
+@
+
+At @k = 0@ no step has been taken, so the result is
+@'probabilityAt' initial j@, the initial probability of @j@.
+
+This is distinct from 'probabilityAt': 'probabilityAt' reads a coordinate from
+an already-computed distribution, whereas 'probabilityAtTime' first evolves
+@initial@ through @k@ steps of @p@ and then reads coordinate @j@. The 'Double'
+result is not clamped, renormalised, or revalidated.
+
+Time: @O(n^2 + n^3 log(k + 1))@, dominated by the matrix power inside
+'evolveN'.
+-}
+probabilityAtTime ::
+    (KnownNat n) =>
+    Natural ->
+    Distribution n ->
+    TransitionMatrix n ->
+    Finite n ->
+    Double
+probabilityAtTime k initial p = probabilityAt (evolveN k initial p) 
