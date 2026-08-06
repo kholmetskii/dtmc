@@ -20,6 +20,8 @@ import Dtmc.Distribution (
 import Dtmc.Dynamics (
     evolve,
     evolveN,
+ )
+import Dtmc.Probability (
     probabilityAtTime,
  )
 import Dtmc.TestSupport (

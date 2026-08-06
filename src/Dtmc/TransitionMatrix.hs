@@ -16,8 +16,6 @@ module Dtmc.TransitionMatrix (
     identityMatrix,
     matrixPower,
     rowAt,
-    transitionProbability,
-    transitionProbabilityN,
 ) where
 
 import Data.Bifunctor (
@@ -32,9 +30,6 @@ import Data.Foldable (
  )
 import Data.Semigroup (
     mtimesDefault,
- )
-import Dtmc.Distribution (
-    probabilityAt,
  )
 import Dtmc.Distribution.Internal (
     Distribution (Distribution),
@@ -118,51 +113,3 @@ floating-point drift from matrix arithmetic is preserved.
 rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> Distribution n
 rowAt p index =
     Distribution (S.toRows (unTransitionMatrix p) !! fromIntegral (getFinite index))
-
-{- | The one-step transition probability @P(i, j) = P(X_1 = j | X_0 = i)@ from
-source @i@ to destination @j@. By construction it reads the destination
-coordinate of the source row:
-
-@
-transitionProbability p i j == 'probabilityAt' ('rowAt' p i) j
-@
-
-Both 'Finite' indices are bounded, so the query is total. The stored entry is
-returned exactly, with no clamping, renormalisation, or revalidation.
-
-Time: @O(n)@, dominated by extracting the source row.
--}
-transitionProbability ::
-    (KnownNat n) =>
-    TransitionMatrix n ->
-    -- | source @i@
-    Finite n ->
-    -- | destination @j@
-    Finite n ->
-    Double
-transitionProbability p i = probabilityAt (rowAt p i)
-
-{- | The @k@-step transition probability
-@P^k(i, j) = P(X_k = j | X_0 = i)@, read from the @k@-th matrix power:
-
-@
-transitionProbabilityN k p i j == transitionProbability ('matrixPower' k p) i j
-@
-
-At @k = 0@ the power is the identity, so the result is the Kronecker delta:
-one when @i == j@ and zero otherwise. Chapman-Kolmogorov holds in exact
-arithmetic; the computed 'Double' is neither revalidated nor clamped, so
-rounding from the repeated-squaring power is preserved.
-
-Time: @O(n^2 + n^3 log(k + 1))@, dominated by 'matrixPower'.
--}
-transitionProbabilityN ::
-    (KnownNat n) =>
-    Natural ->
-    TransitionMatrix n ->
-    -- | source @i@
-    Finite n ->
-    -- | destination @j@
-    Finite n ->
-    Double
-transitionProbabilityN k p  = transitionProbability (matrixPower k p) 

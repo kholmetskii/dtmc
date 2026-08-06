@@ -12,15 +12,14 @@ import Dtmc.Distribution (
     mkDistribution,
     probabilityAt,
  )
-import Dtmc.Dynamics (
-    probabilityAtTime,
- )
 import Dtmc.Probability (
     Observation (..),
     ProbabilityError (..),
     conditionalProbability,
     jointProbability,
     pathProbability,
+    probabilityAtTime,
+    transitionProbability,
  )
 import Dtmc.TestSupport (
     approxEq,
@@ -33,7 +32,6 @@ import Dtmc.TestSupport (
 import Dtmc.TransitionMatrix (
     TransitionMatrix,
     mkTransitionMatrix,
-    transitionProbability,
  )
 import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (

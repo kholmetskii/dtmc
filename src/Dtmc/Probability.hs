@@ -1,17 +1,24 @@
 {- |
 Module      : Dtmc.Probability
-Description : Trajectory, joint, and conditional probabilities of a DTMC.
+Description : Scalar, trajectory, joint, and conditional probabilities of a DTMC.
 
-Probabilities of events built from timed state observations of a finite DTMC.
-'pathProbability' scores an explicit consecutive trajectory; 'jointProbability'
-and 'conditionalProbability' score conjunctions of timed observations
-@(X_t = i)@ at arbitrary times, using the Markov property and time
-homogeneity to reduce each query to Milestone 1's scalar functions.
+Probability queries for a finite DTMC. The scalar queries read a single number
+from the chain: 'transitionProbability' and 'transitionProbabilityN' give the
+one- and @k@-step transition probabilities @P(i, j)@ and @P^k(i, j)@, and
+'probabilityAtTime' gives the time-@k@ marginal @P(X_k = j)@ from an initial
+law. The event queries build on them: 'pathProbability' scores an explicit
+consecutive trajectory, while 'jointProbability' and 'conditionalProbability'
+score conjunctions of timed observations @(X_t = i)@ at arbitrary times, using
+the Markov property and time homogeneity to reduce each query to the scalar
+functions.
 
 All results are ordinary 'Double' arithmetic: no clamping to @[0, 1]@,
 renormalisation, or revalidation is performed.
 -}
 module Dtmc.Probability (
+    transitionProbability,
+    transitionProbabilityN,
+    probabilityAtTime,
     Observation (..),
     ProbabilityError (..),
     pathProbability,
@@ -30,7 +37,7 @@ import Dtmc.Distribution (
     probabilityAt,
  )
 import Dtmc.Dynamics (
-    probabilityAtTime,
+    evolveN,
  )
 import Dtmc.Probability.Internal (
     NormalisedObservations (..),
@@ -38,8 +45,8 @@ import Dtmc.Probability.Internal (
  )
 import Dtmc.TransitionMatrix (
     TransitionMatrix,
-    transitionProbability,
-    transitionProbabilityN,
+    matrixPower,
+    rowAt,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -68,6 +75,82 @@ data ProbabilityError
     = -- | The condition has probability exactly zero.
       ZeroProbabilityCondition
     deriving (Eq, Show)
+
+{- | The one-step transition probability @P(i, j) = P(X_1 = j | X_0 = i)@ from
+source @i@ to destination @j@. By construction it reads the destination
+coordinate of the source row:
+
+@
+transitionProbability p i j == 'probabilityAt' ('rowAt' p i) j
+@
+
+Both 'Finite' indices are bounded, so the query is total. The stored entry is
+returned exactly, with no clamping, renormalisation, or revalidation.
+
+Time: @O(n)@, dominated by extracting the source row.
+-}
+transitionProbability ::
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    -- | source @i@
+    Finite n ->
+    -- | destination @j@
+    Finite n ->
+    Double
+transitionProbability p i = probabilityAt (rowAt p i)
+
+{- | The @k@-step transition probability
+@P^k(i, j) = P(X_k = j | X_0 = i)@, read from the @k@-th matrix power:
+
+@
+transitionProbabilityN k p i j == transitionProbability ('matrixPower' k p) i j
+@
+
+At @k = 0@ the power is the identity, so the result is the Kronecker delta:
+one when @i == j@ and zero otherwise. Chapman-Kolmogorov holds in exact
+arithmetic; the computed 'Double' is neither revalidated nor clamped, so
+rounding from the repeated-squaring power is preserved.
+
+Time: @O(n^2 + n^3 log(k + 1))@, dominated by 'matrixPower'.
+-}
+transitionProbabilityN ::
+    (KnownNat n) =>
+    Natural ->
+    TransitionMatrix n ->
+    -- | source @i@
+    Finite n ->
+    -- | destination @j@
+    Finite n ->
+    Double
+transitionProbabilityN k p = transitionProbability (matrixPower k p)
+
+{- | The marginal probability @P(X_k = j)@ that the chain occupies state @j@
+after @k@ steps, started from the initial law @initial@ and driven by @p@. It
+reads the target coordinate of the evolved distribution:
+
+@
+probabilityAtTime k initial p j == 'probabilityAt' ('evolveN' k initial p) j
+@
+
+At @k = 0@ no step has been taken, so the result is
+@'probabilityAt' initial j@, the initial probability of @j@.
+
+This is distinct from 'probabilityAt': 'probabilityAt' reads a coordinate from
+an already-computed distribution, whereas 'probabilityAtTime' first evolves
+@initial@ through @k@ steps of @p@ and then reads coordinate @j@. The 'Double'
+result is not clamped, renormalised, or revalidated.
+
+Time: @O(n^2 + n^3 log(k + 1))@, dominated by the matrix power inside
+'evolveN'.
+-}
+probabilityAtTime ::
+    (KnownNat n) =>
+    Natural ->
+    Distribution n ->
+    TransitionMatrix n ->
+    Finite n ->
+    Double
+probabilityAtTime k initial p = probabilityAt (evolveN k initial p)
 
 {- | The probability that the chain follows the exact trajectory
 @(i_0, ..., i_m)@ over consecutive times @0, 1, ..., m@:

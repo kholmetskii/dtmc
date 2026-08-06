@@ -96,6 +96,9 @@ import Dtmc.Probability (
     conditionalProbability,
     jointProbability,
     pathProbability,
+    probabilityAtTime,
+    transitionProbability,
+    transitionProbabilityN,
  )
 import Dtmc.Simplex (
     SimplexError (..),
@@ -112,15 +115,12 @@ import Dtmc.TransitionMatrix (
     mkTransitionMatrix,
     mulTransitionMatrix,
     rowAt,
-    transitionProbability,
-    transitionProbabilityN,
     unTransitionMatrix,
  )
 
 import Dtmc.Dynamics (
     evolve,
     evolveN,
-    probabilityAtTime,
  )
 
 import Dtmc.Classification (

@@ -10,6 +10,10 @@ import Data.Finite (
     getFinite,
  )
 import Dtmc.Distribution (mkDistribution, probabilityAt, unDistribution)
+import Dtmc.Probability (
+    transitionProbability,
+    transitionProbabilityN,
+ )
 import Dtmc.Simplex (SimplexError (..))
 import Dtmc.TestSupport (
     approxEq,
@@ -28,8 +32,6 @@ import Dtmc.TransitionMatrix (
     mkTransitionMatrix,
     mulTransitionMatrix,
     rowAt,
-    transitionProbability,
-    transitionProbabilityN,
     unTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
