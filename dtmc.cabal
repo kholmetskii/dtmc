@@ -50,6 +50,10 @@ library
       Dtmc.TransitionMatrix.Internal
       Dtmc.Simplex.Internal
       Dtmc.Probability.Internal
+      Dtmc.Classification.Internal
+      Dtmc.Dynamics.Internal
+      Dtmc.Hitting.Internal
+      Dtmc.Simulation.Internal
       Dtmc.Internal.Graph
       Dtmc.Internal.LinearSystem
 

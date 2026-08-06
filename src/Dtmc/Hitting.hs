@@ -50,6 +50,9 @@ import Dtmc.Classification (
 import Dtmc.Distribution.Internal (
     unDistribution,
  )
+import Dtmc.Hitting.Internal (
+    MeanTime (..),
+ )
 import Dtmc.Internal.LinearSystem (
     fundamental,
     rowSums,
@@ -69,22 +72,6 @@ import GHC.TypeNats (
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
-
-{- | An expected number of transitions, represented either by a 'Double' or an
-exact infinite case. Library results use 'InfiniteMean' based on support-graph
-reachability rather than floating-point overflow.
-
-'FiniteMean' performs no validation: callers can construct negative,
-non-finite, or @NaN@ values. Derived ordering places every 'FiniteMean'
-constructor before 'InfiniteMean'; comparisons between finite constructors
-inherit the behavior of 'Double', including @NaN@.
--}
-data MeanTime
-    = -- | A mathematically non-negative finite mean, subject to solver rounding.
-      FiniteMean Double
-    | -- | The target or return is not reached with probability one.
-      InfiniteMean
-    deriving (Eq, Ord, Show)
 
 toIndex :: Finite n -> Int
 toIndex = fromIntegral . getFinite

@@ -61,6 +61,12 @@ import Data.Finite (
     finite,
     getFinite,
  )
+import Dtmc.Classification.Internal (
+    CommClass (..),
+    Classification (..),
+    Irreducible (Irreducible),
+    unIrreducible,
+ )
 import Dtmc.Internal.Graph qualified as G
 import Dtmc.TransitionMatrix.Internal (TransitionMatrix, tmSupport)
 import GHC.TypeNats (KnownNat)
@@ -242,58 +248,6 @@ transientStates p =
         , not (G.inClosedComponent g v)
         ]
 
-{- | Structural facts about one communicating class. For a finite valid DTMC,
-a closed class consists of recurrent states.
--}
-data CommClass n = CommClass
-    { classMembers :: [Finite n]
-    -- ^ Member states in ascending order.
-    , classPeriod :: Maybe Natural
-    -- ^ Shared state period, or 'Nothing' when the class has no cycle.
-    , classClosed :: Bool
-    -- ^ Whether no positive-probability transition leaves the class.
-    }
-
-deriving instance (KnownNat n) => Eq (CommClass n)
-
-deriving instance (KnownNat n) => Show (CommClass n)
-
-{- | A consistent structural report built by 'classify'. The hidden constructor
-keeps its summary fields aligned with its communicating classes.
--}
-data Classification n = Classification
-    { classesOf :: [CommClass n]
-    -- ^ The communicating classes, ordered by least member.
-    , isIrreducible :: Bool
-    -- ^ Whether the states form a single (non-empty) communicating class.
-    , isAperiodic :: Bool
-    -- ^ Whether every class has period @1@ (and there is at least one class).
-    , isErgodic :: Bool
-    {- ^ Whether the chain is irreducible and aperiodic. For a finite DTMC this
-    implies convergence to its unique stationary distribution.
-    -}
-    , chainPeriod :: Maybe Natural
-    {- ^ The period of the chain when it is irreducible (@Just d@); @Nothing@ for
-    a reducible chain (where the period is a per-class notion) or when the
-    single class has no cycles.
-    -}
-    , recurrentStatesOf :: [Finite n]
-    -- ^ States lying in closed classes -- recurrent, in the finite-chain sense.
-    , transientStatesOf :: [Finite n]
-    -- ^ States lying in non-closed classes -- transient.
-    , absorbingStates :: [Finite n]
-    {- ^ Singleton closed classes. For exact stochastic rows these are
-    absorbing states with @P(i,i) = 1@; tolerated or unchecked rows are
-    classified only by strict-positive support.
-    -}
-    }
-
-type role Classification nominal
-
-deriving instance (KnownNat n) => Eq (Classification n)
-
-deriving instance (KnownNat n) => Show (Classification n)
-
 {- | Build all exported class, period, recurrence, absorbing-state,
 irreducibility, and aperiodicity summaries from one shared support graph.
 
@@ -330,16 +284,6 @@ classify p =
         [c] -> classPeriod c
         _ -> Nothing
 
-{- | A transition matrix certified as irreducible by 'witnessIrreducible'.
-The constructor is hidden, so the witness cannot be forged through this
-module.
--}
-newtype Irreducible n = Irreducible (TransitionMatrix n)
-
-type role Irreducible nominal
-
-deriving instance (KnownNat n) => Show (Irreducible n)
-
 {- | Return a witness exactly when the matrix is irreducible. The matrix is
 wrapped unchanged.
 
@@ -349,7 +293,3 @@ witnessIrreducible :: TransitionMatrix n -> Maybe (Irreducible n)
 witnessIrreducible p
     | irreducible p = Just (Irreducible p)
     | otherwise = Nothing
-
--- | Recover the certified transition matrix in @O(1)@ time.
-unIrreducible :: Irreducible n -> TransitionMatrix n
-unIrreducible (Irreducible p) = p
