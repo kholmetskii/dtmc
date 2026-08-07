@@ -10,10 +10,8 @@ validating constructors and error types, the analytic forward dynamics
 'pathProbability'), the timed event queries ('probability' and
 'conditionalProbability' over 'Observation' values), the qualitative structure
 theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
-hitting theory ('hittingProbabilities', 'hittingProbability',
-'hittingBeforeProbabilities', 'hittingBeforeProbability',
-'expectedHittingTimes', 'expectedHittingTime', 'returnProbabilities',
-'returnProbability', 'expectedReturnTimes', and 'expectedReturnTime'), and the
+bounded, eventual, and expected hitting and first-return queries in
+"Dtmc.Hitting", and the
 random simulation primitives -- while hiding the "Dtmc.Internal" modules.
 Import this module to build, analyse, and run chains.
 -}
@@ -72,12 +70,20 @@ module Dtmc (
     witnessIrreducible,
     unIrreducible,
     MeanTime (..),
+    hittingTimeProbabilitiesAt,
+    hittingTimeProbabilityAt,
+    hittingTimeProbabilitiesBefore,
+    hittingTimeProbabilityBefore,
     hittingProbabilities,
     hittingProbability,
     hittingBeforeProbabilities,
     hittingBeforeProbability,
     expectedHittingTimes,
     expectedHittingTime,
+    returnTimeProbabilitiesAt,
+    returnTimeProbabilityAt,
+    returnTimeProbabilitiesBefore,
+    returnTimeProbabilityBefore,
     returnProbabilities,
     returnProbability,
     expectedReturnTimes,
@@ -164,6 +170,14 @@ import Dtmc.Hitting (
     hittingBeforeProbability,
     hittingProbabilities,
     hittingProbability,
+    hittingTimeProbabilitiesAt,
+    hittingTimeProbabilitiesBefore,
+    hittingTimeProbabilityAt,
+    hittingTimeProbabilityBefore,
     returnProbabilities,
     returnProbability,
+    returnTimeProbabilitiesAt,
+    returnTimeProbabilitiesBefore,
+    returnTimeProbabilityAt,
+    returnTimeProbabilityBefore,
  )

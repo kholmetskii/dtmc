@@ -17,8 +17,8 @@ A small Haskell library for finite discrete-time Markov chains with type-safe di
 - Support-graph classification: accessibility, communication, communicating
   classes, irreducibility, and per-class periods (exact, combinatorial), with
   an `Irreducible` witness type
-- Hitting-before probabilities, hitting and return probabilities, and expected
-  hitting and return times
+- Exact-time, bounded, eventual, competing, and expected hitting and
+  first-return quantities
 
 ## Numerical contract
 
@@ -86,4 +86,4 @@ On macOS, `hmatrix` can use Apple Accelerate.
 
 ## Status
 
-The library is in early development. The current API covers the finite-state objects, single- and multi-step dynamics (Chapman–Kolmogorov), the combinatorial structure theory of the support graph (communicating classes, irreducibility, periodicity, and recurrence/transience), and the hitting theory (hitting and return probabilities, expected hitting and return times). Absorbing chains via the fundamental matrix, and stationary/limiting behaviour, are planned.
+The library is in early development. The current API covers the finite-state objects, single- and multi-step dynamics (Chapman–Kolmogorov), the combinatorial structure theory of the support graph (communicating classes, irreducibility, periodicity, and recurrence/transience), and exact-time, bounded, eventual, and expected hitting and return quantities. Absorbing chains via the fundamental matrix, and stationary/limiting behaviour, are planned.

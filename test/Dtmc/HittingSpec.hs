@@ -24,8 +24,16 @@ import Dtmc.Hitting (
     hittingBeforeProbability,
     hittingProbabilities,
     hittingProbability,
+    hittingTimeProbabilitiesAt,
+    hittingTimeProbabilitiesBefore,
+    hittingTimeProbabilityAt,
+    hittingTimeProbabilityBefore,
     returnProbabilities,
     returnProbability,
+    returnTimeProbabilitiesAt,
+    returnTimeProbabilitiesBefore,
+    returnTimeProbabilityAt,
+    returnTimeProbabilityBefore,
  )
 import Dtmc.TestSupport (
     genTransitionMatrix,
@@ -33,6 +41,7 @@ import Dtmc.TestSupport (
  )
 import Dtmc.TransitionMatrix (
     TransitionMatrix,
+    identityMatrix,
     mkTransitionMatrix,
     unTransitionMatrix,
  )
@@ -286,6 +295,79 @@ spec = do
                             , i /= 0
                             ]
 
+    describe "bounded hitting times" $ do
+        it "returns an empty result for the empty chain" $
+            entries (hittingTimeProbabilitiesBefore (identityMatrix @0) [] 3)
+                `shouldBe` []
+
+        it "places all time-zero mass on the target" $
+            entries (hittingTimeProbabilitiesAt oscillator [2] 0)
+                `shouldBe` [0, 0, 1, 0]
+
+        it "gives zero exact-time mass for an empty target" $
+            entries (hittingTimeProbabilitiesAt oscillator [] 5)
+                `shouldBe` [0, 0, 0, 0]
+
+        it "matches a one-step gambler's-ruin hit" $
+            entries (hittingTimeProbabilitiesAt (gambler 0.5) [0] 1)
+                `shouldBe` [0, 0.5, 0, 0, 0]
+
+        it "uses a strict time bound" $ do
+            entries (hittingTimeProbabilitiesBefore oscillator [2] 0)
+                `shouldBe` [0, 0, 0, 0]
+            entries (hittingTimeProbabilitiesBefore oscillator [2] 1)
+                `shouldBe` [0, 0, 1, 0]
+            hittingTimeProbabilityBefore (gambler 0.5) [0] 1 2
+                `shouldSatisfy` closeTo 0.5
+
+        it "ignores duplicate and reordered targets" $
+            entries (hittingTimeProbabilitiesBefore cafe [drink, leave, drink] 4)
+                `shouldBe` entries (hittingTimeProbabilitiesBefore cafe [leave, drink] 4)
+
+        it "single-state queries look up the all-state results" $ do
+            let exact = entries (hittingTimeProbabilitiesAt cafe [leave] 3)
+                bounded = entries (hittingTimeProbabilitiesBefore cafe [leave] 4)
+            sequence_
+                [ hittingTimeProbabilityAt cafe [leave] i 3
+                    `shouldSatisfy` closeTo exactAt
+                | (i, exactAt) <- zip (finites :: [Finite 7]) exact
+                ]
+            sequence_
+                [ hittingTimeProbabilityBefore cafe [leave] i 4
+                    `shouldSatisfy` closeTo boundedAt
+                | (i, boundedAt) <- zip (finites :: [Finite 7]) bounded
+                ]
+
+        prop "bounded increments equal exact-time mass (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                checkedChain matrix $ \p ->
+                    conjoin
+                        [ counterexample (show (t, i, before, after, mass)) $
+                            property (closeTo mass (after - before))
+                        | t <- [0 .. 4]
+                        , i <- finites :: [Finite 4]
+                        , let before = hittingTimeProbabilityBefore p [0] i t
+                        , let after = hittingTimeProbabilityBefore p [0] i (t + 1)
+                        , let mass = hittingTimeProbabilityAt p [0] i t
+                        ]
+
+        prop "bounded probabilities increase toward the eventual value (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                checkedChain matrix $ \p ->
+                    conjoin
+                        [ counterexample (show (bound, i, current, next, eventual)) $
+                            property
+                                ( current >= -testTolerance
+                                    && current <= next + testTolerance
+                                    && next <= eventual + testTolerance
+                                )
+                        | bound <- [0 .. 4]
+                        , i <- finites :: [Finite 4]
+                        , let current = hittingTimeProbabilityBefore p [0] i bound
+                        , let next = hittingTimeProbabilityBefore p [0] i (bound + 1)
+                        , let eventual = hittingProbability p [0] i
+                        ]
+
     describe "hittingBeforeProbabilities" $ do
         it "is exactly one on an effective successful state" $
             hittingBeforeProbability (gambler 0.5) [4] [0] 4 `shouldBe` 1
@@ -519,6 +601,81 @@ spec = do
                             | (i, row) <- zip (finites :: [Finite 4]) rows
                             , i /= 0
                             ]
+
+    describe "bounded first-return times" $ do
+        it "returns an empty result for the empty chain" $
+            entries (returnTimeProbabilitiesBefore (identityMatrix @0) 3)
+                `shouldBe` []
+
+        it "has no return mass at time zero" $
+            entries (returnTimeProbabilitiesAt oscillator 0)
+                `shouldBe` [0, 0, 0, 0]
+
+        it "uses the transition diagonal at time one" $
+            entries (returnTimeProbabilitiesAt nonUniformRecurrent 1)
+                `shouldBe` [0.9, 0.6]
+
+        it "counts only the first return" $ do
+            entries (returnTimeProbabilitiesAt oscillator 1)
+                `shouldBe` [0, 0, 1, 1]
+            entries (returnTimeProbabilitiesAt oscillator 2)
+                `shouldBe` [0.25, 0.25, 0, 0]
+            entries (returnTimeProbabilitiesAt twoCycle 2)
+                `shouldBe` [1, 1]
+
+        it "uses a strict time bound" $ do
+            entries (returnTimeProbabilitiesBefore oscillator 0)
+                `shouldBe` [0, 0, 0, 0]
+            entries (returnTimeProbabilitiesBefore oscillator 1)
+                `shouldBe` [0, 0, 0, 0]
+            entries (returnTimeProbabilitiesBefore oscillator 2)
+                `shouldBe` [0, 0, 1, 1]
+            entries (returnTimeProbabilitiesBefore twoCycle 3)
+                `shouldBe` [1, 1]
+
+        it "single-state queries look up the all-state results" $ do
+            let exact = entries (returnTimeProbabilitiesAt cafe 3)
+                bounded = entries (returnTimeProbabilitiesBefore cafe 4)
+            sequence_
+                [ returnTimeProbabilityAt cafe i 3
+                    `shouldSatisfy` closeTo exactAt
+                | (i, exactAt) <- zip (finites :: [Finite 7]) exact
+                ]
+            sequence_
+                [ returnTimeProbabilityBefore cafe i 4
+                    `shouldSatisfy` closeTo boundedAt
+                | (i, boundedAt) <- zip (finites :: [Finite 7]) bounded
+                ]
+
+        prop "bounded increments equal exact-time mass (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                checkedChain matrix $ \p ->
+                    conjoin
+                        [ counterexample (show (t, i, before, after, mass)) $
+                            property (closeTo mass (after - before))
+                        | t <- [0 .. 4]
+                        , i <- finites :: [Finite 4]
+                        , let before = returnTimeProbabilityBefore p i t
+                        , let after = returnTimeProbabilityBefore p i (t + 1)
+                        , let mass = returnTimeProbabilityAt p i t
+                        ]
+
+        prop "bounded probabilities increase toward the eventual value (random @4)" $
+            forAll (genTransitionMatrix @4) $ \matrix ->
+                checkedChain matrix $ \p ->
+                    conjoin
+                        [ counterexample (show (bound, i, current, next, eventual)) $
+                            property
+                                ( current >= -testTolerance
+                                    && current <= next + testTolerance
+                                    && next <= eventual + testTolerance
+                                )
+                        | bound <- [0 .. 4]
+                        , i <- finites :: [Finite 4]
+                        , let current = returnTimeProbabilityBefore p i bound
+                        , let next = returnTimeProbabilityBefore p i (bound + 1)
+                        , let eventual = returnProbability p i
+                        ]
 
     describe "returnProbabilities" $ do
         it "returns all state values in one solve" $ do

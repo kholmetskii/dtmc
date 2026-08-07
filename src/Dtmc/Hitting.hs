@@ -1,16 +1,17 @@
 {- |
 Module      : Dtmc.Hitting
-Description : Hitting probabilities, expected hitting times, return times.
+Description : Exact, bounded, eventual, and expected hitting and return quantities.
 
 Hitting and first-return quantities for a finite DTMC. For a target set @A@,
 @H_A = inf { t >= 0 | X_t in A }@; for state @i@,
 @T_i = inf { t >= 1 | X_t = i }@.
 
-Reachability decides unreachable zeros, recurrent returns, and infinite means
-from the strict-positive support graph. Other values, including non-target
-hitting probabilities that are mathematically one, use 'Double' LU solves of
+Exact-time and strictly bounded queries use finite recurrences and never invoke
+a linear solver. For eventual probabilities and means, reachability decides
+unreachable zeros, recurrent returns, and infinite means from the
+strict-positive support graph; remaining values use 'Double' LU solves of
 @(I - Q)x = b@. No tolerance, conditioning test, residual check, or clamping
-is applied, so results may leave their mathematical ranges or become
+is applied, so computed results may leave their mathematical ranges or become
 non-finite. A backend-reported singular system raises an error; for a valid
 transition matrix the systems are nonsingular in exact arithmetic.
 
@@ -19,12 +20,20 @@ functions cannot be called because no 'Finite 0' state exists.
 -}
 module Dtmc.Hitting (
     MeanTime (..),
+    hittingTimeProbabilitiesAt,
+    hittingTimeProbabilityAt,
+    hittingTimeProbabilitiesBefore,
+    hittingTimeProbabilityBefore,
     hittingProbabilities,
     hittingProbability,
     hittingBeforeProbabilities,
     hittingBeforeProbability,
     expectedHittingTimes,
     expectedHittingTime,
+    returnTimeProbabilitiesAt,
+    returnTimeProbabilityAt,
+    returnTimeProbabilitiesBefore,
+    returnTimeProbabilityBefore,
     returnProbabilities,
     returnProbability,
     expectedReturnTimes,
@@ -72,6 +81,9 @@ import GHC.TypeNats (
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
+import Numeric.Natural (
+    Natural,
+ )
 
 toIndex :: Finite n -> Int
 toIndex = fromIntegral . getFinite
@@ -83,6 +95,121 @@ toFinite = finite . fromIntegral
 indexMask :: Int -> [Int] -> Unboxed.UArray Int Bool
 indexMask dim indices =
     Unboxed.accumArray (||) False (0, dim - 1) [(i, True) | i <- indices]
+
+iterateNatural :: Natural -> (a -> a) -> a -> a
+iterateNatural steps f = go steps
+  where
+    go 0 value = value
+    go remaining value =
+        let next = f value
+         in next `seq` go (remaining - 1) next
+
+{- | Exact hitting-time probabilities
+@h_i(t) = P(H_A = t | X_0 = i)@ in state order, where
+@H_A = inf { r >= 0 | X_r in A }@. Target order and duplicates are ignored.
+
+At @t = 0@ target states are exactly @1@ and all other states are exactly
+@0@. At positive times target states are exactly @0@: starting in the target
+means it was hit at time zero. An empty target set gives an all-zero vector at
+every time.
+
+The implementation starts with the target indicator and repeatedly applies
+the first-step recurrence
+@h_i(t + 1) = sum_j P(i,j) h_j(t)@ off @A@, resetting entries on @A@ to zero.
+It uses ordinary 'Double' arithmetic without clamping or renormalisation.
+
+Time: @O(t n^2)@; temporary and result space: @O(n)@.
+-}
+hittingTimeProbabilitiesAt ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    [Finite n] ->
+    Natural ->
+    S.R n
+hittingTimeProbabilitiesAt p targets time =
+    S.vector (LA.toList (iterateNatural time step initial))
+  where
+    dim = fromIntegral (natVal (Proxy @n))
+    targetMask = indexMask dim (map toIndex targets)
+    inTarget i = targetMask Unboxed.! i
+    matrix = S.extract (unTransitionMatrix p)
+    initial = LA.fromList [if inTarget i then 1 else 0 | i <- [0 .. dim - 1]]
+    step masses =
+        let pushed = matrix LA.#> masses
+         in LA.fromList
+                [ if inTarget i then 0 else pushed `LA.atIndex` i
+                | i <- [0 .. dim - 1]
+                ]
+
+{- | The exact probability @P(H_A = t | X_0 = i)@ from one state. This has
+the same target, boundary, numerical, and complexity behaviour as
+'hittingTimeProbabilitiesAt'; the final state lookup is @O(1)@.
+-}
+hittingTimeProbabilityAt ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    [Finite n] ->
+    Finite n ->
+    Natural ->
+    Double
+hittingTimeProbabilityAt p targets i time =
+    S.extract (hittingTimeProbabilitiesAt p targets time) `LA.atIndex` toIndex i
+
+{- | Strictly bounded hitting-time probabilities
+@b_i(c) = P(H_A < c | X_0 = i)@ in state order. The bound @c@ is a number of
+time instants, not an inclusive deadline:
+
+* at @c = 0@ every entry is exactly @0@;
+* for @c > 0@ target states are exactly @1@;
+* an empty target set gives an all-zero vector for every bound;
+* target order and duplicates are ignored.
+
+The recurrence starts with @b_i(0) = 0@ and applies
+@b_i(c + 1) = 1@ on @A@ and
+@b_i(c + 1) = sum_j P(i,j) b_j(c)@ elsewhere. Thus, in exact arithmetic,
+@b_i(c + 1) - b_i(c) = P(H_A = c | X_0 = i)@. Results use ordinary 'Double'
+arithmetic and are not clamped or renormalised.
+
+Time: @O(c n^2)@; temporary and result space: @O(n)@.
+-}
+hittingTimeProbabilitiesBefore ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    [Finite n] ->
+    Natural ->
+    S.R n
+hittingTimeProbabilitiesBefore p targets bound =
+    S.vector (LA.toList (iterateNatural bound step initial))
+  where
+    dim = fromIntegral (natVal (Proxy @n))
+    targetMask = indexMask dim (map toIndex targets)
+    inTarget i = targetMask Unboxed.! i
+    matrix = S.extract (unTransitionMatrix p)
+    initial = LA.konst 0 dim
+    step cumulative =
+        let pushed = matrix LA.#> cumulative
+         in LA.fromList
+                [ if inTarget i then 1 else pushed `LA.atIndex` i
+                | i <- [0 .. dim - 1]
+                ]
+
+{- | The strict bounded probability @P(H_A < c | X_0 = i)@ from one state.
+This has the same target, boundary, numerical, and complexity behaviour as
+'hittingTimeProbabilitiesBefore'; the final state lookup is @O(1)@.
+-}
+hittingTimeProbabilityBefore ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    [Finite n] ->
+    Finite n ->
+    Natural ->
+    Double
+hittingTimeProbabilityBefore p targets i bound =
+    S.extract (hittingTimeProbabilitiesBefore p targets bound) `LA.atIndex` toIndex i
 
 {- | Hitting probabilities
 @h_i = P(H_A < infinity | X_0 = i)@ in state order. Target order and
@@ -322,6 +449,117 @@ expectedHittingTime p targets =
     -- (list @!!@ was O(index)); the single solve is still shared across queries.
     table = Array.listArray (0, dim - 1) (expectedHittingTimes p targets)
     dim = fromIntegral (natVal (Proxy @n))
+
+-- Advance, for every possible origin, the mass that has not yet returned to
+-- that origin. Row @i@ holds the current-state mass of paths started at @i@
+-- that avoided @i@ at every positive time so far. The diagonal of the
+-- advanced matrix is therefore the first-return mass at the new time, and
+-- clearing it removes those completed paths from later steps.
+firstReturnStep ::
+    LA.Matrix Double ->
+    LA.Matrix Double ->
+    (LA.Matrix Double, LA.Vector Double)
+firstReturnStep matrix survivors =
+    (advanced - LA.diag masses, masses)
+  where
+    advanced = survivors LA.<> matrix
+    masses = LA.takeDiag advanced
+
+{- | Exact first-return probabilities
+@f_i(t) = P(T_i = t | X_0 = i)@ in state order, where
+@T_i = inf { r >= 1 | X_r = i }@.
+
+At @t = 0@ every entry is exactly @0@. At @t = 1@ the result is the diagonal
+of the transition matrix, so an absorbing state has mass exactly @1@ at time
+one and exactly @0@ at every later first-return time.
+
+The implementation evolves an @n x n@ survivor matrix whose row @i@ contains
+the mass of paths started at @i@ that have not returned to @i@. At each step
+the new diagonal is the first-return mass and is cleared before continuing.
+This computes every starting state's law together without a linear solve.
+Results use ordinary 'Double' arithmetic without clamping or renormalisation.
+
+Time: @O(t n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
+-}
+returnTimeProbabilitiesAt ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    Natural ->
+    S.R n
+returnTimeProbabilitiesAt p time =
+    S.vector (LA.toList latest)
+  where
+    dim = fromIntegral (natVal (Proxy @n))
+    matrix = S.extract (unTransitionMatrix p)
+    initial = (LA.ident dim, LA.konst 0 dim)
+    advance (survivors, _) = firstReturnStep matrix survivors
+    (_, latest) = iterateNatural time advance initial
+
+{- | The exact first-return probability @P(T_i = t | X_0 = i)@ for one
+state. This has the same boundary, numerical, and complexity behaviour as
+'returnTimeProbabilitiesAt'; the final state lookup is @O(1)@.
+-}
+returnTimeProbabilityAt ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    Finite n ->
+    Natural ->
+    Double
+returnTimeProbabilityAt p i time =
+    S.extract (returnTimeProbabilitiesAt p time) `LA.atIndex` toIndex i
+
+{- | Strictly bounded first-return probabilities
+@r_i(c) = P(T_i < c | X_0 = i)@ in state order.
+
+Because first returns occur only at positive times, bounds @c = 0@ and @c = 1@
+both give an all-zero vector. At @c = 2@ the result is the transition-matrix
+diagonal. An absorbing state therefore has value exactly @1@ for every
+@c >= 2@.
+
+The implementation accumulates the exact first-return masses at times
+@1, ..., c - 1@ while maintaining the shared survivor matrix described by
+'returnTimeProbabilitiesAt'. In exact arithmetic,
+@r_i(c + 1) - r_i(c) = P(T_i = c | X_0 = i)@. Results use ordinary 'Double'
+arithmetic and are not clamped or renormalised.
+
+Time: @O(c n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
+-}
+returnTimeProbabilitiesBefore ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    Natural ->
+    S.R n
+returnTimeProbabilitiesBefore p bound =
+    S.vector (LA.toList cumulative)
+  where
+    dim = fromIntegral (natVal (Proxy @n))
+    matrix = S.extract (unTransitionMatrix p)
+    steps
+        | bound == 0 = 0
+        | otherwise = bound - 1
+    initial = (LA.ident dim, LA.konst 0 dim)
+    advance (survivors, total) =
+        let (remaining, mass) = firstReturnStep matrix survivors
+         in (remaining, total + mass)
+    (_, cumulative) = iterateNatural steps advance initial
+
+{- | The strict bounded first-return probability
+@P(T_i < c | X_0 = i)@ for one state. This has the same boundary, numerical,
+and complexity behaviour as 'returnTimeProbabilitiesBefore'; the final state
+lookup is @O(1)@.
+-}
+returnTimeProbabilityBefore ::
+    forall n.
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    Finite n ->
+    Natural ->
+    Double
+returnTimeProbabilityBefore p i bound =
+    S.extract (returnTimeProbabilitiesBefore p bound) `LA.atIndex` toIndex i
 
 {- | First-return probabilities
 @f_i = P(T_i < infinity | X_0 = i)@ in state order. Recurrent states are
