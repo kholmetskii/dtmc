@@ -2,7 +2,7 @@
 Module      : Dtmc.Probability.Internal
 Description : Normalised timed observations (unsafe underbelly).
 
-The private normal form behind the joint and conditional probability queries in
+The private normal form behind the event and conditional probability queries in
 "Dtmc.Probability". 'normalise' is the intended way to build a
 'NormalisedObservations': it establishes the invariant that a 'Consistent' list
 holds exactly one @(time, state)@ entry per distinct time, in ascending time
@@ -14,9 +14,6 @@ module Dtmc.Probability.Internal (
     normalise,
 ) where
 
-import Data.Finite (
-    Finite,
- )
 import Data.List (
     sortBy,
  )
@@ -30,11 +27,11 @@ import Numeric.Natural (
 {- | A conjunction of timed state observations after sorting, de-duplication,
 and consistency checking.
 -}
-data NormalisedObservations n
+data NormalisedObservations state
     = -- | Two observations demand different states at one time.
       Impossible
     | -- | Distinct times in ascending order, each with one required state.
-      Consistent [(Natural, Finite n)]
+      Consistent [(Natural, state)]
 
 {- | Sort @(time, state)@ pairs by ascending time, collapse exact duplicates,
 and detect contradictions. Pairs requiring different states at the same time
@@ -44,7 +41,7 @@ increasing times.
 
 Sorting is @O(m log m)@ for @m@ pairs; the collapsing fold is @O(m)@.
 -}
-normalise :: [(Natural, Finite n)] -> NormalisedObservations n
+normalise :: (Eq state) => [(Natural, state)] -> NormalisedObservations state
 normalise pairs =
     foldr insert (Consistent []) (sortBy (comparing fst) pairs)
   where

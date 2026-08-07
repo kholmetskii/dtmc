@@ -13,9 +13,27 @@ A small Haskell library for finite discrete-time Markov chains with type-safe di
 - Single-step Markov-chain simulation
 - Approximate equality helpers for numerical comparisons
 - Distribution evolution, matrix powers, and the Chapman–Kolmogorov law
+- Scalar, path, timed-event, and conditional probability queries
 - Support-graph classification: accessibility, communication, communicating
   classes, irreducibility, and per-class periods (exact, combinatorial), with
   an `Irreducible` witness type
+- Hitting-before probabilities, hitting and return probabilities, and expected
+  hitting and return times
+
+## Numerical contract
+
+The public constructors validate probability distributions and transition
+matrices. Analysis functions then assume those invariants and use ordinary
+`Double` arithmetic: computed values are not clamped, snapped, or
+renormalised. Support-graph algorithms treat a stored entry as an edge exactly
+when it is strictly positive.
+
+Construction and mathematically undefined query results use explicit error
+values. The current `0.x` hitting routines can still raise an exception if the
+numerical backend rejects a linear system that is nonsingular in exact
+arithmetic; their module documentation identifies those cases. New numerical
+analyses must return an explicit error value instead, and the existing solver
+failure path will be migrated before `1.0`.
 
 ## Quick start
 

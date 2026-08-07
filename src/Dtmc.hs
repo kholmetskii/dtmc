@@ -7,7 +7,7 @@ surface -- the 'Distribution' and 'TransitionMatrix' types with their
 validating constructors and error types, the analytic forward dynamics
 ('evolve' and 'matrixPower'), the scalar probability queries ('probabilityAt',
 'transitionProbability', 'transitionProbabilityN', 'probabilityAtTime', and
-'pathProbability'), the timed event queries ('jointProbability' and
+'pathProbability'), the timed event queries ('probability' and
 'conditionalProbability' over 'Observation' values), the qualitative structure
 theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
 hitting theory ('hittingProbabilities', 'hittingProbability',
@@ -38,9 +38,10 @@ module Dtmc (
     evolveN,
     probabilityAtTime,
     pathProbability,
-    jointProbability,
+    probability,
     conditionalProbability,
     Observation (..),
+    FiniteObservation,
     ProbabilityError (..),
     identityMatrix,
     matrixPower,
@@ -91,11 +92,12 @@ import Dtmc.Distribution (
     unDistribution,
  )
 import Dtmc.Probability (
+    FiniteObservation,
     Observation (..),
     ProbabilityError (..),
     conditionalProbability,
-    jointProbability,
     pathProbability,
+    probability,
     probabilityAtTime,
     transitionProbability,
     transitionProbabilityN,

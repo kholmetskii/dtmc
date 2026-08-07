@@ -1,13 +1,13 @@
 {- |
 Module      : Dtmc.Probability
-Description : Scalar, trajectory, joint, and conditional probabilities of a DTMC.
+Description : Scalar, trajectory, event, and conditional probabilities of a DTMC.
 
 Probability queries for a finite DTMC. The scalar queries read a single number
 from the chain: 'transitionProbability' and 'transitionProbabilityN' give the
 one- and @k@-step transition probabilities @P(i, j)@ and @P^k(i, j)@, and
 'probabilityAtTime' gives the time-@k@ marginal @P(X_k = j)@ from an initial
 law. The event queries build on them: 'pathProbability' scores an explicit
-consecutive trajectory, while 'jointProbability' and 'conditionalProbability'
+consecutive trajectory, while 'probability' and 'conditionalProbability'
 score conjunctions of timed observations @(X_t = i)@ at arbitrary times, using
 the Markov property and time homogeneity to reduce each query to the scalar
 functions.
@@ -20,9 +20,10 @@ module Dtmc.Probability (
     transitionProbabilityN,
     probabilityAtTime,
     Observation (..),
+    FiniteObservation,
     ProbabilityError (..),
     pathProbability,
-    jointProbability,
+    probability,
     conditionalProbability,
 ) where
 
@@ -56,16 +57,21 @@ import Numeric.Natural (
  )
 
 {- | A single timed state observation. @At t i@ is the event @X_t = i@: the
-chain occupies state @i@ at time @t@. The 'Finite' index keeps the state
-bounded, so an observation is always well formed.
+chain occupies state @i@ at time @t@. The state type is deliberately
+polymorphic so the same event vocabulary can be reused by future countable
+chain representations; the finite-chain queries in this module specialise it
+to 'FiniteObservation'.
 
 A list of observations is read as their /conjunction/, e.g. @[At 2 c, At 5 d]@
 is the event @X_2 = c@ and @X_5 = d@. The list order carries no meaning;
-'jointProbability' and 'conditionalProbability' sort by time internally.
+'probability' and 'conditionalProbability' sort by time internally.
 -}
-data Observation n
-    = At Natural (Finite n)
+data Observation state
+    = At Natural state
     deriving (Eq, Show)
+
+-- | A timed observation whose state is bounded by a finite chain's dimension.
+type FiniteObservation n = Observation (Finite n)
 
 {- | Why a probability query has no defined value. The only cause is
 conditioning on an event of probability exactly zero, for which @P(E | C)@ is
@@ -199,7 +205,7 @@ Writing the normalised, time-sorted observations as
 Markov property and time homogeneity give
 
 @
-jointProbability lambda p obs
+probability lambda p obs
     == 'probabilityAtTime' t_0 lambda p i_0
          * product [ 'transitionProbabilityN' (t_r - t_(r-1)) p i_(r-1) i_r | r <- [1 .. k] ]
 @
@@ -230,13 +236,13 @@ evolution (via 'probabilityAtTime') and one transition-matrix power per
 distinct time gap (via 'transitionProbabilityN'). Each such power costs
 @O(n^3 log t)@ for its exponent @t@, and none are shared across gaps.
 -}
-jointProbability ::
+probability ::
     (KnownNat n) =>
     Distribution n ->
     TransitionMatrix n ->
-    [Observation n] ->
+    [FiniteObservation n] ->
     Double
-jointProbability initial p observations =
+probability initial p observations =
     case normalise [(t, i) | At t i <- observations] of
         Impossible -> 0
         Consistent [] -> 1
@@ -254,11 +260,11 @@ jointProbability initial p observations =
 P(E | C) = P(E and C) / P(C)
 @
 
-and computed by composing 'jointProbability':
+and computed by composing 'probability':
 
 @
-denominator = jointProbability initial p condition
-numerator   = jointProbability initial p (event <> condition)
+denominator = probability initial p condition
+numerator   = probability initial p (event <> condition)
 @
 
 Observations shared by @event@ and @condition@ are collapsed while normalising
@@ -274,7 +280,7 @@ are treated exactly as elsewhere in the library. Otherwise the result is
 Boundary cases:
 
 * @conditionalProbability initial p event []@ is
-  @'Right' (jointProbability initial p event)@, since the empty condition is
+  @'Right' (probability initial p event)@, since the empty condition is
   the sure event and has probability @1@;
 * with a condition of positive probability, @conditionalProbability initial p
   [] condition@ is @'Right' 1@;
@@ -283,7 +289,7 @@ Boundary cases:
 * if the condition is internally contradictory, or otherwise has probability
   exactly zero, the result is @'Left' 'ZeroProbabilityCondition'@.
 
-Time: two 'jointProbability' calls, so @O(m log m)@ sorting plus the matrix
+Time: two 'probability' calls, so @O(m log m)@ sorting plus the matrix
 powers described there, for @m@ the combined observation count.
 -}
 conditionalProbability ::
@@ -291,14 +297,14 @@ conditionalProbability ::
     Distribution n ->
     TransitionMatrix n ->
     -- | event @E@
-    [Observation n] ->
+    [FiniteObservation n] ->
     -- | condition @C@
-    [Observation n] ->
+    [FiniteObservation n] ->
     Either ProbabilityError Double
 conditionalProbability initial p event condition =
     if denominator == 0
         then Left ZeroProbabilityCondition
         else Right (numerator / denominator)
   where
-    denominator = jointProbability initial p condition
-    numerator = jointProbability initial p (event <> condition)
+    denominator = probability initial p condition
+    numerator = probability initial p (event <> condition)

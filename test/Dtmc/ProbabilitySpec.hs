@@ -13,11 +13,12 @@ import Dtmc.Distribution (
     probabilityAt,
  )
 import Dtmc.Probability (
+    FiniteObservation,
     Observation (..),
     ProbabilityError (..),
     conditionalProbability,
-    jointProbability,
     pathProbability,
+    probability,
     probabilityAtTime,
     transitionProbability,
  )
@@ -79,6 +80,16 @@ rightCloseTo _ (Left _) = False
 
 spec :: Spec
 spec = do
+    describe "Observation" $ do
+        it "is polymorphic in the state type" $
+            (At 2 "rain" :: Observation String) `shouldBe` At 2 "rain"
+
+        it "has a finite-chain convenience alias" $
+            let observations :: [FiniteObservation 3]
+                observations = [At 1 2]
+             in probability initial chain observations
+                    `shouldBe` probability initial chain [At 1 2]
+
     describe "pathProbability" $ do
         it "returns the initial probability for a one-state path" $
             approxEq
@@ -155,48 +166,48 @@ spec = do
                             ("generated input was rejected: " <> show result)
                             False
 
-    describe "jointProbability" $ do
+    describe "probability" $ do
         it "returns exactly one for no observations" $
-            jointProbability initial chain [] `shouldBe` 1
+            probability initial chain [] `shouldBe` 1
 
         it "equals probabilityAtTime for a single observation" $
             approxEq
                 testTolerance
-                (jointProbability initial chain [At 1 1])
+                (probability initial chain [At 1 1])
                 (probabilityAtTime 1 initial chain 1)
                 `shouldBe` True
 
         it "is unchanged by observation order" $
             approxEq
                 testTolerance
-                (jointProbability initial chain [At 0 0, At 1 1])
-                (jointProbability initial chain [At 1 1, At 0 0])
+                (probability initial chain [At 0 0, At 1 1])
+                (probability initial chain [At 1 1, At 0 0])
                 `shouldBe` True
 
         it "is unchanged by duplicate observations" $
             approxEq
                 testTolerance
-                (jointProbability initial chain [At 0 0, At 0 0, At 1 1])
-                (jointProbability initial chain [At 0 0, At 1 1])
+                (probability initial chain [At 0 0, At 0 0, At 1 1])
+                (probability initial chain [At 0 0, At 1 1])
                 `shouldBe` True
 
         it "is exactly zero for conflicting states at one time" $
-            jointProbability initial chain [At 0 0, At 0 1] `shouldBe` 0
+            probability initial chain [At 0 0, At 0 1] `shouldBe` 0
 
         it "agrees with pathProbability over times 0, 1, 2" $
             approxEq
                 testTolerance
-                (jointProbability initial chain [At 0 0, At 1 1, At 2 2])
+                (probability initial chain [At 0 0, At 1 1, At 2 2])
                 (pathProbability initial chain (0 :| [1, 2]))
                 `shouldBe` True
 
         it "is exactly zero through an impossible transition" $
-            jointProbability initial chain [At 0 0, At 1 2] `shouldBe` 0
+            probability initial chain [At 0 0, At 1 2] `shouldBe` 0
 
         it "matches a hand-computed multi-gap example" $
             approxEq
                 testTolerance
-                ( jointProbability
+                ( probability
                     assignment1Lambda
                     assignment1Matrix
                     [At 2 2, At 3 4, At 6 3]
@@ -216,7 +227,7 @@ spec = do
                             [ property $
                                 approxEq
                                     testTolerance
-                                    (jointProbability mu p [At t i])
+                                    (probability mu p [At t i])
                                     (probabilityAtTime t mu p i)
                             | t <- [0, 1, 2]
                             , i <- [0, 1, 2]
@@ -237,18 +248,18 @@ spec = do
                         property $
                             approxEq
                                 testTolerance
-                                (jointProbability mu p [At 1 1, At 3 2])
-                                (jointProbability mu p [At 3 2, At 1 1])
+                                (probability mu p [At 1 1, At 3 2])
+                                (probability mu p [At 3 2, At 1 1])
                     result ->
                         counterexample
                             ("generated input was rejected: " <> show result)
                             False
 
     describe "conditionalProbability" $ do
-        it "returns the event joint probability for an empty condition" $
+        it "returns the event probability for an empty condition" $
             conditionalProbability initial chain [At 1 1] []
                 `shouldSatisfy` rightCloseTo
-                    (jointProbability initial chain [At 1 1])
+                    (probability initial chain [At 1 1])
 
         it "returns one for an empty event and a positive condition" $
             conditionalProbability initial chain [] [At 0 0]
@@ -316,7 +327,7 @@ spec = do
         it "1(e) supporting: P(X2=C, X3=E, X6=D) = 5/96" $
             approxEq
                 testTolerance
-                ( jointProbability
+                ( probability
                     assignment1Lambda
                     assignment1Matrix
                     [At 2 2, At 3 4, At 6 3]
