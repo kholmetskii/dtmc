@@ -41,7 +41,8 @@ data TransitionMatrix (n :: Nat)
     = -- | Unchecked matrix/cache pair; the graph must match the matrix.
       TransitionMatrix (S.Sq n) Graph
 
--- Nominal role on @n@, for the same reason as t'Dtmc.Distribution.Distribution'.
+-- Nominal role on @n@, for the same reason as
+-- t'Dtmc.Distribution.DistributionVector'.
 type role TransitionMatrix nominal
 
 {- | Return the stored matrix unchanged. This is an @O(1)@ projection and does

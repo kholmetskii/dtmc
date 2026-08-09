@@ -12,10 +12,10 @@ import Data.Proxy (
     Proxy (..),
  )
 import Dtmc.Distribution (
-    Distribution,
-    mkDistribution,
+    DistributionVector,
+    mkDistributionVector,
     probabilityAt,
-    unDistribution,
+    unDistributionVector,
  )
 import Dtmc.Dynamics (
     evolve,
@@ -86,10 +86,10 @@ assignment1 =
             )
 
 -- Assignment 1 initial law lambda = [1/4, 1/2, 0, 1/4, 0].
-assignment1Initial :: Distribution 5
+assignment1Initial :: DistributionVector 5
 assignment1Initial =
     either (error . show) id $
-        mkDistribution (S.vector [1 / 4, 1 / 2, 0, 1 / 4, 0] :: S.R 5)
+        mkDistributionVector (S.vector [1 / 4, 1 / 2, 0, 1 / 4, 0] :: S.R 5)
 
 spec :: Spec
 spec = do
@@ -97,9 +97,9 @@ spec = do
         prop "keeps the distribution on the simplex" $
             forAll ((,) <$> genDistribution @3 <*> genTransitionMatrix @3) $
                 \(vector, matrix) ->
-                    case (mkDistribution vector, mkTransitionMatrix matrix) of
+                    case (mkDistributionVector vector, mkTransitionMatrix matrix) of
                         (Right mu, Right p) ->
-                            case mkDistribution (unDistribution (evolve mu p)) of
+                            case mkDistributionVector (unDistributionVector (evolve mu p)) of
                                 Right _ ->
                                     property True
                                 Left err ->
@@ -114,17 +114,17 @@ spec = do
         it "matches a hand-computed two-state step" $ do
             let mu =
                     either (error . show) id $
-                        mkDistribution
+                        mkDistributionVector
                             (S.vector [1, 0] :: S.R 2)
 
-            LA.toList (S.extract (unDistribution (evolve mu twoState)))
+            LA.toList (S.extract (unDistributionVector (evolve mu twoState)))
                 `shouldBe` [0.9, 0.1]
 
     describe "evolveN" $ do
         it "leaves a distribution unchanged after zero steps" $ do
             let mu =
                     either (error . show) id $
-                        mkDistribution
+                        mkDistributionVector
                             (S.vector [0.25, 0.75] :: S.R 2)
 
             approxDistributionEq
@@ -141,7 +141,7 @@ spec = do
                     <*> genTransitionMatrix @3
                 )
             $ \(k, vector, matrix) ->
-                case (mkDistribution vector, mkTransitionMatrix matrix) of
+                case (mkDistributionVector vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
                         let iterated =
                                 iterate (`evolve` p) mu !! k
@@ -164,7 +164,7 @@ spec = do
                     <*> genTransitionMatrix @3
                 )
             $ \(m, n, vector, matrix) ->
-                case (mkDistribution vector, mkTransitionMatrix matrix) of
+                case (mkDistributionVector vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
                         property $
                             approxDistributionEq
@@ -184,7 +184,7 @@ spec = do
         it "returns the initial probability at time zero" $ do
             let mu =
                     either (error . show) id $
-                        mkDistribution (S.vector [0.25, 0.75] :: S.R 2)
+                        mkDistributionVector (S.vector [0.25, 0.75] :: S.R 2)
 
             conjoin
                 [ property $
@@ -203,7 +203,7 @@ spec = do
                     <*> genTransitionMatrix @3
                 )
             $ \(k, vector, matrix) ->
-                case (mkDistribution vector, mkTransitionMatrix matrix) of
+                case (mkDistributionVector vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
                         conjoin
                             [ property $
@@ -226,7 +226,7 @@ spec = do
                     <*> genTransitionMatrix @3
                 )
             $ \(k, vector, matrix) ->
-                case (mkDistribution vector, mkTransitionMatrix matrix) of
+                case (mkDistributionVector vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
                         let iterated = iterate (`evolve` p) mu !! k
                          in conjoin

@@ -2,18 +2,17 @@ module Dtmc.DistributionSpec (
     spec,
 ) where
 
+import Data.Finite (
+    Finite,
+ )
 import Dtmc.Distribution (
+    Distribution (..),
     DistributionError (..),
     SparseDistribution,
-    SparseDistributionError,
-    mkDistribution,
+    mkDistributionVector,
     mkSparseDistribution,
     pointMass,
-    probabilityAt,
-    sparseEntries,
-    sparseProbabilityAt,
-    sparseSupport,
-    unDistribution,
+    unDistributionVector,
  )
 import Dtmc.Simplex (
     SimplexError (..),
@@ -46,16 +45,16 @@ import Test.QuickCheck (
 
 spec :: Spec
 spec = do
-    describe "mkDistribution" $ do
+    describe "mkDistributionVector" $ do
         it "rejects an empty vector" $
-            case mkDistribution (S.vector [] :: S.R 0) of
+            case mkDistributionVector (S.vector [] :: S.R 0) of
                 Left err ->
                     err `shouldBe` DistributionError (SumOffBy 0)
                 Right _ ->
                     expectationFailure "expected rejection"
 
         it "accepts a tiny negative rounding error" $
-            case mkDistribution (S.vector [-1e-17, 1] :: S.R 2) of
+            case mkDistributionVector (S.vector [-1e-17, 1] :: S.R 2) of
                 Right _ ->
                     pure ()
                 Left err ->
@@ -63,7 +62,7 @@ spec = do
                         ("expected acceptance, got " <> show err)
 
         it "reports an entry above one" $
-            case mkDistribution (S.vector [1.5, -0.5] :: S.R 2) of
+            case mkDistributionVector (S.vector [1.5, -0.5] :: S.R 2) of
                 Left err ->
                     err
                         `shouldBe` DistributionError (EntryAboveOne 0 1.5)
@@ -72,7 +71,7 @@ spec = do
 
         prop "accepts normalised vectors" $
             forAll (genSimplexPoint 3) $ \entries ->
-                case mkDistribution (S.vector entries :: S.R 3) of
+                case mkDistributionVector (S.vector entries :: S.R 3) of
                     Right _ ->
                         property True
                     Left err ->
@@ -82,7 +81,7 @@ spec = do
 
         prop "rejects vectors whose sum is too large" $
             forAll (genSimplexPoint 3) $ \entries ->
-                case mkDistribution
+                case mkDistributionVector
                     (S.vector (bumpSmallest 1e-6 entries) :: S.R 3) of
                     Left (DistributionError (SumOffBy _)) ->
                         property True
@@ -97,7 +96,7 @@ spec = do
                         case entries of
                             _ : rest -> (-1e-6) : rest
                             [] -> []
-                 in case mkDistribution (S.vector invalid :: S.R 3) of
+                 in case mkDistributionVector (S.vector invalid :: S.R 3) of
                         Left (DistributionError (NegativeEntry 0 _)) ->
                             property True
                         result ->
@@ -108,9 +107,9 @@ spec = do
         prop "preserves the validated vector" $
             forAll (genSimplexPoint 3) $ \entries ->
                 let simplexVector = S.vector entries :: S.R 3
-                 in case mkDistribution simplexVector of
+                 in case mkDistributionVector simplexVector of
                         Right distribution ->
-                            S.extract (unDistribution distribution)
+                            S.extract (unDistributionVector distribution)
                                 === S.extract simplexVector
                         Left err ->
                             counterexample
@@ -123,21 +122,43 @@ spec = do
                     either (error . show) id $
                         mkSparseDistribution
                             [('b', 0.2), ('a', 0.5), ('b', 0.3), ('c', 0)]
-            sparseEntries distribution `shouldBe` [('a', 0.5), ('b', 0.5)]
-            sparseSupport distribution `shouldBe` ['a', 'b']
+            distributionWeights distribution `shouldBe` [('a', 0.5), ('b', 0.5)]
+            support distribution `shouldBe` ['a', 'b']
 
         it "returns zero for an absent state" $
-            sparseProbabilityAt (pointMass "present") "absent"
+            probabilityAt (pointMass "present") "absent"
                 `shouldBe` 0
 
         it "rejects an empty law" $
-            (mkSparseDistribution [] :: Either SparseDistributionError (SparseDistribution Int))
+            (mkSparseDistribution [] :: Either DistributionError (SparseDistribution Int))
                 `shouldSatisfy` either (const True) (const False)
+
+        it "uses the shared error type" $
+            mkSparseDistribution ([] :: [(Int, Double)])
+                `shouldBe` Left (DistributionError (SumOffBy 0))
+
+    describe "Distribution abstraction" $ do
+        let vector =
+                either (error . show) id $
+                    mkDistributionVector (S.vector [0.2, 0, 0.8] :: S.R 3)
+            sparse =
+                either (error . show) id $
+                    ( mkSparseDistribution [(0, 0.2), (2, 0.8)] ::
+                        Either DistributionError (SparseDistribution (Finite 3))
+                    )
+
+        it "exposes the same weights and support for both representations" $ do
+            distributionWeights vector `shouldBe` distributionWeights sparse
+            support vector `shouldBe` support sparse
+
+        it "converts a vector once and passes a sparse law through unchanged" $ do
+            toSparseDistribution vector `shouldBe` sparse
+            toSparseDistribution sparse `shouldBe` sparse
 
     describe "probabilityAt" $ do
         let known =
                 either (error . show) id $
-                    mkDistribution (S.vector [0.2, 0.5, 0.3] :: S.R 3)
+                    mkDistributionVector (S.vector [0.2, 0.5, 0.3] :: S.R 3)
 
         it "returns each coordinate of a known distribution" $ do
             approxEq testTolerance (probabilityAt known 0) 0.2 `shouldBe` True
@@ -153,7 +174,7 @@ spec = do
         it "returns tolerated stored values without clamping" $ do
             let tolerated =
                     either (error . show) id $
-                        mkDistribution (S.vector [-1e-17, 1] :: S.R 2)
+                        mkDistributionVector (S.vector [-1e-17, 1] :: S.R 2)
 
             probabilityAt tolerated 0 `shouldBe` (-1e-17)
             probabilityAt tolerated 1 `shouldBe` 1
@@ -161,7 +182,7 @@ spec = do
     describe "approxDistributionEq" $
         prop "is reflexive at zero tolerance" $
             forAll (genSimplexPoint 3) $ \entries ->
-                case mkDistribution (S.vector entries :: S.R 3) of
+                case mkDistributionVector (S.vector entries :: S.R 3) of
                     Right distribution ->
                         property
                             (approxDistributionEq 0 distribution distribution)

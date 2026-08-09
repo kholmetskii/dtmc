@@ -4,9 +4,9 @@ Description : Scalar, trajectory, event, and conditional probabilities.
 
 Finite-time probability queries shared by dense finite matrices and locally
 finite kernels. Kernels implement 'MarkovKernel'; initial laws may be either a
-dense finite @Distribution@ or a @SparseDistribution@ through
-'ToSparseDistribution'. All calculations use finite reachable support and
-perform no truncation, clamping, or renormalisation.
+dense finite @DistributionVector@ or a @SparseDistribution@ through the
+'Distribution' abstraction. All calculations use finite reachable support
+and perform no truncation, clamping, or renormalisation.
 -}
 module Dtmc.Probability (
     transitionProbability,
@@ -27,10 +27,8 @@ import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
 import Dtmc.Distribution (
-    DistributionState,
-    ToSparseDistribution (..),
+    Distribution (..),
     pointMass,
-    sparseProbabilityAt,
  )
 import Dtmc.Dynamics (
     evolveSparseN,
@@ -72,7 +70,7 @@ transitionProbability ::
     KernelState kernel ->
     Double
 transitionProbability kernel source =
-    sparseProbabilityAt (transitionLaw kernel source)
+    probabilityAt (transitionLaw kernel source)
 
 {- | The @k@-step transition probability @P^k(i,j)@, computed by evolving a
 point mass for exactly @k@ sparse steps. At @k = 0@ this is the Kronecker
@@ -86,14 +84,14 @@ transitionProbabilityN ::
     KernelState kernel ->
     Double
 transitionProbabilityN steps kernel source =
-    sparseProbabilityAt (evolveSparseN steps (pointMass source) kernel)
+    probabilityAt (evolveSparseN steps (pointMass source) kernel)
 
 {- | Marginal probability @P(X_k = j)@ after @k@ transitions. Dense finite
 initial laws are converted to sparse support once for this query; an already
 sparse law passes through unchanged.
 -}
 probabilityAtTime ::
-    ( ToSparseDistribution distribution
+    ( Distribution distribution
     , MarkovKernel kernel
     , DistributionState distribution ~ KernelState kernel
     , Ord (KernelState kernel)
@@ -104,7 +102,7 @@ probabilityAtTime ::
     KernelState kernel ->
     Double
 probabilityAtTime steps initial kernel =
-    sparseProbabilityAt
+    probabilityAt
         (evolveSparseN steps (toSparseDistribution initial) kernel)
 
 {- | Probability of an explicit consecutive non-empty trajectory. A one-state
@@ -112,7 +110,7 @@ path returns its initial probability; longer paths multiply the initial mass
 by every one-step transition probability.
 -}
 pathProbability ::
-    ( ToSparseDistribution distribution
+    ( Distribution distribution
     , MarkovKernel kernel
     , DistributionState distribution ~ KernelState kernel
     , Ord (KernelState kernel)
@@ -122,7 +120,7 @@ pathProbability ::
     NonEmpty (KernelState kernel) ->
     Double
 pathProbability initial kernel (initialState :| rest) =
-    sparseProbabilityAt (toSparseDistribution initial) initialState
+    probabilityAt (toSparseDistribution initial) initialState
         * go initialState rest
   where
     go _ [] = 1
@@ -134,7 +132,7 @@ are sorted by time, duplicates collapse, conflicting states at one time return
 exactly zero, and the empty conjunction returns exactly one.
 -}
 probability ::
-    ( ToSparseDistribution distribution
+    ( Distribution distribution
     , MarkovKernel kernel
     , DistributionState distribution ~ KernelState kernel
     , Ord (KernelState kernel)
@@ -166,7 +164,7 @@ observations. An exactly zero condition returns
 used without an epsilon or clamping.
 -}
 conditionalProbability ::
-    ( ToSparseDistribution distribution
+    ( Distribution distribution
     , MarkovKernel kernel
     , DistributionState distribution ~ KernelState kernel
     , Ord (KernelState kernel)

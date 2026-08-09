@@ -3,9 +3,9 @@ Module      : Dtmc
 Description : Public facade re-exporting the library's curated API.
 
 Single entry point for users of the library. It gathers the intended public
-surface -- the 'Distribution' and 'TransitionMatrix' types with their
-validating constructors and error types, sparse finite-support laws and
-locally finite kernels, the analytic forward dynamics
+surface -- the 'Distribution' abstraction, its 'DistributionVector' and
+'SparseDistribution' representations, transition matrices and locally finite
+kernels, their validating constructors and error types, and the forward dynamics
 ('evolve' and 'matrixPower'), the scalar probability queries ('probabilityAt',
 'transitionProbability', 'transitionProbabilityN', 'probabilityAtTime', and
 'pathProbability'), the timed event queries ('probability' and
@@ -17,19 +17,14 @@ random simulation primitives -- while hiding the "Dtmc.Internal" modules.
 Import this module to build, analyse, and run chains.
 -}
 module Dtmc (
-    Distribution,
+    Distribution (..),
+    DistributionVector,
     DistributionError (..),
-    mkDistribution,
-    unDistribution,
-    probabilityAt,
+    mkDistributionVector,
+    unDistributionVector,
     SparseDistribution,
-    SparseDistributionError (..),
-    ToSparseDistribution (..),
     mkSparseDistribution,
     pointMass,
-    sparseEntries,
-    sparseProbabilityAt,
-    sparseSupport,
     TransitionMatrix,
     TransitionMatrixError (..),
     mkTransitionMatrix,
@@ -109,19 +104,14 @@ module Dtmc (
 ) where
 
 import Dtmc.Distribution (
-    Distribution,
+    Distribution (..),
     DistributionError (..),
+    DistributionVector,
     SparseDistribution,
-    SparseDistributionError (..),
-    ToSparseDistribution (..),
-    mkDistribution,
+    mkDistributionVector,
     mkSparseDistribution,
     pointMass,
-    probabilityAt,
-    sparseEntries,
-    sparseProbabilityAt,
-    sparseSupport,
-    unDistribution,
+    unDistributionVector,
  )
 import Dtmc.Probability (
     FiniteObservation,

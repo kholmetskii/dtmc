@@ -22,12 +22,12 @@ import Data.Finite (
     finite,
  )
 import Dtmc.Distribution (
+    Distribution (distributionWeights),
     SparseDistribution,
-    sparseEntries,
  )
 import Dtmc.Distribution.Internal (
-    Distribution,
-    unDistribution,
+    DistributionVector,
+    unDistributionVector,
  )
 import Dtmc.Kernel (
     MarkovKernel (..),
@@ -59,7 +59,7 @@ Time and temporary space: @O(n)@ per draw.
 -}
 sampleFrom ::
     (KnownNat n, PrimMonad m) =>
-    Distribution n ->
+    DistributionVector n ->
     MWC.Gen (PrimState m) ->
     m (Finite n)
 sampleFrom distribution generator = do
@@ -68,7 +68,7 @@ sampleFrom distribution generator = do
   where
     weights =
         snapToSimplex
-            (S.extract (unDistribution distribution))
+            (S.extract (unDistributionVector distribution))
 
 {- | Sample one transition from a state through any 'MarkovKernel'. Passing
 each result back with the same generator advances one trajectory. The finite
@@ -97,7 +97,7 @@ sampleSparseFrom distribution generator = do
     index <- MWCD.categorical weights generator
     pure (states !! index)
   where
-    entries = sparseEntries distribution
+    entries = distributionWeights distribution
     states = map fst entries
     weights = snapToSimplex (LA.fromList (map snd entries))
 

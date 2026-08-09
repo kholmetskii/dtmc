@@ -8,8 +8,8 @@ import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
 import Dtmc.Distribution (
-    Distribution,
-    mkDistribution,
+    DistributionVector,
+    mkDistributionVector,
     probabilityAt,
  )
 import Dtmc.Probability (
@@ -66,10 +66,10 @@ chain =
                 S.Sq 3
             )
 
-initial :: Distribution 3
+initial :: DistributionVector 3
 initial =
     either (error . show) id $
-        mkDistribution (S.vector [0.6, 0.3, 0.1] :: S.R 3)
+        mkDistributionVector (S.vector [0.6, 0.3, 0.1] :: S.R 3)
 
 {- | Hold for a @Right@ whose 'Double' is within 'testTolerance' of the
 expected value; fail for any @Left@ or out-of-tolerance value.
@@ -128,7 +128,7 @@ spec = do
             $ forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3)
             $ \(entries, matrix) ->
                 case
-                    ( mkDistribution (S.vector entries :: S.R 3)
+                    ( mkDistributionVector (S.vector entries :: S.R 3)
                     , mkTransitionMatrix matrix
                     ) of
                     (Right mu, Right p) ->
@@ -146,7 +146,7 @@ spec = do
             $ forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3)
             $ \(entries, matrix) ->
                 case
-                    ( mkDistribution (S.vector entries :: S.R 3)
+                    ( mkDistributionVector (S.vector entries :: S.R 3)
                     , mkTransitionMatrix matrix
                     ) of
                     (Right mu, Right p) ->
@@ -219,7 +219,7 @@ spec = do
             $ forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3)
             $ \(entries, matrix) ->
                 case
-                    ( mkDistribution (S.vector entries :: S.R 3)
+                    ( mkDistributionVector (S.vector entries :: S.R 3)
                     , mkTransitionMatrix matrix
                     ) of
                     (Right mu, Right p) ->
@@ -241,7 +241,7 @@ spec = do
             $ forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3)
             $ \(entries, matrix) ->
                 case
-                    ( mkDistribution (S.vector entries :: S.R 3)
+                    ( mkDistributionVector (S.vector entries :: S.R 3)
                     , mkTransitionMatrix matrix
                     ) of
                     (Right mu, Right p) ->

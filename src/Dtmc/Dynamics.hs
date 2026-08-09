@@ -15,7 +15,7 @@ module Dtmc.Dynamics (
 ) where
 
 import Dtmc.Distribution.Internal (
-    Distribution (Distribution),
+    DistributionVector (DistributionVector),
     SparseDistribution (SparseDistribution),
     unSparseDistribution,
  )
@@ -47,9 +47,13 @@ validation fail.
 
 Time: @O(n^2)@. Result space: @O(n)@.
 -}
-evolve :: (KnownNat n) => Distribution n -> TransitionMatrix n -> Distribution n
-evolve (Distribution v) p =
-    Distribution (S.tr (unTransitionMatrix p) S.#> v)
+evolve ::
+    (KnownNat n) =>
+    DistributionVector n ->
+    TransitionMatrix n ->
+    DistributionVector n
+evolve (DistributionVector v) p =
+    DistributionVector (S.tr (unTransitionMatrix p) S.#> v)
 
 {- | The distribution after @k@ transitions, computed as
 @evolve mu (matrixPower k p)@. Exponent zero is the original distribution
@@ -63,9 +67,9 @@ Time: @O(n^2 + n^3 log(k + 1))@.
 evolveN ::
     (KnownNat n) =>
     Natural ->
-    Distribution n ->
+    DistributionVector n ->
     TransitionMatrix n ->
-    Distribution n
+    DistributionVector n
 evolveN k mu p =
     evolve mu (matrixPower k p)
 

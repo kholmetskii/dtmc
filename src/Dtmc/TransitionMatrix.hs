@@ -32,7 +32,7 @@ import Data.Semigroup (
     mtimesDefault,
  )
 import Dtmc.Distribution.Internal (
-    Distribution (Distribution),
+    DistributionVector (DistributionVector),
  )
 import Dtmc.Simplex (
     SimplexError,
@@ -110,6 +110,6 @@ matrixPower = mtimesDefault
 index makes the lookup total. The row is wrapped without revalidation, so any
 floating-point drift from matrix arithmetic is preserved.
 -}
-rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> Distribution n
+rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> DistributionVector n
 rowAt p index =
-    Distribution (S.toRows (unTransitionMatrix p) !! fromIntegral (getFinite index))
+    DistributionVector (S.toRows (unTransitionMatrix p) !! fromIntegral (getFinite index))

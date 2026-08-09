@@ -20,9 +20,9 @@ import Data.Proxy (
     Proxy (..),
  )
 import Dtmc.Distribution (
-    Distribution,
-    mkDistribution,
-    unDistribution,
+    DistributionVector,
+    mkDistributionVector,
+    unDistributionVector,
  )
 import Dtmc.TransitionMatrix (
     TransitionMatrix,
@@ -129,11 +129,15 @@ approxTransitionMatrixEq tolerance left right =
     close x y = abs (x - y) <= tolerance
 
 approxDistributionEq ::
-    (KnownNat n) => Double -> Distribution n -> Distribution n -> Bool
+    (KnownNat n) =>
+    Double ->
+    DistributionVector n ->
+    DistributionVector n ->
+    Bool
 approxDistributionEq tolerance left right =
     and (zipWith close (entries left) (entries right))
   where
-    entries = LA.toList . S.extract . unDistribution
+    entries = LA.toList . S.extract . unDistributionVector
     close x y = abs (x - y) <= tolerance
 
 {- | Assignment 1 transition matrix over states @[A, B, C, D, E]@, shared by the
@@ -154,7 +158,7 @@ assignment1Matrix =
             )
 
 -- | Assignment 1 initial law @lambda = [1/4, 1/2, 0, 1/4, 0]@.
-assignment1Lambda :: Distribution 5
+assignment1Lambda :: DistributionVector 5
 assignment1Lambda =
     either (error . show) id $
-        mkDistribution (S.vector [1 / 4, 1 / 2, 0, 1 / 4, 0] :: S.R 5)
+        mkDistributionVector (S.vector [1 / 4, 1 / 2, 0, 1 / 4, 0] :: S.R 5)

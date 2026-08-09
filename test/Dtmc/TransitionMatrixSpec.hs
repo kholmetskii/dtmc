@@ -9,7 +9,7 @@ import Data.Finite (
     finites,
     getFinite,
  )
-import Dtmc.Distribution (mkDistribution, probabilityAt, unDistribution)
+import Dtmc.Distribution (mkDistributionVector, probabilityAt, unDistributionVector)
 import Dtmc.Probability (
     transitionProbability,
     transitionProbabilityN,
@@ -349,13 +349,13 @@ spec = do
     describe "rowAt" $ do
         it "reads rows rather than columns" $
             LA.toList
-                (S.extract (unDistribution (rowAt cyclicThree 0)))
+                (S.extract (unDistributionVector (rowAt cyclicThree 0)))
                 `shouldBe` [0, 1, 0]
 
         it "returns each row of the three-cycle" $ do
             let row index =
                     LA.toList
-                        (S.extract (unDistribution (rowAt cyclicThree index)))
+                        (S.extract (unDistributionVector (rowAt cyclicThree index)))
 
             row 0 `shouldBe` [0, 1, 0]
             row 1 `shouldBe` [0, 0, 1]
@@ -366,8 +366,8 @@ spec = do
                 case mkTransitionMatrix matrix of
                     Right transitionMatrix ->
                         conjoin
-                            [ case mkDistribution
-                                (unDistribution (rowAt transitionMatrix index)) of
+                            [ case mkDistributionVector
+                                (unDistributionVector (rowAt transitionMatrix index)) of
                                 Right _ ->
                                     property True
                                 Left err ->

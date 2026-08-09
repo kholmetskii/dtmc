@@ -64,7 +64,7 @@ import Dtmc.Classification (
     transientStates,
  )
 import Dtmc.Distribution.Internal (
-    unDistribution,
+    unDistributionVector,
  )
 import Dtmc.Dynamics.Internal (
     pushSparseWeights,
@@ -740,7 +740,7 @@ expectedReturnTimeFrom p i =
     foldl' addTerm (FiniteMean 1) (zip finites row)
   where
     eta = expectedHittingTime p [i]
-    row = LA.toList (S.extract (unDistribution (rowAt p i)))
+    row = LA.toList (S.extract (unDistributionVector (rowAt p i)))
     addTerm acc (j, pij)
         | pij <= 0 = acc
         | otherwise =

@@ -7,7 +7,8 @@ locally finite countable-state chains. It exposes the validated finite law of
 one transition from a supplied state; it does not require global state-space
 enumeration.
 
-The instance for 'TransitionMatrix' converts a dense row to finite support.
+The instance for 'TransitionMatrix' converts a dense
+t'Dtmc.Distribution.DistributionVector' row to finite support.
 This enables shared sparse algorithms, while the specialised finite API keeps
 its existing dense implementations for performance and global analyses.
 -}
@@ -23,9 +24,9 @@ import Data.Finite (
     Finite,
  )
 import Dtmc.Distribution (
+    Distribution (toSparseDistribution),
     SparseDistribution,
     pointMass,
-    toSparseDistribution,
  )
 import Dtmc.TransitionMatrix (
     TransitionMatrix,

@@ -2,25 +2,21 @@
 Module      : Dtmc.Distribution
 Description : Dense finite and sparse finite-support probability distributions.
 
-Probability distributions over @n@ states, used as initial and marginal laws
-of a DTMC. 'mkDistribution' checks the simplex invariant with the @1e-9@
-tolerance documented by 'SimplexError'. t'SparseDistribution' provides the same
-validated invariant for finite support over an unrestricted state type.
+Probability distribution vectors over @n@ states, used as initial and marginal
+laws of a DTMC. 'mkDistributionVector' checks the simplex invariant with the
+@1e-9@ tolerance documented by 'SimplexError'. t'SparseDistribution' provides
+the same validated invariant for finite support over an unrestricted state
+type.
 -}
 module Dtmc.Distribution (
-    Distribution,
+    Distribution (..),
+    DistributionVector,
     DistributionError (..),
-    mkDistribution,
-    unDistribution,
-    probabilityAt,
+    mkDistributionVector,
+    unDistributionVector,
     SparseDistribution,
-    SparseDistributionError (..),
-    ToSparseDistribution (..),
     mkSparseDistribution,
     pointMass,
-    sparseEntries,
-    sparseProbabilityAt,
-    sparseSupport,
 ) where
 
 import Data.Bifunctor (
@@ -33,9 +29,9 @@ import Data.Finite (
  )
 import Data.Map.Strict qualified as Map
 import Dtmc.Distribution.Internal (
-    Distribution (Distribution),
+    DistributionVector (DistributionVector),
     SparseDistribution (SparseDistribution),
-    unDistribution,
+    unDistributionVector,
     unSparseDistribution,
  )
 import Dtmc.Simplex (
@@ -51,52 +47,29 @@ import GHC.TypeNats (
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 
-{- | A simplex failure while constructing a distribution. The wrapper keeps it
-distinct from a transition-matrix row failure.
+{- | A simplex failure while constructing either distribution representation.
+For a sparse law, coordinate indices refer to ascending state order after
+duplicate states have been combined. The wrapper keeps distribution failures
+distinct from transition-matrix row failures.
 -}
 newtype DistributionError
     = -- | Wrap the underlying simplex failure.
       DistributionError SimplexError
     deriving (Eq, Show)
 
-{- | Validate a raw state distribution. On success the vector is preserved
+{- | Validate a raw state distribution vector. On success it is preserved
 exactly; tolerated coordinates are not clamped and the total is not
 renormalised. For @n = 0@, returns
 @Left (DistributionError (SumOffBy 0))@.
 
 Time: @O(n)@. Space: @O(n)@ for validation.
 -}
-mkDistribution :: (KnownNat n) => S.R n -> Either DistributionError (Distribution n)
-mkDistribution vector =
-    Distribution vector <$ first DistributionError (validateSimplex vector)
-
-{- | Read the stored probability @mu(j)@ of a single state.
-
-Mathematically this is the coordinate of the law at index @j@: for an initial
-or marginal distribution @mu@, @probabilityAt mu j = mu(j) = P(X = j)@. The
-bounded 'Finite' @n@ index makes the lookup total, so there is no
-out-of-range or partial case.
-
-The stored coordinate is returned exactly as held. No clamping to @[0, 1]@,
-renormalisation, or revalidation is performed, so a value carried through
-tolerated construction or floating-point arithmetic is reported unchanged and
-may lie slightly outside @[0, 1]@.
-
-Time: @O(n)@ to materialise the underlying vector; the index itself is @O(1)@.
--}
-probabilityAt :: (KnownNat n) => Distribution n -> Finite n -> Double
-probabilityAt distribution index =
-    S.extract (unDistribution distribution)
-        `LA.atIndex` fromIntegral (getFinite index)
-
-{- | A simplex failure while constructing a sparse finite-support law. Entry
-indices in the wrapped error refer to ascending state order after duplicate
-states have been combined.
--}
-newtype SparseDistributionError
-    = -- | Wrap the shared simplex failure.
-      SparseDistributionError SimplexError
-    deriving (Eq, Show)
+mkDistributionVector ::
+    (KnownNat n) =>
+    S.R n ->
+    Either DistributionError (DistributionVector n)
+mkDistributionVector vector =
+    DistributionVector vector <$ first DistributionError (validateSimplex vector)
 
 {- | Combine duplicate states, remove entries whose combined weight is exactly
 zero, and validate the resulting finite-support probability law. Input order
@@ -109,10 +82,10 @@ states.
 mkSparseDistribution ::
     (Ord state) =>
     [(state, Double)] ->
-    Either SparseDistributionError (SparseDistribution state)
+    Either DistributionError (SparseDistribution state)
 mkSparseDistribution entries =
     SparseDistribution canonical
-        <$ first SparseDistributionError (validateSimplexEntries (Map.elems canonical))
+        <$ first DistributionError (validateSimplexEntries (Map.elems canonical))
   where
     canonical = Map.filter (/= 0) (Map.fromListWith (+) entries)
 
@@ -120,13 +93,40 @@ mkSparseDistribution entries =
 pointMass :: state -> SparseDistribution state
 pointMass state = SparseDistribution (Map.singleton state 1)
 
-{- | Initial-law representations accepted by shared sparse probability
-algorithms. Dense finite distributions are converted once; sparse
-distributions pass through unchanged.
+{- | A representation of a discrete probability distribution with finite
+stored support. A dense t'DistributionVector' and a t'SparseDistribution'
+expose the same mathematical operations through this class.
 -}
-class ToSparseDistribution distribution where
+class Distribution distribution where
     -- | State type carried by the distribution representation.
     type DistributionState distribution
+
+    {- | Read the stored probability of one state, returning exactly zero when
+    the representation does not store that state. The value is returned
+    without clamping or revalidation.
+    -}
+    probabilityAt ::
+        (Ord (DistributionState distribution)) =>
+        distribution ->
+        DistributionState distribution ->
+        Double
+
+    {- | Return canonical ascending state weights. Exact-zero weights are
+    omitted; tolerated negative values remain visible.
+    -}
+    distributionWeights ::
+        distribution ->
+        [(DistributionState distribution, Double)]
+
+    {- | States with strictly positive stored weight, in ascending order.
+    Tolerated negative coordinates are not mathematical support.
+    -}
+    support :: distribution -> [DistributionState distribution]
+    support distribution =
+        [ state
+        | (state, weight) <- distributionWeights distribution
+        , weight > 0
+        ]
 
     {- | Convert to finite support without revalidation or renormalisation.
     Exact zero coordinates may be omitted.
@@ -135,55 +135,37 @@ class ToSparseDistribution distribution where
         distribution ->
         SparseDistribution (DistributionState distribution)
 
-instance (KnownNat n) => ToSparseDistribution (Distribution n) where
-    type DistributionState (Distribution n) = Finite n
+instance (KnownNat n) => Distribution (DistributionVector n) where
+    type DistributionState (DistributionVector n) = Finite n
 
-    toSparseDistribution :: Distribution n -> SparseDistribution (DistributionState (Distribution n))
-    toSparseDistribution distribution =
-        SparseDistribution $
-            Map.fromDistinctAscList
-                [ (state, weight)
-                | (state, weight) <- zip finites weights
-                , weight /= 0
-                ]
+    probabilityAt distribution index =
+        S.extract (unDistributionVector distribution)
+            `LA.atIndex` fromIntegral (getFinite index)
+
+    distributionWeights distribution =
+        [ (state, weight)
+        | (state, weight) <- zip finites weights
+        , weight /= 0
+        ]
       where
-        weights = LA.toList (S.extract (unDistribution distribution))
+        weights = LA.toList (S.extract (unDistributionVector distribution))
 
-instance ToSparseDistribution (SparseDistribution state) where
+    toSparseDistribution ::
+        DistributionVector n ->
+        SparseDistribution (DistributionState (DistributionVector n))
+    toSparseDistribution distribution =
+        SparseDistribution (Map.fromDistinctAscList (distributionWeights distribution))
+
+instance Distribution (SparseDistribution state) where
     type DistributionState (SparseDistribution state) = state
+
+    probabilityAt distribution state =
+        Map.findWithDefault 0 state (unSparseDistribution distribution)
+
+    distributionWeights = Map.toAscList . unSparseDistribution
 
     toSparseDistribution ::
         SparseDistribution state ->
         SparseDistribution
             (DistributionState (SparseDistribution state))
     toSparseDistribution = id
-
-{- | Return the canonical ascending list of stored state weights. Exact zero
-entries are absent; tolerated negative entries remain visible.
-
-Time and result space: @O(s)@ for stored support size @s@.
--}
-sparseEntries :: SparseDistribution state -> [(state, Double)]
-sparseEntries = Map.toAscList . unSparseDistribution
-
-{- | Read a state's stored probability, returning exactly zero when absent.
-The stored value is returned without clamping or revalidation.
-
-Time: @O(log s)@ for stored support size @s@.
--}
-sparseProbabilityAt ::
-    (Ord state) =>
-    SparseDistribution state ->
-    state ->
-    Double
-sparseProbabilityAt distribution state =
-    Map.findWithDefault 0 state (unSparseDistribution distribution)
-
-{- | States with strictly positive stored weight, in ascending order.
-Tolerated negative coordinates are not members of mathematical support.
-
-Time: @O(s)@; result space: at most @O(s)@.
--}
-sparseSupport :: SparseDistribution state -> [state]
-sparseSupport distribution =
-    [state | (state, weight) <- sparseEntries distribution, weight > 0]

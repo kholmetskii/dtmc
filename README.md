@@ -34,6 +34,8 @@ algorithms.
 chains: obtaining the validated finite-support law for one transition from a
 given state. Both `TransitionMatrix n` and `TransitionKernel state` implement
 it. The associated `KernelState` type keeps each kernel tied to its state type.
+Likewise, `Distribution` is the common initial-law abstraction implemented by
+`DistributionVector n` and `SparseDistribution state`.
 
 Functions live in their mathematical subject modules and use `MarkovKernel`
 where the finite and infinite signatures genuinely agree:
@@ -42,7 +44,7 @@ where the finite and infinite signatures genuinely agree:
 import qualified Dtmc.Probability as Probability
 
 -- matrix  :: TransitionMatrix n
--- initial :: Distribution n
+-- initial :: DistributionVector n
 -- state   :: Finite n
 
 result =

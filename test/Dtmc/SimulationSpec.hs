@@ -11,7 +11,7 @@ import Control.Monad.ST (
 import Data.Finite (
     Finite,
  )
-import Dtmc.Distribution (mkDistribution)
+import Dtmc.Distribution (mkDistributionVector)
 import Dtmc.Simulation (sampleFrom, step)
 import Dtmc.TransitionMatrix (
     TransitionMatrix,
@@ -73,7 +73,7 @@ pointMassSamples = runST $ do
     generator <- MWC.create
     let distribution =
             either (error . show) id $
-                mkDistribution (S.vector [0, 1, 0] :: S.R 3)
+                mkDistributionVector (S.vector [0, 1, 0] :: S.R 3)
     replicateM 20 (sampleFrom distribution generator)
 
 spec :: Spec

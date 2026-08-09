@@ -16,8 +16,8 @@ import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
 import Dtmc.Distribution (
-    Distribution,
-    mkDistribution,
+    DistributionVector,
+    mkDistributionVector,
  )
 import Dtmc.Distribution qualified as Distribution
 import Dtmc.Dynamics qualified as Dynamics
@@ -77,9 +77,9 @@ finiteChain =
                 S.Sq 3
             )
 
-finiteInitial :: Distribution 3
+finiteInitial :: DistributionVector 3
 finiteInitial =
-    checked (mkDistribution (S.vector [0.6, 0.3, 0.1] :: S.R 3))
+    checked (mkDistributionVector (S.vector [0.6, 0.3, 0.1] :: S.R 3))
 
 finiteCycle :: TransitionMatrix 3
 finiteCycle =
@@ -115,7 +115,7 @@ asSparseKernel matrix =
 asSparseDistribution ::
     forall n.
     (KnownNat n) =>
-    Distribution n ->
+    DistributionVector n ->
     Distribution.SparseDistribution (Finite n)
 asSparseDistribution distribution =
     checked $
@@ -147,11 +147,11 @@ spec :: Spec
 spec = do
     describe "shared MarkovKernel interface" $ do
         it "exposes a finite matrix row as a validated finite-support law" $
-            Distribution.sparseEntries (Kernel.transitionLaw finiteChain 1)
+            Distribution.distributionWeights (Kernel.transitionLaw finiteChain 1)
                 `shouldBe` [(1, 0.2), (2, 0.8)]
 
         it "converts a dense finite initial law without changing its weights" $
-            Distribution.sparseEntries (Distribution.toSparseDistribution finiteInitial)
+            Distribution.distributionWeights (Distribution.toSparseDistribution finiteInitial)
                 `shouldBe` [(0, 0.6), (1, 0.3), (2, 0.1)]
 
         it "runs one probability function over both kernel representations" $ do
@@ -200,13 +200,13 @@ spec = do
 
     describe "locally finite dynamics" $ do
         it "evolves an infinite-state random walk without enumerating its state space" $
-            Distribution.sparseEntries
+            Distribution.distributionWeights
                 (Dynamics.evolveSparseN 2 (Distribution.pointMass 0) simpleRandomWalk)
                 `shouldBe` [(-2, 0.25), (0, 0.5), (2, 0.25)]
 
         it "agrees with finite matrix dynamics at several horizons" $
             sequence_
-                [ Distribution.sparseProbabilityAt
+                [ Distribution.probabilityAt
                     (Dynamics.evolveSparseN time sparseInitial sparseChain)
                     state
                     `shouldSatisfy` closeTo
