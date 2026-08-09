@@ -57,7 +57,6 @@ import Test.QuickCheck (
     counterexample,
     forAll,
     property,
-    (===),
  )
 
 genDistribution :: forall n. (KnownNat n) => Gen (S.R n)
@@ -207,8 +206,11 @@ spec = do
                 case (mkDistribution vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
                         conjoin
-                            [ probabilityAtTime (fromIntegral k) mu p j
-                                === probabilityAt (evolveN (fromIntegral k) mu p) j
+                            [ property $
+                                approxEq
+                                    testTolerance
+                                    (probabilityAtTime (fromIntegral k) mu p j)
+                                    (probabilityAt (evolveN (fromIntegral k) mu p) j)
                             | j <- finites
                             ]
                     result ->

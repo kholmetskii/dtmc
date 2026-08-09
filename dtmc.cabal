@@ -3,9 +3,9 @@ name:               dtmc
 version:            0.1.0.0
 synopsis:           Type-safe discrete-time Markov chains
 description:
-  Finite discrete-time Markov chains with type-level dimensions,
-  validated probability distributions and transition matrices,
-  and deterministic-testable simulation primitives.
+  Finite discrete-time Markov chains with type-level dimensions, plus locally
+  finite countable-state kernels for exact finite-horizon analysis and
+  simulation. Includes validated probability laws and transition models.
 category:           Math, Probability
 homepage:           https://github.com/kholmetskii/dtmc
 bug-reports:        https://github.com/kholmetskii/dtmc/issues
@@ -23,6 +23,7 @@ common lang
   default-extensions:
       DataKinds
     , RoleAnnotations
+    , TypeFamilies
 
   ghc-options:
       -Wall
@@ -44,6 +45,7 @@ library
       Dtmc.Probability
       Dtmc.Classification
       Dtmc.Hitting
+      Dtmc.Kernel
 
   other-modules:
       Dtmc.Distribution.Internal
@@ -80,6 +82,7 @@ test-suite spec
       Dtmc.ProbabilitySpec
       Dtmc.ClassificationSpec
       Dtmc.HittingSpec
+      Dtmc.KernelSpec
       Dtmc.TestSupport
 
   build-depends:

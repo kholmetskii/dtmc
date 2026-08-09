@@ -2,7 +2,10 @@
 Module      : Dtmc.Hitting
 Description : Exact, bounded, eventual, and expected hitting and return quantities.
 
-Hitting and first-return quantities for a finite DTMC. For a target set @A@,
+Hitting and first-return quantities for DTMCs. Scalar exact-time and bounded
+queries work through any locally finite 'MarkovKernel', including kernels on
+infinite state spaces. All-state, eventual, competing, and expected queries
+use a finite 'TransitionMatrix'. For a target set @A@,
 @H_A = inf { t >= 0 | X_t in A }@; for state @i@,
 @T_i = inf { t >= 1 | X_t = i }@.
 
@@ -48,6 +51,10 @@ import Data.Finite (
     finites,
     getFinite,
  )
+import Data.Map.Strict (
+    Map,
+ )
+import Data.Map.Strict qualified as Map
 import Data.Proxy (
     Proxy (..),
  )
@@ -59,6 +66,9 @@ import Dtmc.Classification (
 import Dtmc.Distribution.Internal (
     unDistribution,
  )
+import Dtmc.Dynamics.Internal (
+    pushSparseWeights,
+ )
 import Dtmc.Hitting.Internal (
     MeanTime (..),
  )
@@ -67,6 +77,9 @@ import Dtmc.Internal.LinearSystem (
     rowSums,
     solveIminusQVector,
     subMatrix,
+ )
+import Dtmc.Kernel (
+    MarkovKernel (..),
  )
 import Dtmc.TransitionMatrix (
     rowAt,
@@ -103,6 +116,19 @@ iterateNatural steps f = go steps
     go remaining value =
         let next = f value
          in next `seq` go (remaining - 1) next
+
+advanceUntilTarget ::
+    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+    kernel ->
+    (KernelState kernel -> Bool) ->
+    Map (KernelState kernel) Double ->
+    (Map (KernelState kernel) Double, Double)
+advanceUntilTarget kernel isTarget survivors =
+    (remaining, hitMass)
+  where
+    advanced = pushSparseWeights survivors kernel
+    (hits, remaining) = Map.partitionWithKey (\state _ -> isTarget state) advanced
+    hitMass = sum (Map.elems hits)
 
 {- | Exact hitting-time probabilities
 @h_i(t) = P(H_A = t | X_0 = i)@ in state order, where
@@ -142,20 +168,32 @@ hittingTimeProbabilitiesAt p targets time =
                 | i <- [0 .. dim - 1]
                 ]
 
-{- | The exact probability @P(H_A = t | X_0 = i)@ from one state. This has
-the same target, boundary, numerical, and complexity behaviour as
-'hittingTimeProbabilitiesAt'; the final state lookup is @O(1)@.
+{- | Exact scalar hitting-time probability @P(H_A = t | X_0 = i)@ through any
+'MarkovKernel'. The target set is represented by a membership predicate, which
+also works when the state space is infinite. Hitting includes time zero, and
+newly hit mass is removed after every step.
 -}
 hittingTimeProbabilityAt ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix n ->
-    [Finite n] ->
-    Finite n ->
+    ( MarkovKernel kernel
+    , Ord (KernelState kernel)
+    ) =>
+    kernel ->
+    (KernelState kernel -> Bool) ->
+    KernelState kernel ->
     Natural ->
     Double
-hittingTimeProbabilityAt p targets i time =
-    S.extract (hittingTimeProbabilitiesAt p targets time) `LA.atIndex` toIndex i
+hittingTimeProbabilityAt kernel isTarget initialState time
+    | time == 0 = if isTarget initialState then 1 else 0
+    | isTarget initialState = 0
+    | otherwise = go time (Map.singleton initialState 1)
+  where
+    go 0 _ = 0
+    go _ survivors | Map.null survivors = 0
+    go remaining survivors =
+        let (next, hitMass) = advanceUntilTarget kernel isTarget survivors
+         in if remaining == 1
+                then hitMass
+                else go (remaining - 1) next
 
 {- | Strictly bounded hitting-time probabilities
 @b_i(c) = P(H_A < c | X_0 = i)@ in state order. The bound @c@ is a number of
@@ -196,20 +234,30 @@ hittingTimeProbabilitiesBefore p targets bound =
                 | i <- [0 .. dim - 1]
                 ]
 
-{- | The strict bounded probability @P(H_A < c | X_0 = i)@ from one state.
-This has the same target, boundary, numerical, and complexity behaviour as
-'hittingTimeProbabilitiesBefore'; the final state lookup is @O(1)@.
+{- | Strict bounded scalar hitting probability @P(H_A < c | X_0 = i)@ through
+any 'MarkovKernel'. At @c = 0@ the result is zero; at a positive bound an
+initial target gives one.
 -}
 hittingTimeProbabilityBefore ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix n ->
-    [Finite n] ->
-    Finite n ->
+    ( MarkovKernel kernel
+    , Ord (KernelState kernel)
+    ) =>
+    kernel ->
+    (KernelState kernel -> Bool) ->
+    KernelState kernel ->
     Natural ->
     Double
-hittingTimeProbabilityBefore p targets i bound =
-    S.extract (hittingTimeProbabilitiesBefore p targets bound) `LA.atIndex` toIndex i
+hittingTimeProbabilityBefore kernel isTarget initialState bound
+    | bound == 0 = 0
+    | isTarget initialState = 1
+    | otherwise = go (bound - 1) (Map.singleton initialState 1) 0
+  where
+    go 0 _ total = total
+    go _ survivors total | Map.null survivors = total
+    go remaining survivors total =
+        let (next, hitMass) = advanceUntilTarget kernel isTarget survivors
+            cumulative = total + hitMass
+         in cumulative `seq` go (remaining - 1) next cumulative
 
 {- | Hitting probabilities
 @h_i = P(H_A < infinity | X_0 = i)@ in state order. Target order and
@@ -496,19 +544,28 @@ returnTimeProbabilitiesAt p time =
     advance (survivors, _) = firstReturnStep matrix survivors
     (_, latest) = iterateNatural time advance initial
 
-{- | The exact first-return probability @P(T_i = t | X_0 = i)@ for one
-state. This has the same boundary, numerical, and complexity behaviour as
-'returnTimeProbabilitiesAt'; the final state lookup is @O(1)@.
+{- | Exact first-return probability @P(T_i^+ = t | X_0 = i)@ through any
+'MarkovKernel'. Time zero is exactly zero; a self-loop returns at time one.
 -}
 returnTimeProbabilityAt ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix n ->
-    Finite n ->
+    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+    kernel ->
+    KernelState kernel ->
     Natural ->
     Double
-returnTimeProbabilityAt p i time =
-    S.extract (returnTimeProbabilitiesAt p time) `LA.atIndex` toIndex i
+returnTimeProbabilityAt _ _ 0 = 0
+returnTimeProbabilityAt kernel initialState time =
+    go time (Map.singleton initialState 1)
+  where
+    isInitial state = state == initialState
+
+    go 0 _ = 0
+    go _ survivors | Map.null survivors = 0
+    go remaining survivors =
+        let (next, returnMass) = advanceUntilTarget kernel isInitial survivors
+         in if remaining == 1
+                then returnMass
+                else go (remaining - 1) next
 
 {- | Strictly bounded first-return probabilities
 @r_i(c) = P(T_i < c | X_0 = i)@ in state order.
@@ -546,20 +603,26 @@ returnTimeProbabilitiesBefore p bound =
          in (remaining, total + mass)
     (_, cumulative) = iterateNatural steps advance initial
 
-{- | The strict bounded first-return probability
-@P(T_i < c | X_0 = i)@ for one state. This has the same boundary, numerical,
-and complexity behaviour as 'returnTimeProbabilitiesBefore'; the final state
-lookup is @O(1)@.
+{- | Strict bounded first-return probability @P(T_i^+ < c | X_0 = i)@ through
+any 'MarkovKernel'. Bounds @0@ and @1@ are exactly zero.
 -}
 returnTimeProbabilityBefore ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix n ->
-    Finite n ->
+    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+    kernel ->
+    KernelState kernel ->
     Natural ->
     Double
-returnTimeProbabilityBefore p i bound =
-    S.extract (returnTimeProbabilitiesBefore p bound) `LA.atIndex` toIndex i
+returnTimeProbabilityBefore kernel initialState bound =
+    go bound (Map.singleton initialState 1) 0
+  where
+    isInitial state = state == initialState
+
+    go remaining _ total | remaining <= 1 = total
+    go _ survivors total | Map.null survivors = total
+    go remaining survivors total =
+        let (next, returnMass) = advanceUntilTarget kernel isInitial survivors
+            cumulative = total + returnMass
+         in cumulative `seq` go (remaining - 1) next cumulative
 
 {- | First-return probabilities
 @f_i = P(T_i < infinity | X_0 = i)@ in state order. Recurrent states are

@@ -4,8 +4,15 @@ module Dtmc.DistributionSpec (
 
 import Dtmc.Distribution (
     DistributionError (..),
+    SparseDistribution,
+    SparseDistributionError,
     mkDistribution,
+    mkSparseDistribution,
+    pointMass,
     probabilityAt,
+    sparseEntries,
+    sparseProbabilityAt,
+    sparseSupport,
     unDistribution,
  )
 import Dtmc.Simplex (
@@ -25,6 +32,7 @@ import Test.Hspec (
     expectationFailure,
     it,
     shouldBe,
+    shouldSatisfy,
  )
 import Test.Hspec.QuickCheck (
     prop,
@@ -108,6 +116,23 @@ spec = do
                             counterexample
                                 ("generated vector was rejected: " <> show err)
                                 False
+
+    describe "SparseDistribution" $ do
+        it "combines duplicates and stores canonical ascending entries" $ do
+            let distribution =
+                    either (error . show) id $
+                        mkSparseDistribution
+                            [('b', 0.2), ('a', 0.5), ('b', 0.3), ('c', 0)]
+            sparseEntries distribution `shouldBe` [('a', 0.5), ('b', 0.5)]
+            sparseSupport distribution `shouldBe` ['a', 'b']
+
+        it "returns zero for an absent state" $
+            sparseProbabilityAt (pointMass "present") "absent"
+                `shouldBe` 0
+
+        it "rejects an empty law" $
+            (mkSparseDistribution [] :: Either SparseDistributionError (SparseDistribution Int))
+                `shouldSatisfy` either (const True) (const False)
 
     describe "probabilityAt" $ do
         let known =

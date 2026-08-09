@@ -2,13 +2,15 @@
 Module      : Dtmc.Simulation
 Description : Sampling states and running the chain forward.
 
-Random sampling from state distributions and transition probabilities. Both
-operations mutate the supplied MWC generator in any 'PrimMonad'. Passing each
-sampled state back to 'step' while reusing the generator produces a trajectory.
+Random sampling from dense or sparse state distributions, plus shared
+simulation through any locally finite 'MarkovKernel'. All operations mutate
+the supplied MWC generator in any 'PrimMonad'.
 -}
 module Dtmc.Simulation (
     sampleFrom,
+    sampleSparseFrom,
     step,
+    simulateN,
 ) where
 
 import Control.Monad.Primitive (
@@ -19,21 +21,28 @@ import Data.Finite (
     Finite,
     finite,
  )
+import Dtmc.Distribution (
+    SparseDistribution,
+    sparseEntries,
+ )
 import Dtmc.Distribution.Internal (
     Distribution,
     unDistribution,
  )
+import Dtmc.Kernel (
+    MarkovKernel (..),
+ )
 import Dtmc.Simplex.Internal (
     snapToSimplex,
- )
-import Dtmc.TransitionMatrix (
-    TransitionMatrix,
-    rowAt,
  )
 import GHC.TypeNats (
     KnownNat,
  )
+import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
+import Numeric.Natural (
+    Natural,
+ )
 import System.Random.MWC qualified as MWC
 import System.Random.MWC.Distributions qualified as MWCD
 
@@ -61,19 +70,51 @@ sampleFrom distribution generator = do
         snapToSimplex
             (S.extract (unDistribution distribution))
 
-{- | Sample one transition from the supplied state using its stored matrix row.
-The 'Finite' state index is always in range. Passing each result back with the
-same generator advances one trajectory.
-
-Rows produced by unchecked or floating-point matrix arithmetic inherit the
-repair and error behavior of 'sampleFrom'. Sampling itself takes @O(n)@ time
-and temporary space.
+{- | Sample one transition from a state through any 'MarkovKernel'. Passing
+each result back with the same generator advances one trajectory. The finite
+transition law inherits the repair and error behavior of 'sampleSparseFrom'.
 -}
 step ::
-    (KnownNat n, PrimMonad m) =>
-    TransitionMatrix n ->
-    Finite n ->
+    (PrimMonad m, MarkovKernel kernel) =>
+    kernel ->
+    KernelState kernel ->
     MWC.Gen (PrimState m) ->
-    m (Finite n)
-step matrix state =
-    sampleFrom (rowAt matrix state)
+    m (KernelState kernel)
+step kernel state =
+    sampleSparseFrom (transitionLaw kernel state)
+
+{- | Draw one state from a validated sparse law. Tolerated negative weights
+are snapped to zero with the same rule as 'sampleFrom'.
+
+Time and temporary space: @O(s)@ for stored support size @s@.
+-}
+sampleSparseFrom ::
+    (PrimMonad m) =>
+    SparseDistribution state ->
+    MWC.Gen (PrimState m) ->
+    m state
+sampleSparseFrom distribution generator = do
+    index <- MWCD.categorical weights generator
+    pure (states !! index)
+  where
+    entries = sparseEntries distribution
+    states = map fst entries
+    weights = snapToSimplex (LA.fromList (map snd entries))
+
+{- | Simulate exactly @k@ transitions through any 'MarkovKernel' and return
+the trajectory including its initial state. The result has length @k + 1@.
+-}
+simulateN ::
+    (PrimMonad m, MarkovKernel kernel) =>
+    Natural ->
+    kernel ->
+    KernelState kernel ->
+    MWC.Gen (PrimState m) ->
+    m [KernelState kernel]
+simulateN transitions kernel initial generator =
+    go transitions initial [initial]
+  where
+    go 0 _ reversed = pure (reverse reversed)
+    go remaining current reversed = do
+        next <- step kernel current generator
+        go (remaining - 1) next (next : reversed)

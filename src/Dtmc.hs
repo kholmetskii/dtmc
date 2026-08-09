@@ -4,7 +4,8 @@ Description : Public facade re-exporting the library's curated API.
 
 Single entry point for users of the library. It gathers the intended public
 surface -- the 'Distribution' and 'TransitionMatrix' types with their
-validating constructors and error types, the analytic forward dynamics
+validating constructors and error types, sparse finite-support laws and
+locally finite kernels, the analytic forward dynamics
 ('evolve' and 'matrixPower'), the scalar probability queries ('probabilityAt',
 'transitionProbability', 'transitionProbabilityN', 'probabilityAtTime', and
 'pathProbability'), the timed event queries ('probability' and
@@ -21,6 +22,14 @@ module Dtmc (
     mkDistribution,
     unDistribution,
     probabilityAt,
+    SparseDistribution,
+    SparseDistributionError (..),
+    ToSparseDistribution (..),
+    mkSparseDistribution,
+    pointMass,
+    sparseEntries,
+    sparseProbabilityAt,
+    sparseSupport,
     TransitionMatrix,
     TransitionMatrixError (..),
     mkTransitionMatrix,
@@ -31,9 +40,13 @@ module Dtmc (
     transitionProbabilityN,
     SimplexError (..),
     sampleFrom,
+    sampleSparseFrom,
     step,
+    simulateN,
     evolve,
     evolveN,
+    evolveSparse,
+    evolveSparseN,
     probabilityAtTime,
     pathProbability,
     probability,
@@ -88,13 +101,26 @@ module Dtmc (
     returnProbability,
     expectedReturnTimes,
     expectedReturnTime,
+    MarkovKernel (..),
+    TransitionKernel,
+    transitionKernel,
+    transitionsFrom,
+    deterministicKernel,
 ) where
 
 import Dtmc.Distribution (
     Distribution,
     DistributionError (..),
+    SparseDistribution,
+    SparseDistributionError (..),
+    ToSparseDistribution (..),
     mkDistribution,
+    mkSparseDistribution,
+    pointMass,
     probabilityAt,
+    sparseEntries,
+    sparseProbabilityAt,
+    sparseSupport,
     unDistribution,
  )
 import Dtmc.Probability (
@@ -113,6 +139,8 @@ import Dtmc.Simplex (
  )
 import Dtmc.Simulation (
     sampleFrom,
+    sampleSparseFrom,
+    simulateN,
     step,
  )
 import Dtmc.TransitionMatrix (
@@ -129,6 +157,16 @@ import Dtmc.TransitionMatrix (
 import Dtmc.Dynamics (
     evolve,
     evolveN,
+    evolveSparse,
+    evolveSparseN,
+ )
+
+import Dtmc.Kernel (
+    MarkovKernel (..),
+    TransitionKernel,
+    deterministicKernel,
+    transitionKernel,
+    transitionsFrom,
  )
 
 import Dtmc.Classification (

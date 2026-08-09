@@ -2,10 +2,10 @@
 Module      : Dtmc.Distribution.Internal
 Description : Raw carrier for probability distributions (unsafe underbelly).
 
-Raw dimension-indexed carrier behind t'Dtmc.Distribution.Distribution'. The
-public smart constructor validates the simplex invariant; internal callers may
-use the constructor only when their operation preserves that invariant up to
-floating-point error.
+Raw carriers behind t'Dtmc.Distribution.Distribution' and
+t'Dtmc.Distribution.SparseDistribution'. Public smart constructors validate
+the simplex invariant; internal callers may use the constructors only when
+their operation preserves that invariant up to floating-point error.
 
 The constructor is positional so the public 'unDistribution' projection
 cannot also act as a record-update setter.
@@ -13,8 +13,13 @@ cannot also act as a record-update setter.
 module Dtmc.Distribution.Internal (
     Distribution (Distribution),
     unDistribution,
+    SparseDistribution (SparseDistribution),
+    unSparseDistribution,
 ) where
 
+import Data.Map.Strict (
+    Map,
+ )
 import GHC.TypeNats (
     KnownNat,
     Nat,
@@ -42,3 +47,18 @@ projection and performs no copy, validation, clamping, or renormalisation.
 -}
 unDistribution :: Distribution n -> S.R n
 unDistribution (Distribution vector) = vector
+
+{- | A finite-support probability distribution over an otherwise unrestricted
+state type. The internal constructor performs no validation.
+-}
+newtype SparseDistribution state
+    = SparseDistribution (Map state Double)
+
+type role SparseDistribution nominal
+
+deriving instance (Eq state) => Eq (SparseDistribution state)
+deriving instance (Show state) => Show (SparseDistribution state)
+
+-- | Return the canonical state-to-weight map without copying or validation.
+unSparseDistribution :: SparseDistribution state -> Map state Double
+unSparseDistribution (SparseDistribution weights) = weights

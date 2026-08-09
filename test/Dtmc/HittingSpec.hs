@@ -317,7 +317,7 @@ spec = do
                 `shouldBe` [0, 0, 0, 0]
             entries (hittingTimeProbabilitiesBefore oscillator [2] 1)
                 `shouldBe` [0, 0, 1, 0]
-            hittingTimeProbabilityBefore (gambler 0.5) [0] 1 2
+            hittingTimeProbabilityBefore (gambler 0.5) (== 0) 1 2
                 `shouldSatisfy` closeTo 0.5
 
         it "ignores duplicate and reordered targets" $
@@ -328,12 +328,12 @@ spec = do
             let exact = entries (hittingTimeProbabilitiesAt cafe [leave] 3)
                 bounded = entries (hittingTimeProbabilitiesBefore cafe [leave] 4)
             sequence_
-                [ hittingTimeProbabilityAt cafe [leave] i 3
+                [ hittingTimeProbabilityAt cafe (== leave) i 3
                     `shouldSatisfy` closeTo exactAt
                 | (i, exactAt) <- zip (finites :: [Finite 7]) exact
                 ]
             sequence_
-                [ hittingTimeProbabilityBefore cafe [leave] i 4
+                [ hittingTimeProbabilityBefore cafe (== leave) i 4
                     `shouldSatisfy` closeTo boundedAt
                 | (i, boundedAt) <- zip (finites :: [Finite 7]) bounded
                 ]
@@ -346,9 +346,9 @@ spec = do
                             property (closeTo mass (after - before))
                         | t <- [0 .. 4]
                         , i <- finites :: [Finite 4]
-                        , let before = hittingTimeProbabilityBefore p [0] i t
-                        , let after = hittingTimeProbabilityBefore p [0] i (t + 1)
-                        , let mass = hittingTimeProbabilityAt p [0] i t
+                        , let before = hittingTimeProbabilityBefore p (== 0) i t
+                        , let after = hittingTimeProbabilityBefore p (== 0) i (t + 1)
+                        , let mass = hittingTimeProbabilityAt p (== 0) i t
                         ]
 
         prop "bounded probabilities increase toward the eventual value (random @4)" $
@@ -363,8 +363,8 @@ spec = do
                                 )
                         | bound <- [0 .. 4]
                         , i <- finites :: [Finite 4]
-                        , let current = hittingTimeProbabilityBefore p [0] i bound
-                        , let next = hittingTimeProbabilityBefore p [0] i (bound + 1)
+                        , let current = hittingTimeProbabilityBefore p (== 0) i bound
+                        , let next = hittingTimeProbabilityBefore p (== 0) i (bound + 1)
                         , let eventual = hittingProbability p [0] i
                         ]
 

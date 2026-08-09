@@ -2,17 +2,28 @@
 Module      : Dtmc.Dynamics
 Description : Deterministic forward evolution of distributions.
 
-Deterministic push-forward of a state distribution through a DTMC. For a row
-transition matrix @P@ and column distribution @mu@,
+Deterministic push-forward of a state distribution through a DTMC. Dense
+finite laws use transition matrices; sparse finite-support laws use any
+locally finite 'MarkovKernel'. In both cases,
 @mu'(j) = sum_i mu(i) P(i,j)@.
 -}
 module Dtmc.Dynamics (
     evolve,
     evolveN,
+    evolveSparse,
+    evolveSparseN,
 ) where
 
 import Dtmc.Distribution.Internal (
     Distribution (Distribution),
+    SparseDistribution (SparseDistribution),
+    unSparseDistribution,
+ )
+import Dtmc.Dynamics.Internal (
+    pushSparseWeights,
+ )
+import Dtmc.Kernel (
+    MarkovKernel (..),
  )
 import Dtmc.TransitionMatrix (
     matrixPower,
@@ -57,3 +68,34 @@ evolveN ::
     Distribution n
 evolveN k mu p =
     evolve mu (matrixPower k p)
+
+{- | Push a sparse distribution through one locally finite kernel step. The
+result is sparse and is not revalidated, clamped, or renormalised.
+
+Time is @O(e log r)@ for @e@ traversed support edges and @r@ result states.
+-}
+evolveSparse ::
+    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+    SparseDistribution (KernelState kernel) ->
+    kernel ->
+    SparseDistribution (KernelState kernel)
+evolveSparse distribution kernel =
+    SparseDistribution
+        (pushSparseWeights (unSparseDistribution distribution) kernel)
+
+{- | Apply 'evolveSparse' exactly @k@ times. At @k = 0@ the original sparse
+distribution is returned unchanged. No state-space enumeration or truncation
+is performed.
+-}
+evolveSparseN ::
+    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+    Natural ->
+    SparseDistribution (KernelState kernel) ->
+    kernel ->
+    SparseDistribution (KernelState kernel)
+evolveSparseN steps initial kernel = go steps initial
+  where
+    go 0 distribution = distribution
+    go remaining distribution =
+        let next = evolveSparse distribution kernel
+         in next `seq` go (remaining - 1) next

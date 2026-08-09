@@ -9,6 +9,7 @@ clamp or renormalise coordinates.
 -}
 module Dtmc.Simplex.Internal (
     validateSimplex,
+    validateSimplexEntries,
     snapToSimplex,
 ) where
 
@@ -37,15 +38,26 @@ coordinate bound.
 Time: @O(n)@. Space: @O(n)@ for dynamic-vector conversion.
 -}
 validateSimplex :: (KnownNat n) => S.R n -> Either SimplexError ()
-validateSimplex vector =
+validateSimplex =
+    validateSimplexEntries . LA.toList . S.extract
+
+{- | Validate a finite list with the same tolerance and error ordering as
+'validateSimplex'. Entry indices refer to the supplied list order. The input
+is preserved by callers; this function performs no clamping or
+renormalisation.
+
+An empty list yields @Left (SumOffBy 0)@. Time: @O(n)@; space: @O(1)@ beyond
+the supplied list.
+-}
+validateSimplexEntries :: [Double] -> Either SimplexError ()
+validateSimplexEntries entries =
     case firstInvalidEntry 0 entries of
         Just err -> Left err
         Nothing
             | abs (total - 1.0) <= tolerance -> Right ()
             | otherwise -> Left (SumOffBy total)
   where
-    entries = LA.toList (S.extract vector)
-    total = sum entries
+    total = foldl' (+) 0 entries
 
 -- Scan separately so a coordinate error reports its index before the total.
 firstInvalidEntry :: Int -> [Double] -> Maybe SimplexError
