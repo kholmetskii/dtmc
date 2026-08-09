@@ -1,24 +1,26 @@
+{-# LANGUAGE ExplicitNamespaces #-}
+
 {- |
 Module      : Dtmc.Classification.Internal
 Description : Raw carrier types for chain classification (unsafe underbelly).
 
 Raw carrier types behind "Dtmc.Classification": the per-class summary
-'CommClass', the whole-chain structural report 'Classification', and the
-'Irreducible' certificate. This module exposes their constructors so trusted
+'type CommClass', the whole-chain structural report 'type Classification', and
+the 'type Irreducible' certificate. This module exposes their constructors so trusted
 internal code can build and pattern-match on them directly.
 
-The public "Dtmc.Classification" module re-exports 'Classification' and
-'Irreducible' /abstractly/ (constructors hidden) and provides the only
-validating way to build an 'Irreducible' witness,
+The public "Dtmc.Classification" module re-exports 'type Classification' and
+'type Irreducible' /abstractly/ (constructors hidden) and provides the only
+validating way to build an 'type Irreducible' witness,
 'Dtmc.Classification.witnessIrreducible'. Constructing these values here
-bypasses those guarantees, so an 'Irreducible' built directly is not certified
-to wrap an irreducible matrix, and a 'Classification' built directly may hold
-summary fields inconsistent with its communicating classes.
+bypasses those guarantees, so an 'type Irreducible' built directly is not
+certified to wrap an irreducible matrix, and a 'type Classification' built
+directly may hold summary fields inconsistent with its communicating classes.
 -}
 module Dtmc.Classification.Internal (
-    CommClass (..),
-    Classification (..),
-    Irreducible (Irreducible),
+    type CommClass (..),
+    type Classification (..),
+    type Irreducible (Irreducible),
     unIrreducible,
 ) where
 

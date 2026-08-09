@@ -1,3 +1,5 @@
+{-# LANGUAGE ExplicitNamespaces #-}
+
 {- |
 Module      : Dtmc
 Description : Public facade re-exporting the library's curated API.
@@ -67,8 +69,8 @@ module Dtmc (
     transientState,
     recurrentStates,
     transientStates,
-    CommClass (..),
-    Classification,
+    type CommClass (..),
+    type Classification,
     classesOf,
     isIrreducible,
     isAperiodic,
@@ -78,7 +80,7 @@ module Dtmc (
     transientStatesOf,
     absorbingStates,
     classify,
-    Irreducible,
+    type Irreducible,
     witnessIrreducible,
     unIrreducible,
     MeanTime (..),
@@ -169,9 +171,6 @@ import Dtmc.Transition.Kernel (
  )
 
 import Dtmc.Classification (
-    Classification,
-    CommClass (..),
-    Irreducible,
     absorbingStates,
     accessible,
     aperiodic,
@@ -195,6 +194,9 @@ import Dtmc.Classification (
     transientStatesOf,
     unIrreducible,
     witnessIrreducible,
+    type Classification,
+    type CommClass (..),
+    type Irreducible,
  )
 
 import Dtmc.Hitting (

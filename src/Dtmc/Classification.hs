@@ -1,3 +1,5 @@
+{-# LANGUAGE ExplicitNamespaces #-}
+
 {- |
 Module      : Dtmc.Classification
 Description : Communicating classes, irreducibility, periodicity, and recurrence.
@@ -37,8 +39,8 @@ module Dtmc.Classification (
     transientStates,
 
     -- * Classification summary
-    CommClass (..),
-    Classification,
+    type CommClass (..),
+    type Classification,
     classesOf,
     isIrreducible,
     isAperiodic,
@@ -50,7 +52,7 @@ module Dtmc.Classification (
     classify,
 
     -- * Irreducibility witness
-    Irreducible,
+    type Irreducible,
     witnessIrreducible,
     unIrreducible,
 ) where
@@ -62,10 +64,10 @@ import Data.Finite (
     getFinite,
  )
 import Dtmc.Classification.Internal (
-    Classification (..),
-    CommClass (..),
-    Irreducible (Irreducible),
     unIrreducible,
+    type Classification (..),
+    type CommClass (..),
+    type Irreducible (Irreducible),
  )
 import Dtmc.Internal.Graph qualified as G
 import Dtmc.Transition.Matrix.Internal (TransitionMatrix, tmSupport)
