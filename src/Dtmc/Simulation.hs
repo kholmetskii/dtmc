@@ -19,11 +19,11 @@ import Control.Monad.Primitive (
 import Dtmc.Distribution (
     Distribution (..),
  )
-import Dtmc.Kernel (
-    Transition (..),
- )
 import Dtmc.Simplex.Internal (
     snapToSimplex,
+ )
+import Dtmc.Transition (
+    Transition (..),
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.Natural (

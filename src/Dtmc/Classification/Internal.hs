@@ -25,7 +25,7 @@ module Dtmc.Classification.Internal (
 import Data.Finite (
     Finite,
  )
-import Dtmc.TransitionMatrix.Internal (
+import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
  )
 import GHC.TypeNats (

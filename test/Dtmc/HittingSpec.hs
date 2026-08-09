@@ -39,7 +39,7 @@ import Dtmc.TestSupport (
     genTransitionMatrix,
     testTolerance,
  )
-import Dtmc.TransitionMatrix (
+import Dtmc.Transition.Matrix (
     TransitionMatrix,
     identityMatrix,
     mkTransitionMatrix,
@@ -163,13 +163,55 @@ cafe =
     fromRows $
         mkTransitionMatrix
             ( S.matrix
-                [ 0, 1 / 5, 0, 1 / 5, 1 / 5, 1 / 5, 1 / 5 -- T
-                , 1 / 5, 0, 2 / 5, 0, 2 / 5, 0, 0 -- M
-                , 0, 0, 0, 1 / 2, 0, 0, 1 / 2 -- D
-                , 1 / 2, 0, 0, 0, 0, 1 / 2, 0 -- F
-                , 0, 0, 0, 0, 0, 0, 1 -- W
-                , 0, 0, 0, 0, 0, 0, 1 -- C
-                , 0, 0, 0, 0, 0, 0, 1 -- L
+                [ 0
+                , 1 / 5
+                , 0
+                , 1 / 5
+                , 1 / 5
+                , 1 / 5
+                , 1 / 5 -- T
+                , 1 / 5
+                , 0
+                , 2 / 5
+                , 0
+                , 2 / 5
+                , 0
+                , 0 -- M
+                , 0
+                , 0
+                , 0
+                , 1 / 2
+                , 0
+                , 0
+                , 1 / 2 -- D
+                , 1 / 2
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1 / 2
+                , 0 -- F
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1 -- W
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1 -- C
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1 -- L
                 ]
             )
 
@@ -187,9 +229,15 @@ pathChain =
     fromRows $
         mkTransitionMatrix
             ( S.matrix
-                [ 0, 1, 0
-                , 0, 0, 1
-                , 0, 0, 1
+                [ 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 1
                 ]
             )
 

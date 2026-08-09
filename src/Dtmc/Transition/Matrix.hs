@@ -1,13 +1,13 @@
 {- |
-Module      : Dtmc.TransitionMatrix
+Module      : Dtmc.Transition.Matrix
 Description : Row-stochastic transition matrices and their monoid.
 
 One-step transition probabilities for a DTMC on @n@ states.
 'mkTransitionMatrix' validates each row with the simplex tolerance;
-'mulTransitionMatrix', 'identityMatrix', and 'matrixPower' provide
-multi-step transitions.
+'mulTransitionMatrix', 'identityMatrix', and 'matrixPower' provide multi-step
+transitions.
 -}
-module Dtmc.TransitionMatrix (
+module Dtmc.Transition.Matrix (
     TransitionMatrix,
     TransitionMatrixError (..),
     mkTransitionMatrix,
@@ -23,7 +23,6 @@ import Data.Bifunctor (
  )
 import Data.Finite (
     Finite,
-    getFinite,
  )
 import Data.Foldable (
     traverse_,
@@ -32,7 +31,7 @@ import Data.Semigroup (
     mtimesDefault,
  )
 import Dtmc.Distribution.Vector.Internal (
-    DistributionVector (DistributionVector),
+    DistributionVector,
  )
 import Dtmc.Simplex (
     SimplexError,
@@ -40,8 +39,9 @@ import Dtmc.Simplex (
 import Dtmc.Simplex.Internal (
     validateSimplex,
  )
-import Dtmc.TransitionMatrix.Internal (
+import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
+    matrixRowAt,
     unTransitionMatrix,
     unsafeTransitionMatrix,
  )
@@ -67,7 +67,10 @@ the support graph remains lazy. The empty @0 x 0@ matrix is accepted.
 
 Time: @O(n^2)@. Additional validation space: @O(n)@.
 -}
-mkTransitionMatrix :: (KnownNat n) => S.Sq n -> Either TransitionMatrixError (TransitionMatrix n)
+mkTransitionMatrix ::
+    (KnownNat n) =>
+    S.Sq n ->
+    Either TransitionMatrixError (TransitionMatrix n)
 mkTransitionMatrix matrix =
     unsafeTransitionMatrix matrix <$ traverse_ validateRow (zip [0 ..] (S.toRows matrix))
   where
@@ -83,7 +86,11 @@ accumulate, so the result may fail 'mkTransitionMatrix' if checked again.
 
 Time: @O(n^3)@. Result space: @O(n^2)@; its support graph is built lazily.
 -}
-mulTransitionMatrix :: (KnownNat n) => TransitionMatrix n -> TransitionMatrix n -> TransitionMatrix n
+mulTransitionMatrix ::
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    TransitionMatrix n ->
+    TransitionMatrix n
 mulTransitionMatrix = (<>)
 
 {- | The @n x n@ identity: the zero-step transition that leaves every state
@@ -111,5 +118,4 @@ index makes the lookup total. The row is wrapped without revalidation, so any
 floating-point drift from matrix arithmetic is preserved.
 -}
 rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> DistributionVector n
-rowAt p index =
-    DistributionVector (S.toRows (unTransitionMatrix p) !! fromIntegral (getFinite index))
+rowAt = matrixRowAt

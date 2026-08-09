@@ -41,18 +41,19 @@ library
       Dtmc.Distribution
       Dtmc.Distribution.Vector
       Dtmc.Distribution.Map
-      Dtmc.TransitionMatrix
+      Dtmc.Transition
+      Dtmc.Transition.Matrix
+      Dtmc.Transition.Kernel
       Dtmc.Simulation
       Dtmc.Dynamics
       Dtmc.Probability
       Dtmc.Classification
       Dtmc.Hitting
-      Dtmc.Kernel
 
   other-modules:
       Dtmc.Distribution.Vector.Internal
       Dtmc.Distribution.Map.Internal
-      Dtmc.TransitionMatrix.Internal
+      Dtmc.Transition.Matrix.Internal
       Dtmc.Simplex.Internal
       Dtmc.Probability.Internal
       Dtmc.Classification.Internal

@@ -32,7 +32,7 @@ import Dtmc.TestSupport (
     genTransitionMatrix,
     testTolerance,
  )
-import Dtmc.TransitionMatrix (
+import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
  )

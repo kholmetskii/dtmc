@@ -78,13 +78,13 @@ import Dtmc.Internal.LinearSystem (
     solveIminusQVector,
     subMatrix,
  )
-import Dtmc.Kernel (
+import Dtmc.Transition (
     Transition (..),
  )
-import Dtmc.TransitionMatrix (
+import Dtmc.Transition.Matrix (
     rowAt,
  )
-import Dtmc.TransitionMatrix.Internal (
+import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
     unTransitionMatrix,
  )

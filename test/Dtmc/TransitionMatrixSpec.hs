@@ -28,7 +28,7 @@ import Dtmc.TestSupport (
     setFirstEntry,
     testTolerance,
  )
-import Dtmc.TransitionMatrix (
+import Dtmc.Transition.Matrix (
     TransitionMatrix,
     TransitionMatrixError (..),
     identityMatrix,

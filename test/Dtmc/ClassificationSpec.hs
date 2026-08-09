@@ -42,7 +42,7 @@ import Dtmc.Classification (
 import Dtmc.TestSupport (
     genTransitionMatrix,
  )
-import Dtmc.TransitionMatrix (
+import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
     unTransitionMatrix,

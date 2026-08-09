@@ -62,13 +62,13 @@ import Data.Finite (
     getFinite,
  )
 import Dtmc.Classification.Internal (
-    CommClass (..),
     Classification (..),
+    CommClass (..),
     Irreducible (Irreducible),
     unIrreducible,
  )
 import Dtmc.Internal.Graph qualified as G
-import Dtmc.TransitionMatrix.Internal (TransitionMatrix, tmSupport)
+import Dtmc.Transition.Matrix.Internal (TransitionMatrix, tmSupport)
 import GHC.TypeNats (KnownNat)
 import Numeric.Natural (Natural)
 

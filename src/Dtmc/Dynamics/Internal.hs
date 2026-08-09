@@ -13,7 +13,7 @@ import Data.Map.Strict qualified as Map
 import Dtmc.Distribution.Map.Internal (
     unDistributionMap,
  )
-import Dtmc.Kernel (
+import Dtmc.Transition (
     Transition (..),
  )
 

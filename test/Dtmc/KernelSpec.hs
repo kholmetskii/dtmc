@@ -23,7 +23,6 @@ import Dtmc.Distribution.Vector (
  )
 import Dtmc.Dynamics qualified as Dynamics
 import Dtmc.Hitting qualified as Hitting
-import Dtmc.Kernel qualified as Kernel
 import Dtmc.Probability qualified as Probability
 import Dtmc.Simulation qualified as Simulation
 import Dtmc.TestSupport (
@@ -31,7 +30,9 @@ import Dtmc.TestSupport (
     genTransitionMatrix,
     testTolerance,
  )
-import Dtmc.TransitionMatrix (
+import Dtmc.Transition qualified as Transition
+import Dtmc.Transition.Kernel qualified as Kernel
+import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
  )
@@ -148,7 +149,7 @@ spec :: Spec
 spec = do
     describe "shared Transition interface" $ do
         it "exposes a finite matrix row as a validated finite-support law" $
-            Distribution.distributionWeights (Kernel.transitionLaw finiteChain 1)
+            Distribution.distributionWeights (Transition.transitionLaw finiteChain 1)
                 `shouldBe` [(1, 0.2), (2, 0.8)]
 
         it "converts a dense finite initial law without changing its weights" $

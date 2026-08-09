@@ -36,12 +36,12 @@ import Dtmc.Distribution.Map (
 import Dtmc.Dynamics (
     evolveN,
  )
-import Dtmc.Kernel (
-    Transition (..),
- )
 import Dtmc.Probability.Internal (
     NormalisedObservations (..),
     normalise,
+ )
+import Dtmc.Transition (
+    Transition (..),
  )
 import Numeric.Natural (
     Natural,

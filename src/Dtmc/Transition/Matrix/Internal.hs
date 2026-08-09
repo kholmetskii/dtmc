@@ -1,24 +1,38 @@
 {- |
-Module      : Dtmc.TransitionMatrix.Internal
+Module      : Dtmc.Transition.Matrix.Internal
 Description : Raw carrier for transition matrices (unsafe underbelly).
 
-Raw carrier behind t'Dtmc.TransitionMatrix.TransitionMatrix': a statically
+Raw carrier behind t'Dtmc.Transition.Matrix.TransitionMatrix': a statically
 sized matrix paired with its lazy support graph. The public smart constructor
 validates rows; this internal module exposes unchecked construction.
 
 The constructor is positional so the public matrix projection cannot act as a
 record-update setter and desynchronise the matrix from its cached graph.
 -}
-module Dtmc.TransitionMatrix.Internal (
+module Dtmc.Transition.Matrix.Internal (
     TransitionMatrix (TransitionMatrix),
     unTransitionMatrix,
     tmSupport,
     unsafeTransitionMatrix,
+    matrixRowAt,
 ) where
 
+import Data.Finite (
+    Finite,
+    getFinite,
+ )
+import Dtmc.Distribution.Map (
+    toDistributionMap,
+ )
+import Dtmc.Distribution.Vector.Internal (
+    DistributionVector (DistributionVector),
+ )
 import Dtmc.Internal.Graph (
     Graph,
     fromAdjacency,
+ )
+import Dtmc.Transition (
+    Transition (..),
  )
 import GHC.TypeNats (
     KnownNat,
@@ -61,8 +75,8 @@ The projection is @O(1)@. The first analysis that builds adjacency scans all
 tmSupport :: TransitionMatrix n -> Graph
 tmSupport (TransitionMatrix _ support) = support
 
--- Manual 'Show' (not derived): 'Graph' has no 'Show', and the support graph is a
--- derived cache that should not appear in the rendering.
+-- Manual 'Show': 'Graph' has no 'Show', and the derived cache should not
+-- appear in the rendering.
 instance (KnownNat n) => Show (TransitionMatrix n) where
     showsPrec d p =
         showParen (d > 10) $
@@ -78,6 +92,26 @@ Construction is @O(1)@ before the graph is forced.
 unsafeTransitionMatrix :: (KnownNat n) => S.Sq n -> TransitionMatrix n
 unsafeTransitionMatrix matrix =
     TransitionMatrix matrix (supportGraphOf matrix)
+
+{- | Wrap one stored matrix row as a distribution vector without revalidation.
+The 'Finite' index makes the lookup total.
+-}
+matrixRowAt ::
+    (KnownNat n) =>
+    TransitionMatrix n ->
+    Finite n ->
+    DistributionVector n
+matrixRowAt matrix index =
+    DistributionVector
+        ( S.toRows (unTransitionMatrix matrix)
+            !! fromIntegral (getFinite index)
+        )
+
+instance (KnownNat n) => Transition (TransitionMatrix n) where
+    type TransitionState (TransitionMatrix n) = Finite n
+
+    transitionLaw matrix =
+        toDistributionMap . matrixRowAt matrix
 
 -- Use strict positivity without tolerance so graph queries reflect the stored
 -- matrix exactly; keep construction here so the cache cannot become stale.

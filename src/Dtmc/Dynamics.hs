@@ -30,13 +30,13 @@ import Dtmc.Distribution.Vector.Internal (
 import Dtmc.Dynamics.Internal (
     pushSparseWeights,
  )
-import Dtmc.Kernel (
+import Dtmc.Transition (
     Transition (..),
  )
-import Dtmc.TransitionMatrix (
+import Dtmc.Transition.Matrix (
     matrixPower,
  )
-import Dtmc.TransitionMatrix.Internal (
+import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
     unTransitionMatrix,
  )

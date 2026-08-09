@@ -14,7 +14,7 @@ import Data.Finite (
 import Dtmc.Distribution.Map (pointMass)
 import Dtmc.Distribution.Vector (mkDistributionVector)
 import Dtmc.Simulation (sample, step)
-import Dtmc.TransitionMatrix (
+import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
  )

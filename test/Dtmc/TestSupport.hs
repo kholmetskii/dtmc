@@ -24,7 +24,7 @@ import Dtmc.Distribution.Vector (
     mkDistributionVector,
     unDistributionVector,
  )
-import Dtmc.TransitionMatrix (
+import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
     unTransitionMatrix,

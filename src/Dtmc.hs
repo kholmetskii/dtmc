@@ -138,7 +138,7 @@ import Dtmc.Simulation (
     simulateN,
     step,
  )
-import Dtmc.TransitionMatrix (
+import Dtmc.Transition.Matrix (
     TransitionMatrix,
     TransitionMatrixError (..),
     identityMatrix,
@@ -156,8 +156,10 @@ import Dtmc.Dynamics (
     evolveVectorN,
  )
 
-import Dtmc.Kernel (
+import Dtmc.Transition (
     Transition (..),
+ )
+import Dtmc.Transition.Kernel (
     TransitionKernel,
     deterministicKernel,
     transitionKernel,

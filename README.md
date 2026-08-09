@@ -28,7 +28,7 @@ algorithms.
 - A shared `Transition` interface for applying the same sparse finite-horizon
   functions to finite matrices and locally finite infinite kernels
 
-## Shared kernel interface
+## Shared transition interface
 
 `Transition` captures exactly the operation shared by finite and infinite
 chains: obtaining the validated finite-support law for one transition from a
@@ -82,7 +82,7 @@ For example, a simple random walk on all integers is locally finite:
 ```haskell
 import qualified Dtmc.Distribution.Map as DistributionMap
 import qualified Dtmc.Hitting as Hitting
-import qualified Dtmc.Kernel as Kernel
+import qualified Dtmc.Transition.Kernel as Kernel
 
 randomWalk :: Kernel.TransitionKernel Integer
 randomWalk = Kernel.transitionKernel $ \i ->
