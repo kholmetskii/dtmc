@@ -34,14 +34,13 @@ module Dtmc (
     transitionProbability,
     transitionProbabilityN,
     SimplexError (..),
-    sampleFrom,
-    sampleSparseFrom,
+    sample,
     step,
     simulateN,
     evolve,
     evolveN,
-    evolveSparse,
-    evolveSparseN,
+    evolveVector,
+    evolveVectorN,
     probabilityAtTime,
     pathProbability,
     probability,
@@ -96,10 +95,9 @@ module Dtmc (
     returnProbability,
     expectedReturnTimes,
     expectedReturnTime,
-    MarkovKernel (..),
+    Transition (..),
     TransitionKernel,
     transitionKernel,
-    transitionsFrom,
     deterministicKernel,
 ) where
 
@@ -128,8 +126,7 @@ import Dtmc.Simplex (
     SimplexError (..),
  )
 import Dtmc.Simulation (
-    sampleFrom,
-    sampleSparseFrom,
+    sample,
     simulateN,
     step,
  )
@@ -147,16 +144,15 @@ import Dtmc.TransitionMatrix (
 import Dtmc.Dynamics (
     evolve,
     evolveN,
-    evolveSparse,
-    evolveSparseN,
+    evolveVector,
+    evolveVectorN,
  )
 
 import Dtmc.Kernel (
-    MarkovKernel (..),
+    Transition (..),
     TransitionKernel,
     deterministicKernel,
     transitionKernel,
-    transitionsFrom,
  )
 
 import Dtmc.Classification (

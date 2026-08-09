@@ -18,8 +18,8 @@ import Dtmc.Distribution (
     unDistributionVector,
  )
 import Dtmc.Dynamics (
-    evolve,
-    evolveN,
+    evolveVector,
+    evolveVectorN,
  )
 import Dtmc.Probability (
     probabilityAtTime,
@@ -76,11 +76,31 @@ assignment1 =
     either (error . show) id $
         mkTransitionMatrix
             ( S.matrix
-                [ 0, 0, 0, 1, 0
-                , 1 / 3, 0, 0, 0, 2 / 3
-                , 0, 0, 0, 0, 1
-                , 0, 0, 1 / 3, 2 / 3, 0
-                , 1 / 4, 1 / 4, 0, 0, 1 / 2
+                [ 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 1 / 3
+                , 0
+                , 0
+                , 0
+                , 2 / 3
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 1 / 3
+                , 2 / 3
+                , 0
+                , 1 / 4
+                , 1 / 4
+                , 0
+                , 0
+                , 1 / 2
                 ] ::
                 S.Sq 5
             )
@@ -93,13 +113,13 @@ assignment1Initial =
 
 spec :: Spec
 spec = do
-    describe "evolve" $ do
+    describe "evolveVector" $ do
         prop "keeps the distribution on the simplex" $
             forAll ((,) <$> genDistribution @3 <*> genTransitionMatrix @3) $
                 \(vector, matrix) ->
                     case (mkDistributionVector vector, mkTransitionMatrix matrix) of
                         (Right mu, Right p) ->
-                            case mkDistributionVector (unDistributionVector (evolve mu p)) of
+                            case mkDistributionVector (unDistributionVector (evolveVector mu p)) of
                                 Right _ ->
                                     property True
                                 Left err ->
@@ -117,10 +137,10 @@ spec = do
                         mkDistributionVector
                             (S.vector [1, 0] :: S.R 2)
 
-            LA.toList (S.extract (unDistributionVector (evolve mu twoState)))
+            LA.toList (S.extract (unDistributionVector (evolveVector mu twoState)))
                 `shouldBe` [0.9, 0.1]
 
-    describe "evolveN" $ do
+    describe "evolveVectorN" $ do
         it "leaves a distribution unchanged after zero steps" $ do
             let mu =
                     either (error . show) id $
@@ -129,11 +149,11 @@ spec = do
 
             approxDistributionEq
                 1e-12
-                (evolveN 0 mu twoState)
+                (evolveVectorN 0 mu twoState)
                 mu
                 `shouldBe` True
 
-        prop "agrees with iterating evolve"
+        prop "agrees with iterating evolveVector"
             $ forAll
                 ( (,,)
                     <$> choose (0, 6 :: Int)
@@ -144,11 +164,11 @@ spec = do
                 case (mkDistributionVector vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
                         let iterated =
-                                iterate (`evolve` p) mu !! k
+                                iterate (`evolveVector` p) mu !! k
                          in property $
                                 approxDistributionEq
                                     1e-9
-                                    (evolveN (fromIntegral k) mu p)
+                                    (evolveVectorN (fromIntegral k) mu p)
                                     iterated
                     result ->
                         counterexample
@@ -169,10 +189,10 @@ spec = do
                         property $
                             approxDistributionEq
                                 1e-9
-                                (evolveN (fromIntegral (m + n)) mu p)
-                                ( evolveN
+                                (evolveVectorN (fromIntegral (m + n)) mu p)
+                                ( evolveVectorN
                                     (fromIntegral n)
-                                    (evolveN (fromIntegral m) mu p)
+                                    (evolveVectorN (fromIntegral m) mu p)
                                     p
                                 )
                     result ->
@@ -195,7 +215,7 @@ spec = do
                 | j <- finites
                 ]
 
-        prop "agrees with probabilityAt of evolveN"
+        prop "agrees with probabilityAt of evolveVectorN"
             $ forAll
                 ( (,,)
                     <$> choose (0, 6 :: Int)
@@ -210,7 +230,7 @@ spec = do
                                 approxEq
                                     testTolerance
                                     (probabilityAtTime (fromIntegral k) mu p j)
-                                    (probabilityAt (evolveN (fromIntegral k) mu p) j)
+                                    (probabilityAt (evolveVectorN (fromIntegral k) mu p) j)
                             | j <- finites
                             ]
                     result ->
@@ -218,7 +238,7 @@ spec = do
                             ("generated input was rejected: " <> show result)
                             False
 
-        prop "agrees with repeated evolve for small exponents"
+        prop "agrees with repeated evolveVector for small exponents"
             $ forAll
                 ( (,,)
                     <$> choose (0, 6 :: Int)
@@ -228,7 +248,7 @@ spec = do
             $ \(k, vector, matrix) ->
                 case (mkDistributionVector vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
-                        let iterated = iterate (`evolve` p) mu !! k
+                        let iterated = iterate (`evolveVector` p) mu !! k
                          in conjoin
                                 [ property $
                                     approxEq

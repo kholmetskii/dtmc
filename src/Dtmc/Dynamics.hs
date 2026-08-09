@@ -4,16 +4,19 @@ Description : Deterministic forward evolution of distributions.
 
 Deterministic push-forward of a state distribution through a DTMC. Dense
 finite laws use transition matrices; sparse finite-support laws use any
-locally finite 'MarkovKernel'. In both cases,
+locally finite 'Transition'. In both cases,
 @mu'(j) = sum_i mu(i) P(i,j)@.
 -}
 module Dtmc.Dynamics (
     evolve,
     evolveN,
-    evolveSparse,
-    evolveSparseN,
+    evolveVector,
+    evolveVectorN,
 ) where
 
+import Dtmc.Distribution (
+    Distribution (..),
+ )
 import Dtmc.Distribution.Internal (
     DistributionVector (DistributionVector),
     SparseDistribution (SparseDistribution),
@@ -23,7 +26,7 @@ import Dtmc.Dynamics.Internal (
     pushSparseWeights,
  )
 import Dtmc.Kernel (
-    MarkovKernel (..),
+    Transition (..),
  )
 import Dtmc.TransitionMatrix (
     matrixPower,
@@ -47,59 +50,72 @@ validation fail.
 
 Time: @O(n^2)@. Result space: @O(n)@.
 -}
-evolve ::
+evolveVector ::
     (KnownNat n) =>
     DistributionVector n ->
     TransitionMatrix n ->
     DistributionVector n
-evolve (DistributionVector v) p =
+evolveVector (DistributionVector v) p =
     DistributionVector (S.tr (unTransitionMatrix p) S.#> v)
 
 {- | The distribution after @k@ transitions, computed as
-@evolve mu (matrixPower k p)@. Exponent zero is the original distribution
+@evolveVector mu (matrixPower k p)@. Exponent zero is the original distribution
 mathematically.
 
-This powers the matrix rather than iterating 'evolve', so the two calculations
+This powers the matrix rather than iterating 'evolveVector', so the two calculations
 may differ by floating-point rounding. The result is not revalidated.
 
 Time: @O(n^2 + n^3 log(k + 1))@.
 -}
-evolveN ::
+evolveVectorN ::
     (KnownNat n) =>
     Natural ->
     DistributionVector n ->
     TransitionMatrix n ->
     DistributionVector n
-evolveN k mu p =
-    evolve mu (matrixPower k p)
+evolveVectorN k mu p =
+    evolveVector mu (matrixPower k p)
 
-{- | Push a sparse distribution through one locally finite kernel step. The
-result is sparse and is not revalidated, clamped, or renormalised.
+{- | Push any finite-support 'Distribution' through one locally finite kernel
+step. The result uses t'SparseDistribution' because a general kernel does not
+provide a finite global state enumeration. It is not revalidated, clamped, or
+renormalised.
 
 Time is @O(e log r)@ for @e@ traversed support edges and @r@ result states.
 -}
-evolveSparse ::
-    (MarkovKernel kernel, Ord (KernelState kernel)) =>
-    SparseDistribution (KernelState kernel) ->
+evolve ::
+    ( Distribution distribution
+    , Transition kernel
+    , DistributionState distribution ~ TransitionState kernel
+    , Ord (TransitionState kernel)
+    ) =>
+    distribution ->
     kernel ->
-    SparseDistribution (KernelState kernel)
-evolveSparse distribution kernel =
+    SparseDistribution (TransitionState kernel)
+evolve distribution kernel =
     SparseDistribution
-        (pushSparseWeights (unSparseDistribution distribution) kernel)
+        ( pushSparseWeights
+            (unSparseDistribution (toSparseDistribution distribution))
+            kernel
+        )
 
-{- | Apply 'evolveSparse' exactly @k@ times. At @k = 0@ the original sparse
-distribution is returned unchanged. No state-space enumeration or truncation
-is performed.
+{- | Apply 'evolve' exactly @k@ times. At @k = 0@ the initial law is converted
+to t'SparseDistribution' without revalidation; an already sparse law passes
+through unchanged. No state-space enumeration or truncation is performed.
 -}
-evolveSparseN ::
-    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+evolveN ::
+    ( Distribution distribution
+    , Transition kernel
+    , DistributionState distribution ~ TransitionState kernel
+    , Ord (TransitionState kernel)
+    ) =>
     Natural ->
-    SparseDistribution (KernelState kernel) ->
+    distribution ->
     kernel ->
-    SparseDistribution (KernelState kernel)
-evolveSparseN steps initial kernel = go steps initial
+    SparseDistribution (TransitionState kernel)
+evolveN steps initial kernel = go steps (toSparseDistribution initial)
   where
     go 0 distribution = distribution
     go remaining distribution =
-        let next = evolveSparse distribution kernel
+        let next = evolve distribution kernel
          in next `seq` go (remaining - 1) next

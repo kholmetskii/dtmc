@@ -14,7 +14,7 @@ import Dtmc.Distribution.Internal (
     unSparseDistribution,
  )
 import Dtmc.Kernel (
-    MarkovKernel (..),
+    Transition (..),
  )
 
 {- | Push a finite, possibly sub-probability weight map through one locally
@@ -22,10 +22,10 @@ finite kernel step. Exact zero results are removed. No validation, clamping,
 or renormalisation is performed.
 -}
 pushSparseWeights ::
-    (MarkovKernel kernel, Ord (KernelState kernel)) =>
-    Map (KernelState kernel) Double ->
+    (Transition kernel, Ord (TransitionState kernel)) =>
+    Map (TransitionState kernel) Double ->
     kernel ->
-    Map (KernelState kernel) Double
+    Map (TransitionState kernel) Double
 pushSparseWeights weights kernel =
     Map.filter (/= 0) (Map.foldlWithKey' pushState Map.empty weights)
   where

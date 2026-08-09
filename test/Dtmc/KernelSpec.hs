@@ -145,7 +145,7 @@ rightCloseTo _ _ = False
 
 spec :: Spec
 spec = do
-    describe "shared MarkovKernel interface" $ do
+    describe "shared Transition interface" $ do
         it "exposes a finite matrix row as a validated finite-support law" $
             Distribution.distributionWeights (Kernel.transitionLaw finiteChain 1)
                 `shouldBe` [(1, 0.2), (2, 0.8)]
@@ -201,17 +201,17 @@ spec = do
     describe "locally finite dynamics" $ do
         it "evolves an infinite-state random walk without enumerating its state space" $
             Distribution.distributionWeights
-                (Dynamics.evolveSparseN 2 (Distribution.pointMass 0) simpleRandomWalk)
+                (Dynamics.evolveN 2 (Distribution.pointMass 0) simpleRandomWalk)
                 `shouldBe` [(-2, 0.25), (0, 0.5), (2, 0.25)]
 
         it "agrees with finite matrix dynamics at several horizons" $
             sequence_
                 [ Distribution.probabilityAt
-                    (Dynamics.evolveSparseN time sparseInitial sparseChain)
+                    (Dynamics.evolveN time sparseInitial sparseChain)
                     state
                     `shouldSatisfy` closeTo
                         ( Distribution.probabilityAt
-                            (Dynamics.evolveN time finiteInitial finiteChain)
+                            (Dynamics.evolveVectorN time finiteInitial finiteChain)
                             state
                         )
                 | time <- [0 .. 4]

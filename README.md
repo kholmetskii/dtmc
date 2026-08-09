@@ -25,19 +25,20 @@ algorithms.
   types
 - Exact sparse countable-state evolution, timed probability queries, bounded
   hitting/first-return probabilities, and finite simulation
-- A shared `MarkovKernel` interface for applying the same sparse finite-horizon
+- A shared `Transition` interface for applying the same sparse finite-horizon
   functions to finite matrices and locally finite infinite kernels
 
 ## Shared kernel interface
 
-`MarkovKernel` captures exactly the operation shared by finite and infinite
+`Transition` captures exactly the operation shared by finite and infinite
 chains: obtaining the validated finite-support law for one transition from a
 given state. Both `TransitionMatrix n` and `TransitionKernel state` implement
-it. The associated `KernelState` type keeps each kernel tied to its state type.
+it. The associated `TransitionState` type keeps each transition representation
+tied to its state type.
 Likewise, `Distribution` is the common initial-law abstraction implemented by
 `DistributionVector n` and `SparseDistribution state`.
 
-Functions live in their mathematical subject modules and use `MarkovKernel`
+Functions live in their mathematical subject modules and use `Transition`
 where the finite and infinite signatures genuinely agree:
 
 ```haskell
@@ -55,10 +56,12 @@ result =
     state
 ```
 
-`Dtmc.Dynamics` keeps dense `evolve`/`evolveN` and explicitly named
-`evolveSparse`/`evolveSparseN` because their result representations differ.
+`Dtmc.Dynamics` exposes shared `evolve`/`evolveN` operations that always return
+a `SparseDistribution`. The optimized `evolveVector`/`evolveVectorN` operations
+preserve `DistributionVector` when both inputs use the dense finite
+representation. `sample` accepts either distribution representation directly.
 Probability, scalar bounded hitting/return, and simulation functions use the
-shared kernel abstraction directly.
+shared abstractions directly.
 
 ## Countable-state boundary
 

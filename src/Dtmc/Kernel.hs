@@ -2,7 +2,7 @@
 Module      : Dtmc.Kernel
 Description : Shared locally finite transition-kernel capability.
 
-'MarkovKernel' is the common finite-horizon boundary for finite matrices and
+'Transition' is the common finite-horizon boundary for finite matrices and
 locally finite countable-state chains. It exposes the validated finite law of
 one transition from a supplied state; it does not require global state-space
 enumeration.
@@ -13,10 +13,9 @@ This enables shared sparse algorithms, while the specialised finite API keeps
 its existing dense implementations for performance and global analyses.
 -}
 module Dtmc.Kernel (
-    MarkovKernel (..),
+    Transition (..),
     TransitionKernel,
     transitionKernel,
-    transitionsFrom,
     deterministicKernel,
 ) where
 
@@ -44,15 +43,18 @@ does not imply that states can be enumerated, so it cannot by itself support
 generic classification, stationary, eventual-hitting, or expectation
 algorithms.
 -}
-class MarkovKernel kernel where
-    -- | State type governed by this kernel representation.
-    type KernelState kernel
+class Transition transition where
+    -- | State type governed by this transition representation.
+    type TransitionState transition
 
     -- | Validated finite-support law of the next state.
-    transitionLaw :: kernel -> KernelState kernel -> SparseDistribution (KernelState kernel)
+    transitionLaw ::
+        transition ->
+        TransitionState transition ->
+        SparseDistribution (TransitionState transition)
 
-instance (KnownNat n) => MarkovKernel (TransitionMatrix n) where
-    type KernelState (TransitionMatrix n) = Finite n
+instance (KnownNat n) => Transition (TransitionMatrix n) where
+    type TransitionState (TransitionMatrix n) = Finite n
 
     transitionLaw matrix =
         toSparseDistribution . rowAt matrix
@@ -63,10 +65,10 @@ newtype TransitionKernel state
 
 type role TransitionKernel nominal
 
-instance MarkovKernel (TransitionKernel state) where
-    type KernelState (TransitionKernel state) = state
+instance Transition (TransitionKernel state) where
+    type TransitionState (TransitionKernel state) = state
 
-    transitionLaw = transitionsFrom
+    transitionLaw (TransitionKernel kernel) = kernel
 
 {- | Build a kernel from a function returning an already-validated sparse law.
 No global traversal is required or attempted.
@@ -75,10 +77,6 @@ transitionKernel ::
     (state -> SparseDistribution state) ->
     TransitionKernel state
 transitionKernel = TransitionKernel
-
--- | Obtain the next-state law from one state.
-transitionsFrom :: TransitionKernel state -> state -> SparseDistribution state
-transitionsFrom (TransitionKernel kernel) = kernel
 
 -- | Build the deterministic kernel that maps each state to one successor.
 deterministicKernel :: (state -> state) -> TransitionKernel state

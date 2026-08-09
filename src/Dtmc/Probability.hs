@@ -3,7 +3,7 @@ Module      : Dtmc.Probability
 Description : Scalar, trajectory, event, and conditional probabilities.
 
 Finite-time probability queries shared by dense finite matrices and locally
-finite kernels. Kernels implement 'MarkovKernel'; initial laws may be either a
+finite kernels. Kernels implement 'Transition'; initial laws may be either a
 dense finite @DistributionVector@ or a @SparseDistribution@ through the
 'Distribution' abstraction. All calculations use finite reachable support
 and perform no truncation, clamping, or renormalisation.
@@ -31,10 +31,10 @@ import Dtmc.Distribution (
     pointMass,
  )
 import Dtmc.Dynamics (
-    evolveSparseN,
+    evolveN,
  )
 import Dtmc.Kernel (
-    MarkovKernel (..),
+    Transition (..),
  )
 import Dtmc.Probability.Internal (
     NormalisedObservations (..),
@@ -60,14 +60,14 @@ data ProbabilityError
       ZeroProbabilityCondition
     deriving (Eq, Show)
 
-{- | One-step transition probability @P(i,j)@ through any 'MarkovKernel'. An
+{- | One-step transition probability @P(i,j)@ through any 'Transition'. An
 absent destination has probability exactly zero.
 -}
 transitionProbability ::
-    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+    (Transition kernel, Ord (TransitionState kernel)) =>
     kernel ->
-    KernelState kernel ->
-    KernelState kernel ->
+    TransitionState kernel ->
+    TransitionState kernel ->
     Double
 transitionProbability kernel source =
     probabilityAt (transitionLaw kernel source)
@@ -77,14 +77,14 @@ point mass for exactly @k@ sparse steps. At @k = 0@ this is the Kronecker
 delta. No state-space enumeration or truncation is performed.
 -}
 transitionProbabilityN ::
-    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+    (Transition kernel, Ord (TransitionState kernel)) =>
     Natural ->
     kernel ->
-    KernelState kernel ->
-    KernelState kernel ->
+    TransitionState kernel ->
+    TransitionState kernel ->
     Double
 transitionProbabilityN steps kernel source =
-    probabilityAt (evolveSparseN steps (pointMass source) kernel)
+    probabilityAt (evolveN steps (pointMass source) kernel)
 
 {- | Marginal probability @P(X_k = j)@ after @k@ transitions. Dense finite
 initial laws are converted to sparse support once for this query; an already
@@ -92,18 +92,17 @@ sparse law passes through unchanged.
 -}
 probabilityAtTime ::
     ( Distribution distribution
-    , MarkovKernel kernel
-    , DistributionState distribution ~ KernelState kernel
-    , Ord (KernelState kernel)
+    , Transition kernel
+    , DistributionState distribution ~ TransitionState kernel
+    , Ord (TransitionState kernel)
     ) =>
     Natural ->
     distribution ->
     kernel ->
-    KernelState kernel ->
+    TransitionState kernel ->
     Double
 probabilityAtTime steps initial kernel =
-    probabilityAt
-        (evolveSparseN steps (toSparseDistribution initial) kernel)
+    probabilityAt (evolveN steps initial kernel)
 
 {- | Probability of an explicit consecutive non-empty trajectory. A one-state
 path returns its initial probability; longer paths multiply the initial mass
@@ -111,13 +110,13 @@ by every one-step transition probability.
 -}
 pathProbability ::
     ( Distribution distribution
-    , MarkovKernel kernel
-    , DistributionState distribution ~ KernelState kernel
-    , Ord (KernelState kernel)
+    , Transition kernel
+    , DistributionState distribution ~ TransitionState kernel
+    , Ord (TransitionState kernel)
     ) =>
     distribution ->
     kernel ->
-    NonEmpty (KernelState kernel) ->
+    NonEmpty (TransitionState kernel) ->
     Double
 pathProbability initial kernel (initialState :| rest) =
     probabilityAt (toSparseDistribution initial) initialState
@@ -133,13 +132,13 @@ exactly zero, and the empty conjunction returns exactly one.
 -}
 probability ::
     ( Distribution distribution
-    , MarkovKernel kernel
-    , DistributionState distribution ~ KernelState kernel
-    , Ord (KernelState kernel)
+    , Transition kernel
+    , DistributionState distribution ~ TransitionState kernel
+    , Ord (TransitionState kernel)
     ) =>
     distribution ->
     kernel ->
-    [Observation (KernelState kernel)] ->
+    [Observation (TransitionState kernel)] ->
     Double
 probability initial kernel observations =
     case normalise [(time, state) | At time state <- observations] of
@@ -165,14 +164,14 @@ used without an epsilon or clamping.
 -}
 conditionalProbability ::
     ( Distribution distribution
-    , MarkovKernel kernel
-    , DistributionState distribution ~ KernelState kernel
-    , Ord (KernelState kernel)
+    , Transition kernel
+    , DistributionState distribution ~ TransitionState kernel
+    , Ord (TransitionState kernel)
     ) =>
     distribution ->
     kernel ->
-    [Observation (KernelState kernel)] ->
-    [Observation (KernelState kernel)] ->
+    [Observation (TransitionState kernel)] ->
+    [Observation (TransitionState kernel)] ->
     Either ProbabilityError Double
 conditionalProbability initial kernel event condition =
     if denominator == 0

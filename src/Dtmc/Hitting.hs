@@ -3,7 +3,7 @@ Module      : Dtmc.Hitting
 Description : Exact, bounded, eventual, and expected hitting and return quantities.
 
 Hitting and first-return quantities for DTMCs. Scalar exact-time and bounded
-queries work through any locally finite 'MarkovKernel', including kernels on
+queries work through any locally finite 'Transition', including kernels on
 infinite state spaces. All-state, eventual, competing, and expected queries
 use a finite 'TransitionMatrix'. For a target set @A@,
 @H_A = inf { t >= 0 | X_t in A }@; for state @i@,
@@ -79,7 +79,7 @@ import Dtmc.Internal.LinearSystem (
     subMatrix,
  )
 import Dtmc.Kernel (
-    MarkovKernel (..),
+    Transition (..),
  )
 import Dtmc.TransitionMatrix (
     rowAt,
@@ -118,11 +118,11 @@ iterateNatural steps f = go steps
          in next `seq` go (remaining - 1) next
 
 advanceUntilTarget ::
-    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+    (Transition kernel, Ord (TransitionState kernel)) =>
     kernel ->
-    (KernelState kernel -> Bool) ->
-    Map (KernelState kernel) Double ->
-    (Map (KernelState kernel) Double, Double)
+    (TransitionState kernel -> Bool) ->
+    Map (TransitionState kernel) Double ->
+    (Map (TransitionState kernel) Double, Double)
 advanceUntilTarget kernel isTarget survivors =
     (remaining, hitMass)
   where
@@ -169,17 +169,17 @@ hittingTimeProbabilitiesAt p targets time =
                 ]
 
 {- | Exact scalar hitting-time probability @P(H_A = t | X_0 = i)@ through any
-'MarkovKernel'. The target set is represented by a membership predicate, which
+'Transition'. The target set is represented by a membership predicate, which
 also works when the state space is infinite. Hitting includes time zero, and
 newly hit mass is removed after every step.
 -}
 hittingTimeProbabilityAt ::
-    ( MarkovKernel kernel
-    , Ord (KernelState kernel)
+    ( Transition kernel
+    , Ord (TransitionState kernel)
     ) =>
     kernel ->
-    (KernelState kernel -> Bool) ->
-    KernelState kernel ->
+    (TransitionState kernel -> Bool) ->
+    TransitionState kernel ->
     Natural ->
     Double
 hittingTimeProbabilityAt kernel isTarget initialState time
@@ -235,16 +235,16 @@ hittingTimeProbabilitiesBefore p targets bound =
                 ]
 
 {- | Strict bounded scalar hitting probability @P(H_A < c | X_0 = i)@ through
-any 'MarkovKernel'. At @c = 0@ the result is zero; at a positive bound an
+any 'Transition'. At @c = 0@ the result is zero; at a positive bound an
 initial target gives one.
 -}
 hittingTimeProbabilityBefore ::
-    ( MarkovKernel kernel
-    , Ord (KernelState kernel)
+    ( Transition kernel
+    , Ord (TransitionState kernel)
     ) =>
     kernel ->
-    (KernelState kernel -> Bool) ->
-    KernelState kernel ->
+    (TransitionState kernel -> Bool) ->
+    TransitionState kernel ->
     Natural ->
     Double
 hittingTimeProbabilityBefore kernel isTarget initialState bound
@@ -545,12 +545,12 @@ returnTimeProbabilitiesAt p time =
     (_, latest) = iterateNatural time advance initial
 
 {- | Exact first-return probability @P(T_i^+ = t | X_0 = i)@ through any
-'MarkovKernel'. Time zero is exactly zero; a self-loop returns at time one.
+'Transition'. Time zero is exactly zero; a self-loop returns at time one.
 -}
 returnTimeProbabilityAt ::
-    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+    (Transition kernel, Ord (TransitionState kernel)) =>
     kernel ->
-    KernelState kernel ->
+    TransitionState kernel ->
     Natural ->
     Double
 returnTimeProbabilityAt _ _ 0 = 0
@@ -604,12 +604,12 @@ returnTimeProbabilitiesBefore p bound =
     (_, cumulative) = iterateNatural steps advance initial
 
 {- | Strict bounded first-return probability @P(T_i^+ < c | X_0 = i)@ through
-any 'MarkovKernel'. Bounds @0@ and @1@ are exactly zero.
+any 'Transition'. Bounds @0@ and @1@ are exactly zero.
 -}
 returnTimeProbabilityBefore ::
-    (MarkovKernel kernel, Ord (KernelState kernel)) =>
+    (Transition kernel, Ord (TransitionState kernel)) =>
     kernel ->
-    KernelState kernel ->
+    TransitionState kernel ->
     Natural ->
     Double
 returnTimeProbabilityBefore kernel initialState bound =
