@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Dtmc.KernelSpec (
+module Dtmc.Transition.KernelSpec (
     spec,
 ) where
 
@@ -101,12 +101,12 @@ finiteCycle =
                 S.Sq 3
             )
 
-asSparseKernel ::
+asTransitionKernel ::
     forall n.
     (KnownNat n) =>
     TransitionMatrix n ->
     Kernel.TransitionKernel (Finite n)
-asSparseKernel matrix =
+asTransitionKernel matrix =
     Kernel.transitionKernel $ \source ->
         checked $
             DistributionMap.mkDistributionMap
@@ -126,8 +126,8 @@ asDistributionMap distribution =
             | state <- finites
             ]
 
-sparseChain :: Kernel.TransitionKernel (Finite 3)
-sparseChain = asSparseKernel finiteChain
+kernelChain :: Kernel.TransitionKernel (Finite 3)
+kernelChain = asTransitionKernel finiteChain
 
 mapInitial :: DistributionMap.DistributionMap (Finite 3)
 mapInitial = asDistributionMap finiteInitial
@@ -163,13 +163,13 @@ spec = do
                         finiteInitial
                         finiteChain
                         2
-                sparseResult =
+                kernelResult =
                     Probability.probabilityAtTime
                         4
                         mapInitial
-                        sparseChain
+                        kernelChain
                         2
-            sparseResult `shouldSatisfy` closeTo finiteResult
+            kernelResult `shouldSatisfy` closeTo finiteResult
 
         it "runs shared bounded stopping queries directly on a finite matrix" $ do
             Hitting.hittingTimeProbabilityBefore finiteChain (== 2) 0 4
@@ -188,7 +188,7 @@ spec = do
                 case mkTransitionMatrix rawMatrix of
                     Left problem -> counterexample (show problem) False
                     Right matrix ->
-                        let kernel = asSparseKernel matrix
+                        let kernel = asTransitionKernel matrix
                          in conjoin
                                 [ counterexample (show (source, destination, time)) $
                                     property $
@@ -209,7 +209,7 @@ spec = do
         it "agrees with finite matrix dynamics at several horizons" $
             sequence_
                 [ Distribution.probabilityAt
-                    (Dynamics.evolveN time mapInitial sparseChain)
+                    (Dynamics.evolveN time mapInitial kernelChain)
                     state
                     `shouldSatisfy` closeTo
                         ( Distribution.probabilityAt
@@ -228,12 +228,12 @@ spec = do
                 `shouldBe` 0
 
         it "matches finite trajectory and observation queries" $ do
-            Probability.pathProbability mapInitial sparseChain (0 :| [1, 2])
+            Probability.pathProbability mapInitial kernelChain (0 :| [1, 2])
                 `shouldSatisfy` closeTo
                     (Probability.pathProbability finiteInitial finiteChain (0 :| [1, 2]))
             Probability.probability
                 mapInitial
-                sparseChain
+                kernelChain
                 [Probability.At 3 2, Probability.At 0 0, Probability.At 1 1]
                 `shouldSatisfy` closeTo
                     ( Probability.probability
@@ -246,7 +246,7 @@ spec = do
             rightCloseTo
                 ( Probability.conditionalProbability
                     mapInitial
-                    sparseChain
+                    kernelChain
                     [Probability.At 2 2]
                     [Probability.At 0 0]
                 )
@@ -284,7 +284,7 @@ spec = do
                 case mkTransitionMatrix rawMatrix of
                     Left problem -> counterexample (show problem) False
                     Right matrix ->
-                        let kernel = asSparseKernel matrix
+                        let kernel = asTransitionKernel matrix
                             target state = state == (2 :: Finite 3)
                          in conjoin
                                 [ counterexample (show (state, time)) $

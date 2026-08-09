@@ -38,6 +38,23 @@ tied to its state type.
 Likewise, `Distribution` is the common initial-law abstraction implemented by
 `DistributionVector n` and `DistributionMap state`.
 
+## Module layout
+
+The abstract capabilities and concrete representations are separated:
+
+```text
+Dtmc.Distribution
+├── Dtmc.Distribution.Vector
+└── Dtmc.Distribution.Map
+
+Dtmc.Transition
+├── Dtmc.Transition.Matrix
+└── Dtmc.Transition.Kernel
+```
+
+Import `Dtmc` for the curated complete API. Use the focused modules when a
+library component should depend only on an abstraction or one representation.
+
 Functions live in their mathematical subject modules and use `Transition`
 where the finite and infinite signatures genuinely agree:
 

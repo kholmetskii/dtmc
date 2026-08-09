@@ -80,13 +80,14 @@ test-suite spec
 
   other-modules:
       Dtmc.DistributionSpec
-      Dtmc.TransitionMatrixSpec
+      Dtmc.Transition.MatrixSpec
       Dtmc.SimulationSpec
       Dtmc.DynamicsSpec
       Dtmc.ProbabilitySpec
       Dtmc.ClassificationSpec
       Dtmc.HittingSpec
-      Dtmc.KernelSpec
+      Dtmc.Transition.KernelSpec
+      Dtmc.FacadeSpec
       Dtmc.TestSupport
 
   build-depends:

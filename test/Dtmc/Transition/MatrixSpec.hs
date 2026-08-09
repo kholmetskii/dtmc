@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 
-module Dtmc.TransitionMatrixSpec (
+module Dtmc.Transition.MatrixSpec (
     spec,
 ) where
 
