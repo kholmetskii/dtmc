@@ -4,7 +4,7 @@ Description : Scalar, trajectory, event, and conditional probabilities.
 
 Finite-time probability queries shared by dense finite matrices and locally
 finite kernels. Kernels implement 'Transition'; initial laws may be either a
-dense finite @DistributionVector@ or a @SparseDistribution@ through the
+dense finite @DistributionVector@ or a @DistributionMap@ through the
 'Distribution' abstraction. All calculations use finite reachable support
 and perform no truncation, clamping, or renormalisation.
 -}
@@ -28,7 +28,10 @@ import Data.List.NonEmpty (
  )
 import Dtmc.Distribution (
     Distribution (..),
+ )
+import Dtmc.Distribution.Map (
     pointMass,
+    toDistributionMap,
  )
 import Dtmc.Dynamics (
     evolveN,
@@ -86,9 +89,9 @@ transitionProbabilityN ::
 transitionProbabilityN steps kernel source =
     probabilityAt (evolveN steps (pointMass source) kernel)
 
-{- | Marginal probability @P(X_k = j)@ after @k@ transitions. Dense finite
-initial laws are converted to sparse support once for this query; an already
-sparse law passes through unchanged.
+{- | Marginal probability @P(X_k = j)@ after @k@ transitions. The initial law
+is converted to an equivalent map-backed finite-support representation once
+for this query.
 -}
 probabilityAtTime ::
     ( Distribution distribution
@@ -119,7 +122,7 @@ pathProbability ::
     NonEmpty (TransitionState kernel) ->
     Double
 pathProbability initial kernel (initialState :| rest) =
-    probabilityAt (toSparseDistribution initial) initialState
+    probabilityAt (toDistributionMap initial) initialState
         * go initialState rest
   where
     go _ [] = 1

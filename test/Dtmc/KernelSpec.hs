@@ -15,11 +15,12 @@ import Data.Finite (
 import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
-import Dtmc.Distribution (
+import Dtmc.Distribution qualified as Distribution
+import Dtmc.Distribution.Map qualified as DistributionMap
+import Dtmc.Distribution.Vector (
     DistributionVector,
     mkDistributionVector,
  )
-import Dtmc.Distribution qualified as Distribution
 import Dtmc.Dynamics qualified as Dynamics
 import Dtmc.Hitting qualified as Hitting
 import Dtmc.Kernel qualified as Kernel
@@ -107,19 +108,19 @@ asSparseKernel ::
 asSparseKernel matrix =
     Kernel.transitionKernel $ \source ->
         checked $
-            Distribution.mkSparseDistribution
+            DistributionMap.mkDistributionMap
                 [ (destination, Probability.transitionProbability matrix source destination)
                 | destination <- finites
                 ]
 
-asSparseDistribution ::
+asDistributionMap ::
     forall n.
     (KnownNat n) =>
     DistributionVector n ->
-    Distribution.SparseDistribution (Finite n)
-asSparseDistribution distribution =
+    DistributionMap.DistributionMap (Finite n)
+asDistributionMap distribution =
     checked $
-        Distribution.mkSparseDistribution
+        DistributionMap.mkDistributionMap
             [ (state, Distribution.probabilityAt distribution state)
             | state <- finites
             ]
@@ -127,13 +128,13 @@ asSparseDistribution distribution =
 sparseChain :: Kernel.TransitionKernel (Finite 3)
 sparseChain = asSparseKernel finiteChain
 
-sparseInitial :: Distribution.SparseDistribution (Finite 3)
-sparseInitial = asSparseDistribution finiteInitial
+mapInitial :: DistributionMap.DistributionMap (Finite 3)
+mapInitial = asDistributionMap finiteInitial
 
 simpleRandomWalk :: Kernel.TransitionKernel Integer
 simpleRandomWalk =
     Kernel.transitionKernel $ \state ->
-        checked (Distribution.mkSparseDistribution [(state - 1, 0.5), (state + 1, 0.5)])
+        checked (DistributionMap.mkDistributionMap [(state - 1, 0.5), (state + 1, 0.5)])
 
 closeTo :: Double -> Double -> Bool
 closeTo = approxEq testTolerance
@@ -151,7 +152,7 @@ spec = do
                 `shouldBe` [(1, 0.2), (2, 0.8)]
 
         it "converts a dense finite initial law without changing its weights" $
-            Distribution.distributionWeights (Distribution.toSparseDistribution finiteInitial)
+            Distribution.distributionWeights (DistributionMap.toDistributionMap finiteInitial)
                 `shouldBe` [(0, 0.6), (1, 0.3), (2, 0.1)]
 
         it "runs one probability function over both kernel representations" $ do
@@ -164,7 +165,7 @@ spec = do
                 sparseResult =
                     Probability.probabilityAtTime
                         4
-                        sparseInitial
+                        mapInitial
                         sparseChain
                         2
             sparseResult `shouldSatisfy` closeTo finiteResult
@@ -201,13 +202,13 @@ spec = do
     describe "locally finite dynamics" $ do
         it "evolves an infinite-state random walk without enumerating its state space" $
             Distribution.distributionWeights
-                (Dynamics.evolveN 2 (Distribution.pointMass 0) simpleRandomWalk)
+                (Dynamics.evolveN 2 (DistributionMap.pointMass 0) simpleRandomWalk)
                 `shouldBe` [(-2, 0.25), (0, 0.5), (2, 0.25)]
 
         it "agrees with finite matrix dynamics at several horizons" $
             sequence_
                 [ Distribution.probabilityAt
-                    (Dynamics.evolveN time sparseInitial sparseChain)
+                    (Dynamics.evolveN time mapInitial sparseChain)
                     state
                     `shouldSatisfy` closeTo
                         ( Distribution.probabilityAt
@@ -226,11 +227,11 @@ spec = do
                 `shouldBe` 0
 
         it "matches finite trajectory and observation queries" $ do
-            Probability.pathProbability sparseInitial sparseChain (0 :| [1, 2])
+            Probability.pathProbability mapInitial sparseChain (0 :| [1, 2])
                 `shouldSatisfy` closeTo
                     (Probability.pathProbability finiteInitial finiteChain (0 :| [1, 2]))
             Probability.probability
-                sparseInitial
+                mapInitial
                 sparseChain
                 [Probability.At 3 2, Probability.At 0 0, Probability.At 1 1]
                 `shouldSatisfy` closeTo
@@ -243,7 +244,7 @@ spec = do
         it "matches finite conditional probability queries" $
             rightCloseTo
                 ( Probability.conditionalProbability
-                    sparseInitial
+                    mapInitial
                     sparseChain
                     [Probability.At 2 2]
                     [Probability.At 0 0]

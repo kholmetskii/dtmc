@@ -63,7 +63,7 @@ import Dtmc.Classification (
     recurrentState,
     transientStates,
  )
-import Dtmc.Distribution.Internal (
+import Dtmc.Distribution.Vector.Internal (
     unDistributionVector,
  )
 import Dtmc.Dynamics.Internal (

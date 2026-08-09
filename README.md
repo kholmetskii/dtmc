@@ -36,7 +36,7 @@ given state. Both `TransitionMatrix n` and `TransitionKernel state` implement
 it. The associated `TransitionState` type keeps each transition representation
 tied to its state type.
 Likewise, `Distribution` is the common initial-law abstraction implemented by
-`DistributionVector n` and `SparseDistribution state`.
+`DistributionVector n` and `DistributionMap state`.
 
 Functions live in their mathematical subject modules and use `Transition`
 where the finite and infinite signatures genuinely agree:
@@ -57,7 +57,7 @@ result =
 ```
 
 `Dtmc.Dynamics` exposes shared `evolve`/`evolveN` operations that always return
-a `SparseDistribution`. The optimized `evolveVector`/`evolveVectorN` operations
+a `DistributionMap`. The optimized `evolveVector`/`evolveVectorN` operations
 preserve `DistributionVector` when both inputs use the dense finite
 representation. `sample` accepts either distribution representation directly.
 Probability, scalar bounded hitting/return, and simulation functions use the
@@ -80,14 +80,14 @@ general probabilistic query interpreter.
 For example, a simple random walk on all integers is locally finite:
 
 ```haskell
-import qualified Dtmc.Distribution as Distribution
+import qualified Dtmc.Distribution.Map as DistributionMap
 import qualified Dtmc.Hitting as Hitting
 import qualified Dtmc.Kernel as Kernel
 
 randomWalk :: Kernel.TransitionKernel Integer
 randomWalk = Kernel.transitionKernel $ \i ->
   either (error . show) id $
-    Distribution.mkSparseDistribution [(i - 1, 0.5), (i + 1, 0.5)]
+    DistributionMap.mkDistributionMap [(i - 1, 0.5), (i + 1, 0.5)]
 
 -- P_0(H_{2} < 3) = 1/4
 hitTwoBeforeThree :: Double

@@ -5,13 +5,20 @@ module Dtmc.DistributionSpec (
 import Data.Finite (
     Finite,
  )
+import Data.Map.Strict qualified as Map
 import Dtmc.Distribution (
     Distribution (..),
     DistributionError (..),
-    SparseDistribution,
-    mkDistributionVector,
-    mkSparseDistribution,
+ )
+import Dtmc.Distribution.Map (
+    DistributionMap,
+    mkDistributionMap,
     pointMass,
+    toDistributionMap,
+    unDistributionMap,
+ )
+import Dtmc.Distribution.Vector (
+    mkDistributionVector,
     unDistributionVector,
  )
 import Dtmc.Simplex (
@@ -116,44 +123,46 @@ spec = do
                                 ("generated vector was rejected: " <> show err)
                                 False
 
-    describe "SparseDistribution" $ do
+    describe "DistributionMap" $ do
         it "combines duplicates and stores canonical ascending entries" $ do
             let distribution =
                     either (error . show) id $
-                        mkSparseDistribution
+                        mkDistributionMap
                             [('b', 0.2), ('a', 0.5), ('b', 0.3), ('c', 0)]
             distributionWeights distribution `shouldBe` [('a', 0.5), ('b', 0.5)]
             support distribution `shouldBe` ['a', 'b']
+            Map.toAscList (unDistributionMap distribution)
+                `shouldBe` [('a', 0.5), ('b', 0.5)]
 
         it "returns zero for an absent state" $
             probabilityAt (pointMass "present") "absent"
                 `shouldBe` 0
 
         it "rejects an empty law" $
-            (mkSparseDistribution [] :: Either DistributionError (SparseDistribution Int))
+            (mkDistributionMap [] :: Either DistributionError (DistributionMap Int))
                 `shouldSatisfy` either (const True) (const False)
 
         it "uses the shared error type" $
-            mkSparseDistribution ([] :: [(Int, Double)])
+            mkDistributionMap ([] :: [(Int, Double)])
                 `shouldBe` Left (DistributionError (SumOffBy 0))
 
     describe "Distribution abstraction" $ do
         let vector =
                 either (error . show) id $
                     mkDistributionVector (S.vector [0.2, 0, 0.8] :: S.R 3)
-            sparse =
+            mapDistribution =
                 either (error . show) id $
-                    ( mkSparseDistribution [(0, 0.2), (2, 0.8)] ::
-                        Either DistributionError (SparseDistribution (Finite 3))
+                    ( mkDistributionMap [(0, 0.2), (2, 0.8)] ::
+                        Either DistributionError (DistributionMap (Finite 3))
                     )
 
         it "exposes the same weights and support for both representations" $ do
-            distributionWeights vector `shouldBe` distributionWeights sparse
-            support vector `shouldBe` support sparse
+            distributionWeights vector `shouldBe` distributionWeights mapDistribution
+            support vector `shouldBe` support mapDistribution
 
-        it "converts a vector once and passes a sparse law through unchanged" $ do
-            toSparseDistribution vector `shouldBe` sparse
-            toSparseDistribution sparse `shouldBe` sparse
+        it "converts both representations to the same canonical map" $ do
+            toDistributionMap vector `shouldBe` mapDistribution
+            toDistributionMap mapDistribution `shouldBe` mapDistribution
 
     describe "probabilityAt" $ do
         let known =

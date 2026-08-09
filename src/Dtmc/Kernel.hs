@@ -8,7 +8,7 @@ one transition from a supplied state; it does not require global state-space
 enumeration.
 
 The instance for 'TransitionMatrix' converts a dense
-t'Dtmc.Distribution.DistributionVector' row to finite support.
+t'Dtmc.Distribution.Vector.DistributionVector' row to finite support.
 This enables shared sparse algorithms, while the specialised finite API keeps
 its existing dense implementations for performance and global analyses.
 -}
@@ -22,10 +22,10 @@ module Dtmc.Kernel (
 import Data.Finite (
     Finite,
  )
-import Dtmc.Distribution (
-    Distribution (toSparseDistribution),
-    SparseDistribution,
+import Dtmc.Distribution.Map (
+    DistributionMap,
     pointMass,
+    toDistributionMap,
  )
 import Dtmc.TransitionMatrix (
     TransitionMatrix,
@@ -51,17 +51,17 @@ class Transition transition where
     transitionLaw ::
         transition ->
         TransitionState transition ->
-        SparseDistribution (TransitionState transition)
+        DistributionMap (TransitionState transition)
 
 instance (KnownNat n) => Transition (TransitionMatrix n) where
     type TransitionState (TransitionMatrix n) = Finite n
 
     transitionLaw matrix =
-        toSparseDistribution . rowAt matrix
+        toDistributionMap . rowAt matrix
 
 -- | A locally finite kernel over a potentially infinite state type.
 newtype TransitionKernel state
-    = TransitionKernel (state -> SparseDistribution state)
+    = TransitionKernel (state -> DistributionMap state)
 
 type role TransitionKernel nominal
 
@@ -74,7 +74,7 @@ instance Transition (TransitionKernel state) where
 No global traversal is required or attempted.
 -}
 transitionKernel ::
-    (state -> SparseDistribution state) ->
+    (state -> DistributionMap state) ->
     TransitionKernel state
 transitionKernel = TransitionKernel
 

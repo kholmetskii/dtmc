@@ -11,7 +11,8 @@ import Control.Monad.ST (
 import Data.Finite (
     Finite,
  )
-import Dtmc.Distribution (mkDistributionVector, pointMass)
+import Dtmc.Distribution.Map (pointMass)
+import Dtmc.Distribution.Vector (mkDistributionVector)
 import Dtmc.Simulation (sample, step)
 import Dtmc.TransitionMatrix (
     TransitionMatrix,
@@ -79,8 +80,8 @@ pointMassSamples = runST $ do
                 mkDistributionVector (S.vector [0, 1, 0] :: S.R 3)
     replicateM 20 (sample distribution generator)
 
-sparsePointMassSamples :: [Natural]
-sparsePointMassSamples = runST $ do
+mapPointMassSamples :: [Natural]
+mapPointMassSamples = runST $ do
     generator <- MWC.create
     replicateM 20 (sample (pointMass 7) generator)
 
@@ -90,8 +91,8 @@ spec = do
         it "samples a dense point mass" $
             pointMassSamples `shouldBe` replicate 20 1
 
-        it "samples a sparse point mass through the same function" $
-            sparsePointMassSamples `shouldBe` replicate 20 7
+        it "samples a map-backed point mass through the same function" $
+            mapPointMassSamples `shouldBe` replicate 20 7
 
     describe "step" $ do
         it "follows a deterministic three-cycle" $

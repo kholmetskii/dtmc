@@ -12,9 +12,11 @@ import Data.Proxy (
     Proxy (..),
  )
 import Dtmc.Distribution (
+    probabilityAt,
+ )
+import Dtmc.Distribution.Vector (
     DistributionVector,
     mkDistributionVector,
-    probabilityAt,
     unDistributionVector,
  )
 import Dtmc.Dynamics (

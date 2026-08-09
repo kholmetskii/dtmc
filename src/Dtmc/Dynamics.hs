@@ -17,10 +17,15 @@ module Dtmc.Dynamics (
 import Dtmc.Distribution (
     Distribution (..),
  )
-import Dtmc.Distribution.Internal (
+import Dtmc.Distribution.Map (
+    toDistributionMap,
+ )
+import Dtmc.Distribution.Map.Internal (
+    DistributionMap (DistributionMap),
+    unDistributionMap,
+ )
+import Dtmc.Distribution.Vector.Internal (
     DistributionVector (DistributionVector),
-    SparseDistribution (SparseDistribution),
-    unSparseDistribution,
  )
 import Dtmc.Dynamics.Internal (
     pushSparseWeights,
@@ -77,7 +82,7 @@ evolveVectorN k mu p =
     evolveVector mu (matrixPower k p)
 
 {- | Push any finite-support 'Distribution' through one locally finite kernel
-step. The result uses t'SparseDistribution' because a general kernel does not
+step. The result uses t'DistributionMap' because a general kernel does not
 provide a finite global state enumeration. It is not revalidated, clamped, or
 renormalised.
 
@@ -91,17 +96,17 @@ evolve ::
     ) =>
     distribution ->
     kernel ->
-    SparseDistribution (TransitionState kernel)
+    DistributionMap (TransitionState kernel)
 evolve distribution kernel =
-    SparseDistribution
+    DistributionMap
         ( pushSparseWeights
-            (unSparseDistribution (toSparseDistribution distribution))
+            (unDistributionMap (toDistributionMap distribution))
             kernel
         )
 
 {- | Apply 'evolve' exactly @k@ times. At @k = 0@ the initial law is converted
-to t'SparseDistribution' without revalidation; an already sparse law passes
-through unchanged. No state-space enumeration or truncation is performed.
+to an equivalent t'DistributionMap' without revalidation. No state-space
+enumeration or truncation is performed.
 -}
 evolveN ::
     ( Distribution distribution
@@ -112,8 +117,8 @@ evolveN ::
     Natural ->
     distribution ->
     kernel ->
-    SparseDistribution (TransitionState kernel)
-evolveN steps initial kernel = go steps (toSparseDistribution initial)
+    DistributionMap (TransitionState kernel)
+evolveN steps initial kernel = go steps (toDistributionMap initial)
   where
     go 0 distribution = distribution
     go remaining distribution =

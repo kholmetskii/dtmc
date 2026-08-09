@@ -9,7 +9,11 @@ import Data.Finite (
     finites,
     getFinite,
  )
-import Dtmc.Distribution (mkDistributionVector, probabilityAt, unDistributionVector)
+import Dtmc.Distribution (probabilityAt)
+import Dtmc.Distribution.Vector (
+    mkDistributionVector,
+    unDistributionVector,
+ )
 import Dtmc.Probability (
     transitionProbability,
     transitionProbabilityN,
@@ -83,11 +87,31 @@ assignment1 =
     either (error . show) id $
         mkTransitionMatrix
             ( S.matrix
-                [ 0, 0, 0, 1, 0
-                , 1 / 3, 0, 0, 0, 2 / 3
-                , 0, 0, 0, 0, 1
-                , 0, 0, 1 / 3, 2 / 3, 0
-                , 1 / 4, 1 / 4, 0, 0, 1 / 2
+                [ 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 1 / 3
+                , 0
+                , 0
+                , 0
+                , 2 / 3
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 1 / 3
+                , 2 / 3
+                , 0
+                , 1 / 4
+                , 1 / 4
+                , 0
+                , 0
+                , 1 / 2
                 ] ::
                 S.Sq 5
             )
@@ -98,9 +122,15 @@ assignment2 =
     either (error . show) id $
         mkTransitionMatrix
             ( S.matrix
-                [ 0.1, 0.5, 0.4
-                , 0.1, 0.8, 0.1
-                , 0.0, 0.5, 0.5
+                [ 0.1
+                , 0.5
+                , 0.4
+                , 0.1
+                , 0.8
+                , 0.1
+                , 0.0
+                , 0.5
+                , 0.5
                 ] ::
                 S.Sq 3
             )
@@ -114,19 +144,61 @@ assignment3 =
     either (error . show) id $
         mkTransitionMatrix
             ( S.matrix
-                [ 0, 0, 1 / 2, 1 / 2, 0, 0, 0 -- apple
-                , 0, 0, 0, 1, 0, 0, 0 -- pear
-                , 0, 0, 0, 0, 1 / 3, 1 / 3, 1 / 3 -- banana
-                , 0, 0, 0, 0, 0, 2 / 3, 1 / 3 -- mango
-                , 0, 1, 0, 0, 0, 0, 0 -- kiwi
-                , 1, 0, 0, 0, 0, 0, 0 -- watermelon
-                , 0, 1, 0, 0, 0, 0, 0 -- grapefruit
+                [ 0
+                , 0
+                , 1 / 2
+                , 1 / 2
+                , 0
+                , 0
+                , 0 -- apple
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0 -- pear
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1 / 3
+                , 1 / 3
+                , 1 / 3 -- banana
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 2 / 3
+                , 1 / 3 -- mango
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0 -- kiwi
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0 -- watermelon
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0 -- grapefruit
                 ] ::
                 S.Sq 7
             )
 
 negSixth :: Double
-negSixth = - (1 / 6)
+negSixth = -(1 / 6)
 
 -- | Assignment 2 closed form for @P^n(2, 0)@.
 formula2 :: Int -> Double

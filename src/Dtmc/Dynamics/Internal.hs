@@ -10,8 +10,8 @@ import Data.Map.Strict (
     Map,
  )
 import Data.Map.Strict qualified as Map
-import Dtmc.Distribution.Internal (
-    unSparseDistribution,
+import Dtmc.Distribution.Map.Internal (
+    unDistributionMap,
  )
 import Dtmc.Kernel (
     Transition (..),
@@ -39,4 +39,4 @@ pushSparseWeights weights kernel =
                     next
             )
             accumulated
-            (unSparseDistribution (transitionLaw kernel state))
+            (unDistributionMap (transitionLaw kernel state))

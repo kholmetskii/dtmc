@@ -39,6 +39,8 @@ library
       Dtmc
       Dtmc.Simplex
       Dtmc.Distribution
+      Dtmc.Distribution.Vector
+      Dtmc.Distribution.Map
       Dtmc.TransitionMatrix
       Dtmc.Simulation
       Dtmc.Dynamics
@@ -48,7 +50,8 @@ library
       Dtmc.Kernel
 
   other-modules:
-      Dtmc.Distribution.Internal
+      Dtmc.Distribution.Vector.Internal
+      Dtmc.Distribution.Map.Internal
       Dtmc.TransitionMatrix.Internal
       Dtmc.Simplex.Internal
       Dtmc.Probability.Internal
@@ -87,6 +90,7 @@ test-suite spec
 
   build-depends:
       base >=4.20 && <5
+    , containers >=0.6 && <0.8
     , dtmc
     , finite-typelits
     , hmatrix

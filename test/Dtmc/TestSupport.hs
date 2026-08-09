@@ -19,7 +19,7 @@ module Dtmc.TestSupport (
 import Data.Proxy (
     Proxy (..),
  )
-import Dtmc.Distribution (
+import Dtmc.Distribution.Vector (
     DistributionVector,
     mkDistributionVector,
     unDistributionVector,
@@ -148,11 +148,31 @@ assignment1Matrix =
     either (error . show) id $
         mkTransitionMatrix
             ( S.matrix
-                [ 0, 0, 0, 1, 0
-                , 1 / 3, 0, 0, 0, 2 / 3
-                , 0, 0, 0, 0, 1
-                , 0, 0, 1 / 3, 2 / 3, 0
-                , 1 / 4, 1 / 4, 0, 0, 1 / 2
+                [ 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 1 / 3
+                , 0
+                , 0
+                , 0
+                , 2 / 3
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 1 / 3
+                , 2 / 3
+                , 0
+                , 1 / 4
+                , 1 / 4
+                , 0
+                , 0
+                , 1 / 2
                 ] ::
                 S.Sq 5
             )

@@ -42,7 +42,7 @@ data TransitionMatrix (n :: Nat)
       TransitionMatrix (S.Sq n) Graph
 
 -- Nominal role on @n@, for the same reason as
--- t'Dtmc.Distribution.DistributionVector'.
+-- t'Dtmc.Distribution.Vector.DistributionVector'.
 type role TransitionMatrix nominal
 
 {- | Return the stored matrix unchanged. This is an @O(1)@ projection and does

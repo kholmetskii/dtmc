@@ -8,9 +8,11 @@ import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
 import Dtmc.Distribution (
+    probabilityAt,
+ )
+import Dtmc.Distribution.Vector (
     DistributionVector,
     mkDistributionVector,
-    probabilityAt,
  )
 import Dtmc.Probability (
     FiniteObservation,
@@ -59,9 +61,15 @@ chain =
     either (error . show) id $
         mkTransitionMatrix
             ( S.matrix
-                [ 0.5, 0.5, 0.0
-                , 0.0, 0.2, 0.8
-                , 1.0, 0.0, 0.0
+                [ 0.5
+                , 0.5
+                , 0.0
+                , 0.0
+                , 0.2
+                , 0.8
+                , 1.0
+                , 0.0
+                , 0.0
                 ] ::
                 S.Sq 3
             )
@@ -124,47 +132,45 @@ spec = do
                 0
                 `shouldBe` True
 
-        prop "a one-state path equals the initial probability"
-            $ forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3)
-            $ \(entries, matrix) ->
-                case
-                    ( mkDistributionVector (S.vector entries :: S.R 3)
-                    , mkTransitionMatrix matrix
-                    ) of
-                    (Right mu, Right p) ->
-                        conjoin
-                            [ pathProbability mu p (i :| [])
-                                === probabilityAt mu i
-                            | i <- [0, 1, 2]
-                            ]
-                    result ->
-                        counterexample
-                            ("generated input was rejected: " <> show result)
-                            False
+        prop "a one-state path equals the initial probability" $
+            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
+                \(entries, matrix) ->
+                    case ( mkDistributionVector (S.vector entries :: S.R 3)
+                         , mkTransitionMatrix matrix
+                         ) of
+                        (Right mu, Right p) ->
+                            conjoin
+                                [ pathProbability mu p (i :| [])
+                                    === probabilityAt mu i
+                                | i <- [0, 1, 2]
+                                ]
+                        result ->
+                            counterexample
+                                ("generated input was rejected: " <> show result)
+                                False
 
-        prop "a two-state path equals lambda_i * P(i, j)"
-            $ forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3)
-            $ \(entries, matrix) ->
-                case
-                    ( mkDistributionVector (S.vector entries :: S.R 3)
-                    , mkTransitionMatrix matrix
-                    ) of
-                    (Right mu, Right p) ->
-                        conjoin
-                            [ property $
-                                approxEq
-                                    testTolerance
-                                    (pathProbability mu p (i :| [j]))
-                                    ( probabilityAt mu i
-                                        * transitionProbability p i j
-                                    )
-                            | i <- [0, 1, 2]
-                            , j <- [0, 1, 2]
-                            ]
-                    result ->
-                        counterexample
-                            ("generated input was rejected: " <> show result)
-                            False
+        prop "a two-state path equals lambda_i * P(i, j)" $
+            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
+                \(entries, matrix) ->
+                    case ( mkDistributionVector (S.vector entries :: S.R 3)
+                         , mkTransitionMatrix matrix
+                         ) of
+                        (Right mu, Right p) ->
+                            conjoin
+                                [ property $
+                                    approxEq
+                                        testTolerance
+                                        (pathProbability mu p (i :| [j]))
+                                        ( probabilityAt mu i
+                                            * transitionProbability p i j
+                                        )
+                                | i <- [0, 1, 2]
+                                , j <- [0, 1, 2]
+                                ]
+                        result ->
+                            counterexample
+                                ("generated input was rejected: " <> show result)
+                                False
 
     describe "probability" $ do
         it "returns exactly one for no observations" $
@@ -215,45 +221,43 @@ spec = do
                 (5 / 96)
                 `shouldBe` True
 
-        prop "a single observation equals probabilityAtTime"
-            $ forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3)
-            $ \(entries, matrix) ->
-                case
-                    ( mkDistributionVector (S.vector entries :: S.R 3)
-                    , mkTransitionMatrix matrix
-                    ) of
-                    (Right mu, Right p) ->
-                        conjoin
-                            [ property $
+        prop "a single observation equals probabilityAtTime" $
+            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
+                \(entries, matrix) ->
+                    case ( mkDistributionVector (S.vector entries :: S.R 3)
+                         , mkTransitionMatrix matrix
+                         ) of
+                        (Right mu, Right p) ->
+                            conjoin
+                                [ property $
+                                    approxEq
+                                        testTolerance
+                                        (probability mu p [At t i])
+                                        (probabilityAtTime t mu p i)
+                                | t <- [0, 1, 2]
+                                , i <- [0, 1, 2]
+                                ]
+                        result ->
+                            counterexample
+                                ("generated input was rejected: " <> show result)
+                                False
+
+        prop "is invariant under observation order" $
+            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
+                \(entries, matrix) ->
+                    case ( mkDistributionVector (S.vector entries :: S.R 3)
+                         , mkTransitionMatrix matrix
+                         ) of
+                        (Right mu, Right p) ->
+                            property $
                                 approxEq
                                     testTolerance
-                                    (probability mu p [At t i])
-                                    (probabilityAtTime t mu p i)
-                            | t <- [0, 1, 2]
-                            , i <- [0, 1, 2]
-                            ]
-                    result ->
-                        counterexample
-                            ("generated input was rejected: " <> show result)
-                            False
-
-        prop "is invariant under observation order"
-            $ forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3)
-            $ \(entries, matrix) ->
-                case
-                    ( mkDistributionVector (S.vector entries :: S.R 3)
-                    , mkTransitionMatrix matrix
-                    ) of
-                    (Right mu, Right p) ->
-                        property $
-                            approxEq
-                                testTolerance
-                                (probability mu p [At 1 1, At 3 2])
-                                (probability mu p [At 3 2, At 1 1])
-                    result ->
-                        counterexample
-                            ("generated input was rejected: " <> show result)
-                            False
+                                    (probability mu p [At 1 1, At 3 2])
+                                    (probability mu p [At 3 2, At 1 1])
+                        result ->
+                            counterexample
+                                ("generated input was rejected: " <> show result)
+                                False
 
     describe "conditionalProbability" $ do
         it "returns the event probability for an empty condition" $

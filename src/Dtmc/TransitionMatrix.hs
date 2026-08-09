@@ -31,7 +31,7 @@ import Data.Foldable (
 import Data.Semigroup (
     mtimesDefault,
  )
-import Dtmc.Distribution.Internal (
+import Dtmc.Distribution.Vector.Internal (
     DistributionVector (DistributionVector),
  )
 import Dtmc.Simplex (

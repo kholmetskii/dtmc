@@ -4,7 +4,7 @@ Description : Public facade re-exporting the library's curated API.
 
 Single entry point for users of the library. It gathers the intended public
 surface -- the 'Distribution' abstraction, its 'DistributionVector' and
-'SparseDistribution' representations, transition matrices and locally finite
+'DistributionMap' representations, transition matrices and locally finite
 kernels, their validating constructors and error types, and the forward dynamics
 ('evolve' and 'matrixPower'), the scalar probability queries ('probabilityAt',
 'transitionProbability', 'transitionProbabilityN', 'probabilityAtTime', and
@@ -22,8 +22,10 @@ module Dtmc (
     DistributionError (..),
     mkDistributionVector,
     unDistributionVector,
-    SparseDistribution,
-    mkSparseDistribution,
+    DistributionMap,
+    mkDistributionMap,
+    unDistributionMap,
+    toDistributionMap,
     pointMass,
     TransitionMatrix,
     TransitionMatrixError (..),
@@ -104,11 +106,17 @@ module Dtmc (
 import Dtmc.Distribution (
     Distribution (..),
     DistributionError (..),
-    DistributionVector,
-    SparseDistribution,
-    mkDistributionVector,
-    mkSparseDistribution,
+ )
+import Dtmc.Distribution.Map (
+    DistributionMap,
+    mkDistributionMap,
     pointMass,
+    toDistributionMap,
+    unDistributionMap,
+ )
+import Dtmc.Distribution.Vector (
+    DistributionVector,
+    mkDistributionVector,
     unDistributionVector,
  )
 import Dtmc.Probability (
