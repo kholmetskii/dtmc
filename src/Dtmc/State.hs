@@ -1,0 +1,219 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE EmptyCase #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
+
+{- |
+Module      : Dtmc.State
+Description : Compile-time indexing for finite named state types.
+
+'FiniteState' identifies a globally finite state type with a canonical total
+indexing by @'Finite' ('Cardinality' state)@. For an ordinary enumeration type,
+derive 'Generic' and declare an empty instance:
+
+@data Weather = Dry | Wet | Storm deriving (Eq, Ord, Show, Generic)@
+
+@instance FiniteState Weather@
+
+Only nullary constructors are supported by the generic implementation.
+Constructor declaration order determines vector and matrix order. A stock
+derived 'Ord' instance has the same order and is the intended companion;
+custom instances must preserve that ordering.
+-}
+module Dtmc.State (
+    type Cardinality,
+    type GenericCardinality,
+    FiniteState,
+    finiteStates,
+    stateIndex,
+    stateAt,
+) where
+
+import Data.Finite (
+    Finite,
+    finite,
+    finites,
+    getFinite,
+ )
+import Data.Kind (
+    Type,
+ )
+import Data.Proxy (
+    Proxy (Proxy),
+ )
+import GHC.Generics (
+    C,
+    D,
+    Generic (Rep, from, to),
+    M1 (M1),
+    U1 (U1),
+    V1,
+    type (:+:) (L1, R1),
+ )
+import GHC.TypeLits (
+    ErrorMessage (Text),
+    TypeError,
+ )
+import GHC.TypeNats (
+    KnownNat,
+    Nat,
+    natVal,
+    type (+),
+ )
+
+{- | Number of inhabitants of a finite state type. For 'Finite' this is its
+existing type-level bound; for a named state type it is derived from the
+'Generic' representation. Users cannot override this closed family.
+
+A generic constructor carrying any fields reduces to a custom 'TypeError'.
+-}
+type family Cardinality (state :: Type) :: Nat where
+    Cardinality (Finite n) = n
+    Cardinality state = GenericCardinality (Rep state)
+
+{- | A finite state type with a canonical bijection to
+@'Finite' ('Cardinality' state)@.
+
+Instances must satisfy:
+
+* @stateAt (stateIndex state) == state@;
+* @stateIndex (stateAt index) == index@;
+* @finiteStates == map stateAt finites@;
+* @finiteStates@ is strictly ascending according to 'Ord'.
+
+The generic defaults satisfy these laws for nullary-constructor types with a
+stock derived 'Ord' instance. Empty state types are supported: their state list
+is empty and 'stateAt' has an uninhabited 'Finite 0' domain.
+-}
+class (Ord state, KnownNat (Cardinality state)) => FiniteState state where
+    -- | Every state exactly once, in canonical index order.
+    finiteStates :: [state]
+
+    -- | Convert a state to its total, statically bounded index.
+    stateIndex :: state -> Finite (Cardinality state)
+
+    -- | Recover the state at a statically bounded index.
+    stateAt :: Finite (Cardinality state) -> state
+
+    default finiteStates ::
+        ( Generic state
+        , GenericFiniteState (Rep state)
+        ) =>
+        [state]
+    finiteStates = map to genericStates
+
+    default stateIndex ::
+        ( Generic state
+        , GenericFiniteState (Rep state)
+        ) =>
+        state ->
+        Finite (Cardinality state)
+    stateIndex = finite . genericIndex . from
+
+    default stateAt ::
+        ( Generic state
+        , GenericFiniteState (Rep state)
+        ) =>
+        Finite (Cardinality state) ->
+        state
+    stateAt = to . genericAt . fromIntegral . getFinite
+
+instance (KnownNat n) => FiniteState (Finite n) where
+    finiteStates = finites
+    stateIndex = id
+    stateAt = id
+
+instance FiniteState ()
+
+instance FiniteState Bool
+
+instance FiniteState Ordering
+
+{- | Type-level cardinality of a 'Generic' representation. This advanced
+helper underlies 'Cardinality'; ordinary users should work through
+'FiniteState' instead.
+-}
+type family GenericCardinality (representation :: Type -> Type) :: Nat where
+    GenericCardinality (M1 D metadata representation) =
+        GenericCardinality representation
+    GenericCardinality (left :+: right) =
+        GenericCardinality left + GenericCardinality right
+    GenericCardinality (M1 C metadata U1) = 1
+    GenericCardinality (M1 C metadata fields) =
+        TypeError
+            ( 'Text
+                "FiniteState: constructors with fields are unsupported"
+            )
+    GenericCardinality V1 = 0
+
+class GenericFiniteState representation where
+    genericStates :: [representation value]
+    genericIndex :: representation value -> Integer
+    genericAt :: Integer -> representation value
+
+instance
+    (GenericFiniteState representation) =>
+    GenericFiniteState (M1 D metadata representation)
+    where
+    genericStates = map M1 genericStates
+    genericIndex (M1 value) = genericIndex value
+    genericAt = M1 . genericAt
+
+instance
+    ( GenericFiniteState left
+    , GenericFiniteState right
+    , KnownNat (GenericCardinality left)
+    ) =>
+    GenericFiniteState (left :+: right)
+    where
+    genericStates =
+        map L1 (genericStates @left)
+            ++ map R1 (genericStates @right)
+
+    genericIndex (L1 value) = genericIndex value
+    genericIndex (R1 value) = genericCardinality @left + genericIndex value
+
+    genericAt index
+        | index < genericCardinality @left = L1 (genericAt index)
+        | otherwise =
+            R1 (genericAt (index - genericCardinality @left))
+
+genericCardinality ::
+    forall representation.
+    (KnownNat (GenericCardinality representation)) =>
+    Integer
+genericCardinality =
+    fromIntegral (natVal (Proxy @(GenericCardinality representation)))
+
+instance {-# OVERLAPPING #-} GenericFiniteState (M1 C metadata U1) where
+    genericStates = [M1 U1]
+    genericIndex (M1 U1) = 0
+    genericAt _ = M1 U1
+
+instance
+    {-# OVERLAPPABLE #-}
+    ( TypeError
+        ( 'Text
+            "FiniteState: constructors with fields are unsupported"
+        )
+    ) =>
+    GenericFiniteState (M1 C metadata fields)
+    where
+    genericStates =
+        error "Dtmc.State.finiteStates: unsupported constructor fields"
+    genericIndex _ =
+        error "Dtmc.State.stateIndex: unsupported constructor fields"
+    genericAt _ =
+        error "Dtmc.State.stateAt: unsupported constructor fields"
+
+instance GenericFiniteState V1 where
+    genericStates = []
+    genericIndex value = case value of {}
+    genericAt _ =
+        error "Dtmc.State.stateAt: unreachable Finite 0 index"

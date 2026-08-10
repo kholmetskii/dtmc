@@ -38,6 +38,7 @@ library
   exposed-modules:
       Dtmc
       Dtmc.Simplex
+      Dtmc.State
       Dtmc.Distribution
       Dtmc.Distribution.Vector
       Dtmc.Distribution.Map
@@ -80,6 +81,7 @@ test-suite spec
 
   other-modules:
       Dtmc.DistributionSpec
+      Dtmc.StateSpec
       Dtmc.Transition.MatrixSpec
       Dtmc.SimulationSpec
       Dtmc.DynamicsSpec
