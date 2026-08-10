@@ -18,10 +18,16 @@ bounded, eventual, and expected hitting and first-return queries in
 "Dtmc.Hitting", and the
 random simulation primitives -- while hiding internal modules. Import this
 module to build, analyse, and run chains. Focused imports are available through
-"Dtmc.Distribution", "Dtmc.Distribution.Vector", "Dtmc.Distribution.Map",
-"Dtmc.Transition", "Dtmc.Transition.Matrix", and "Dtmc.Transition.Kernel".
+"Dtmc.State", "Dtmc.Distribution", "Dtmc.Distribution.Vector",
+"Dtmc.Distribution.Map", "Dtmc.Transition", "Dtmc.Transition.Matrix", and
+"Dtmc.Transition.Kernel".
 -}
 module Dtmc (
+    type Cardinality,
+    FiniteState,
+    finiteStates,
+    stateIndex,
+    stateAt,
     Distribution (..),
     DistributionVector,
     DistributionError (..),
@@ -53,7 +59,6 @@ module Dtmc (
     probability,
     conditionalProbability,
     Observation (..),
-    FiniteObservation,
     ProbabilityError (..),
     identityMatrix,
     matrixPower,
@@ -125,7 +130,6 @@ import Dtmc.Distribution.Vector (
     unDistributionVector,
  )
 import Dtmc.Probability (
-    FiniteObservation,
     Observation (..),
     ProbabilityError (..),
     conditionalProbability,
@@ -142,6 +146,13 @@ import Dtmc.Simulation (
     sample,
     simulateN,
     step,
+ )
+import Dtmc.State (
+    Cardinality,
+    FiniteState,
+    finiteStates,
+    stateAt,
+    stateIndex,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,

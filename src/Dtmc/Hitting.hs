@@ -9,6 +9,9 @@ use a finite 'TransitionMatrix'. For a target set @A@,
 @H_A = inf { t >= 0 | X_t in A }@; for state @i@,
 @T_i = inf { t >= 1 | X_t = i }@.
 
+Finite-matrix queries accept named constructors through 'FiniteState'.
+All-state vectors use the canonical state order of that instance.
+
 Exact-time and strictly bounded queries use finite recurrences and never invoke
 a linear solver. For eventual probabilities and means, reachability decides
 unreachable zeros, recurrent returns, and infinite means from the
@@ -19,7 +22,7 @@ non-finite. A backend-reported singular system raises an error; for a valid
 transition matrix the systems are nonsingular in exact arithmetic.
 
 All-state functions return empty results for a @0 x 0@ matrix. State-specific
-functions cannot be called because no 'Finite 0' state exists.
+functions cannot be called because the state type has no inhabitants.
 -}
 module Dtmc.Hitting (
     MeanTime (..),
@@ -46,9 +49,7 @@ module Dtmc.Hitting (
 import Data.Array qualified as Array
 import Data.Array.Unboxed qualified as Unboxed
 import Data.Finite (
-    Finite,
     finite,
-    finites,
     getFinite,
  )
 import Data.Map.Strict (
@@ -78,6 +79,13 @@ import Dtmc.Internal.LinearSystem (
     solveIminusQVector,
     subMatrix,
  )
+import Dtmc.State (
+    Cardinality,
+    FiniteState,
+    finiteStates,
+    stateAt,
+    stateIndex,
+ )
 import Dtmc.Transition (
     Transition (..),
  )
@@ -89,7 +97,6 @@ import Dtmc.Transition.Matrix.Internal (
     unTransitionMatrix,
  )
 import GHC.TypeNats (
-    KnownNat,
     natVal,
  )
 import Numeric.LinearAlgebra qualified as LA
@@ -98,11 +105,11 @@ import Numeric.Natural (
     Natural,
  )
 
-toIndex :: Finite n -> Int
-toIndex = fromIntegral . getFinite
+toIndex :: (FiniteState state) => state -> Int
+toIndex = fromIntegral . getFinite . stateIndex
 
-toFinite :: (KnownNat n) => Int -> Finite n
-toFinite = finite . fromIntegral
+toState :: (FiniteState state) => Int -> state
+toState = stateAt . finite . fromIntegral
 
 -- Use a mask so duplicates collapse and per-state membership stays O(1).
 indexMask :: Int -> [Int] -> Unboxed.UArray Int Bool
@@ -147,16 +154,16 @@ It uses ordinary 'Double' arithmetic without clamping or renormalisation.
 Time: @O(t n^2)@; temporary and result space: @O(n)@.
 -}
 hittingTimeProbabilitiesAt ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    [Finite n] ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
     Natural ->
-    S.R n
+    S.R (Cardinality state)
 hittingTimeProbabilitiesAt p targets time =
     S.vector (LA.toList (iterateNatural time step initial))
   where
-    dim = fromIntegral (natVal (Proxy @n))
+    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
     targetMask = indexMask dim (map toIndex targets)
     inTarget i = targetMask Unboxed.! i
     matrix = S.extract (unTransitionMatrix p)
@@ -213,16 +220,16 @@ arithmetic and are not clamped or renormalised.
 Time: @O(c n^2)@; temporary and result space: @O(n)@.
 -}
 hittingTimeProbabilitiesBefore ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    [Finite n] ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
     Natural ->
-    S.R n
+    S.R (Cardinality state)
 hittingTimeProbabilitiesBefore p targets bound =
     S.vector (LA.toList (iterateNatural bound step initial))
   where
-    dim = fromIntegral (natVal (Proxy @n))
+    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
     targetMask = indexMask dim (map toIndex targets)
     inTarget i = targetMask Unboxed.! i
     matrix = S.extract (unTransitionMatrix p)
@@ -272,10 +279,10 @@ Raises an error if the backend rejects the interior solve. Worst-case time:
 @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
 hittingProbabilities ::
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    [Finite n] ->
-    S.R n
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
+    S.R (Cardinality state)
 hittingProbabilities p targets =
     -- The ordinary hitting problem is the competing problem with no competing
     -- boundary (@H_B = infinity@), so it reuses the same single solve.
@@ -289,11 +296,11 @@ the first forced query costs @O(n^3)@ worst case and later lookups cost
 @O(1)@.
 -}
 hittingProbability ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    [Finite n] ->
-    Finite n ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
+    state ->
     Double
 hittingProbability p targets =
     \i -> probabilities `LA.atIndex` toIndex i
@@ -341,16 +348,16 @@ result performs at most one linear solve.
 Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
 hittingBeforeProbabilities ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    [Finite n] ->
-    [Finite n] ->
-    S.R n
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
+    [state] ->
+    S.R (Cardinality state)
 hittingBeforeProbabilities p successful competing =
     S.vector [valueAt i | i <- [0 .. dim - 1]]
   where
-    dim = fromIntegral (natVal (Proxy @n))
+    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
     -- Masks keep boundary and solution lookup constant-time during assembly.
     competingMask = indexMask dim (map toIndex competing)
     inCompeting i = competingMask Unboxed.! i
@@ -369,7 +376,7 @@ hittingBeforeProbabilities p successful competing =
                 ( backwardReachable
                     p
                     (not . inCompeting . toIndex)
-                    (map toFinite effectiveIdx)
+                    (map toState effectiveIdx)
                 )
             )
     canReach i = reachMask Unboxed.! i
@@ -404,12 +411,12 @@ solve: the first forced query costs @O(n^3)@ worst case and later lookups cost
 @O(1)@.
 -}
 hittingBeforeProbability ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    [Finite n] ->
-    [Finite n] ->
-    Finite n ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
+    [state] ->
+    state ->
     Double
 hittingBeforeProbability p successful competing =
     \i -> probabilities `LA.atIndex` toIndex i
@@ -430,15 +437,15 @@ system.
 Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
 expectedHittingTimes ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    [Finite n] ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
     [MeanTime]
 expectedHittingTimes p targets =
     [valueAt i | i <- [0 .. dim - 1]]
   where
-    dim = fromIntegral (natVal (Proxy @n))
+    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
     targetMask = indexMask dim (map toIndex targets)
     inTarget i = targetMask Unboxed.! i
     -- One reverse traversal replaces a reachability query for every state.
@@ -452,7 +459,7 @@ expectedHittingTimes p targets =
         backwardReachable
             p
             (not . inTarget . toIndex)
-            (map toFinite unreachable)
+            (map toState unreachable)
     doomedMask = indexMask dim (map toIndex doomed)
     certainIdx =
         [i | i <- [0 .. dim - 1], not (inTarget i), not (doomedMask Unboxed.! i)]
@@ -484,11 +491,11 @@ Partial application shares one lazy all-state table: the first forced query
 costs @O(n^3)@ worst case and later lookups cost @O(1)@.
 -}
 expectedHittingTime ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    [Finite n] ->
-    Finite n ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
+    state ->
     MeanTime
 expectedHittingTime p targets =
     \i -> table Array.! toIndex i
@@ -496,7 +503,7 @@ expectedHittingTime p targets =
     -- Back the shared table with a boxed array so each state query is O(1)
     -- (list @!!@ was O(index)); the single solve is still shared across queries.
     table = Array.listArray (0, dim - 1) (expectedHittingTimes p targets)
-    dim = fromIntegral (natVal (Proxy @n))
+    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
 
 -- Advance, for every possible origin, the mass that has not yet returned to
 -- that origin. Row @i@ holds the current-state mass of paths started at @i@
@@ -530,15 +537,15 @@ Results use ordinary 'Double' arithmetic without clamping or renormalisation.
 Time: @O(t n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
 returnTimeProbabilitiesAt ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
     Natural ->
-    S.R n
+    S.R (Cardinality state)
 returnTimeProbabilitiesAt p time =
     S.vector (LA.toList latest)
   where
-    dim = fromIntegral (natVal (Proxy @n))
+    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
     matrix = S.extract (unTransitionMatrix p)
     initial = (LA.ident dim, LA.konst 0 dim)
     advance (survivors, _) = firstReturnStep matrix survivors
@@ -584,15 +591,15 @@ arithmetic and are not clamped or renormalised.
 Time: @O(c n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
 returnTimeProbabilitiesBefore ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
     Natural ->
-    S.R n
+    S.R (Cardinality state)
 returnTimeProbabilitiesBefore p bound =
     S.vector (LA.toList cumulative)
   where
-    dim = fromIntegral (natVal (Proxy @n))
+    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
     matrix = S.extract (unTransitionMatrix p)
     steps
         | bound == 0 = 0
@@ -636,14 +643,14 @@ the transient system.
 Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
 returnProbabilities ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    S.R n
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    S.R (Cardinality state)
 returnProbabilities p =
-    S.vector [valueAt i | i <- finites]
+    S.vector [valueAt i | i <- finiteStates]
   where
-    dim = fromIntegral (natVal (Proxy @n))
+    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
     transient = transientStates p
     transientIdx = map toIndex transient
     matrix = S.extract (unTransitionMatrix p)
@@ -677,10 +684,10 @@ Transient queries inherit the numerical behavior and errors of
 'returnProbabilities'.
 -}
 returnProbability ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    Finite n ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
     Double
 returnProbability p =
     \i ->
@@ -702,14 +709,14 @@ recurrent state. For @r@ recurrent states, time is @O(n^2 + r n^3)@, at most
 @O(n)@ space.
 -}
 expectedReturnTimes ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
     [MeanTime]
 -- Reuse the hitting-time path; an all-state Kac calculation would require
 -- stationary-distribution machinery not otherwise present in this module.
 expectedReturnTimes p =
-    map (expectedReturnTime p) finites
+    map (expectedReturnTime p) finiteStates
 
 {- | The expected first-return time for one state. A transient state returns
 'InfiniteMean' without a linear solve. A recurrent state performs one
@@ -721,23 +728,23 @@ classification is cached, a transient query takes @O(1)@. Recurrent queries
 inherit the numerical behavior and errors of 'expectedHittingTimes'.
 -}
 expectedReturnTime ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    Finite n ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
     MeanTime
 expectedReturnTime p i
     | recurrentState p i = expectedReturnTimeFrom p i
     | otherwise = InfiniteMean
 
 expectedReturnTimeFrom ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix (Finite n) ->
-    Finite n ->
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
     MeanTime
 expectedReturnTimeFrom p i =
-    foldl' addTerm (FiniteMean 1) (zip finites row)
+    foldl' addTerm (FiniteMean 1) (zip finiteStates row)
   where
     eta = expectedHittingTime p [i]
     row = LA.toList (S.extract (unDistributionVector (rowAt p i)))

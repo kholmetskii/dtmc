@@ -8,7 +8,7 @@ algorithms.
 
 - Validated finite probability distributions
 - Validated stochastic transition matrices
-- Type-level vector and matrix dimensions using `hmatrix`
+- Compile-time vector and matrix dimensions derived from finite state types
 - Transition-matrix multiplication
 - Access to the transition distribution from a given state
 - Random sampling from a distribution
@@ -32,17 +32,19 @@ algorithms.
 
 `Transition` captures exactly the operation shared by finite and infinite
 chains: obtaining the validated finite-support law for one transition from a
-given state. Both `TransitionMatrix n` and `TransitionKernel state` implement
+given state. Both `TransitionMatrix state` and `TransitionKernel state` implement
 it. The associated `TransitionState` type keeps each transition representation
 tied to its state type.
 Likewise, `Distribution` is the common initial-law abstraction implemented by
-`DistributionVector n` and `DistributionMap state`.
+`DistributionVector state` and `DistributionMap state`.
 
 ## Module layout
 
 The abstract capabilities and concrete representations are separated:
 
 ```text
+Dtmc.State
+
 Dtmc.Distribution
 ├── Dtmc.Distribution.Vector
 └── Dtmc.Distribution.Map
@@ -61,9 +63,9 @@ where the finite and infinite signatures genuinely agree:
 ```haskell
 import qualified Dtmc.Probability as Probability
 
--- matrix  :: TransitionMatrix n
--- initial :: DistributionVector n
--- state   :: Finite n
+-- matrix  :: TransitionMatrix Weather
+-- initial :: DistributionVector Weather
+-- state   :: Weather
 
 result =
   Probability.probabilityAtTime
@@ -131,30 +133,40 @@ failure path will be migrated before `1.0`.
 
 ```haskell
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 
-import Data.Finite (finite)
 import Dtmc
+import GHC.Generics (Generic)
 import qualified Numeric.LinearAlgebra.Static as S
 import qualified System.Random.MWC as MWC
 
+data Weather = Dry | Wet
+  deriving (Eq, Ord, Show, Generic)
+
+instance FiniteState Weather
+
+weatherMatrix :: S.Sq 2
+weatherMatrix =
+  S.matrix
+    [ 0.9, 0.1
+    , 0.4, 0.6
+    ]
+
 main :: IO ()
 main =
-  case mkTransitionMatrix transitionMatrix of
+  case mkTransitionMatrix weatherMatrix :: Either TransitionMatrixError (TransitionMatrix Weather) of
     Left err ->
       print err
 
     Right matrix -> do
       generator <- MWC.createSystemRandom
-      nextState <- step matrix (finite 0) generator
+      nextState <- step matrix Dry generator
       print nextState
-  where
-    transitionMatrix :: S.Sq 2
-    transitionMatrix =
-      S.matrix
-        [ 0.9, 0.1
-        , 0.4, 0.6
-        ]
 ```
+
+Constructor declaration order defines the dense vector and matrix coordinate
+order. `Finite n` remains available as the low-level indexed state type when
+named constructors are not useful.
 
 ## Building
 

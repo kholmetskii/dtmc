@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -35,6 +36,9 @@ import Dtmc.Hitting (
     returnTimeProbabilityAt,
     returnTimeProbabilityBefore,
  )
+import Dtmc.State (
+    FiniteState,
+ )
 import Dtmc.TestSupport (
     genTransitionMatrix,
     testTolerance,
@@ -44,6 +48,9 @@ import Dtmc.Transition.Matrix (
     identityMatrix,
     mkTransitionMatrix,
     unTransitionMatrix,
+ )
+import GHC.Generics (
+    Generic,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -68,6 +75,11 @@ import Test.QuickCheck (
     property,
     (===),
  )
+
+data NamedRuinState = Ruined | One | Two | Three | Won
+    deriving (Eq, Ord, Show, Generic)
+
+instance FiniteState NamedRuinState
 
 fromRows :: (Show e) => Either e (TransitionMatrix (Finite n)) -> TransitionMatrix (Finite n)
 fromRows = either (error . show) id
@@ -105,6 +117,40 @@ gambler p =
                 , 0
                 , 1
                 ]
+            )
+
+namedGambler :: TransitionMatrix NamedRuinState
+namedGambler =
+    either (error . show) id $
+        mkTransitionMatrix @NamedRuinState
+            ( S.matrix
+                [ 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0.5
+                , 0
+                , 0.5
+                , 0
+                , 0
+                , 0
+                , 0.5
+                , 0
+                , 0.5
+                , 0
+                , 0
+                , 0
+                , 0.5
+                , 0
+                , 0.5
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                ] ::
+                S.Sq 5
             )
 
 -- Oscillator: states 0 and 1 swap with probability 1/2 or exit to
@@ -818,6 +864,24 @@ spec = do
                                 === recurrentState p i
                         | i <- finites :: [Finite 4]
                         ]
+
+    describe "named finite states" $ do
+        it "solves eventual and competing hitting queries by constructor" $ do
+            sequence_
+                [ probability `shouldSatisfy` closeTo 1
+                | probability <- entries (hittingProbabilities namedGambler [Ruined, Won])
+                ]
+            hittingBeforeProbability namedGambler [Won] [Ruined] Two
+                `shouldSatisfy` closeTo 0.5
+
+        it "solves bounded hitting queries in named state order" $
+            entries (hittingTimeProbabilitiesBefore namedGambler [Won] 3)
+                `shouldBe` [0, 0, 0.25, 0.5, 1]
+
+        it "solves named expected hitting and return times" $ do
+            expectedHittingTime namedGambler [Ruined, Won] Two
+                `shouldSatisfy` meanCloseTo 4
+            expectedReturnTime namedGambler Ruined `shouldBe` FiniteMean 1
   where
     isFinite (FiniteMean _) = True
     isFinite InfiniteMean = False

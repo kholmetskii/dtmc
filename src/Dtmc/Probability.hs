@@ -13,16 +13,12 @@ module Dtmc.Probability (
     transitionProbabilityN,
     probabilityAtTime,
     Observation (..),
-    FiniteObservation,
     ProbabilityError (..),
     pathProbability,
     probability,
     conditionalProbability,
 ) where
 
-import Data.Finite (
-    Finite,
- )
 import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
@@ -53,9 +49,6 @@ observations denotes their conjunction; list order has no meaning.
 data Observation state
     = At Natural state
     deriving (Eq, Show)
-
--- | Convenience alias for observations over a type-indexed finite chain.
-type FiniteObservation n = Observation (Finite n)
 
 -- | Why a conditional probability query has no defined value.
 data ProbabilityError

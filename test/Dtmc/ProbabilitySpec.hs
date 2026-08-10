@@ -18,7 +18,6 @@ import Dtmc.Distribution.Vector (
     mkDistributionVector,
  )
 import Dtmc.Probability (
-    FiniteObservation,
     Observation (..),
     ProbabilityError (..),
     conditionalProbability,
@@ -94,12 +93,6 @@ spec = do
     describe "Observation" $ do
         it "is polymorphic in the state type" $
             (At 2 "rain" :: Observation String) `shouldBe` At 2 "rain"
-
-        it "has a finite-chain convenience alias" $
-            let observations :: [FiniteObservation 3]
-                observations = [At 1 2]
-             in probability initial chain observations
-                    `shouldBe` probability initial chain [At 1 2]
 
     describe "pathProbability" $ do
         it "returns the initial probability for a one-state path" $

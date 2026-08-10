@@ -24,14 +24,11 @@ module Dtmc.Classification.Internal (
     unIrreducible,
 ) where
 
-import Data.Finite (
-    Finite,
+import Dtmc.State (
+    FiniteState,
  )
 import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
- )
-import GHC.TypeNats (
-    KnownNat,
  )
 import Numeric.Natural (
     Natural,
@@ -40,8 +37,8 @@ import Numeric.Natural (
 {- | Structural facts about one communicating class. For a finite valid DTMC,
 a closed class consists of recurrent states.
 -}
-data CommClass n = CommClass
-    { classMembers :: [Finite n]
+data CommClass state = CommClass
+    { classMembers :: [state]
     -- ^ Member states in ascending order.
     , classPeriod :: Maybe Natural
     -- ^ Shared state period, or 'Nothing' when the class has no cycle.
@@ -49,17 +46,17 @@ data CommClass n = CommClass
     -- ^ Whether no positive-probability transition leaves the class.
     }
 
-deriving instance (KnownNat n) => Eq (CommClass n)
+deriving instance (Eq state) => Eq (CommClass state)
 
-deriving instance (KnownNat n) => Show (CommClass n)
+deriving instance (Show state) => Show (CommClass state)
 
 {- | A consistent structural report built by 'Dtmc.Classification.classify'.
 The constructor is exposed here for trusted internal use; "Dtmc.Classification"
 keeps it hidden so its summary fields stay aligned with its communicating
 classes.
 -}
-data Classification n = Classification
-    { classesOf :: [CommClass n]
+data Classification state = Classification
+    { classesOf :: [CommClass state]
     -- ^ The communicating classes, ordered by least member.
     , isIrreducible :: Bool
     -- ^ Whether the states form a single (non-empty) communicating class.
@@ -74,11 +71,11 @@ data Classification n = Classification
     a reducible chain (where the period is a per-class notion) or when the
     single class has no cycles.
     -}
-    , recurrentStatesOf :: [Finite n]
+    , recurrentStatesOf :: [state]
     -- ^ States lying in closed classes -- recurrent, in the finite-chain sense.
-    , transientStatesOf :: [Finite n]
+    , transientStatesOf :: [state]
     -- ^ States lying in non-closed classes -- transient.
-    , absorbingStates :: [Finite n]
+    , absorbingStates :: [state]
     {- ^ Singleton closed classes. For exact stochastic rows these are
     absorbing states with @P(i,i) = 1@; tolerated or unchecked rows are
     classified only by strict-positive support.
@@ -87,21 +84,21 @@ data Classification n = Classification
 
 type role Classification nominal
 
-deriving instance (KnownNat n) => Eq (Classification n)
+deriving instance (Eq state) => Eq (Classification state)
 
-deriving instance (KnownNat n) => Show (Classification n)
+deriving instance (Show state) => Show (Classification state)
 
 {- | A transition matrix certified as irreducible by
 'Dtmc.Classification.witnessIrreducible'. The constructor is exposed here for
 trusted internal use but hidden by "Dtmc.Classification", so user code cannot
 forge the witness through the public API.
 -}
-newtype Irreducible n = Irreducible (TransitionMatrix (Finite n))
+newtype Irreducible state = Irreducible (TransitionMatrix state)
 
 type role Irreducible nominal
 
-deriving instance (KnownNat n) => Show (Irreducible n)
+deriving instance (FiniteState state) => Show (Irreducible state)
 
 -- | Recover the certified transition matrix in @O(1)@ time.
-unIrreducible :: Irreducible n -> TransitionMatrix (Finite n)
+unIrreducible :: Irreducible state -> TransitionMatrix state
 unIrreducible (Irreducible p) = p

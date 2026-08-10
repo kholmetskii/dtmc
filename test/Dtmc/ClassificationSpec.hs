@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -39,6 +40,9 @@ import Dtmc.Classification (
     unIrreducible,
     witnessIrreducible,
  )
+import Dtmc.State (
+    FiniteState,
+ )
 import Dtmc.TestSupport (
     genTransitionMatrix,
  )
@@ -46,6 +50,9 @@ import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
     unTransitionMatrix,
+ )
+import GHC.Generics (
+    Generic,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -71,6 +78,11 @@ import Test.QuickCheck (
     (===),
  )
 
+data NamedClassState = ClassA | ClassB | ClassC
+    deriving (Eq, Ord, Show, Generic)
+
+instance FiniteState NamedClassState
+
 fromRows :: (Show e) => Either e (TransitionMatrix (Finite n)) -> TransitionMatrix (Finite n)
 fromRows = either (error . show) id
 
@@ -90,6 +102,12 @@ threeCycle =
                 , 0
                 ]
             )
+
+namedThreeCycle :: TransitionMatrix NamedClassState
+namedThreeCycle =
+    either (error . show) id $
+        mkTransitionMatrix @NamedClassState
+            (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0] :: S.Sq 3)
 
 selfLoopTwo :: TransitionMatrix (Finite 2)
 selfLoopTwo =
@@ -269,7 +287,7 @@ spec = do
     describe "communication is an equivalence relation" $ do
         prop "is reflexive, symmetric, and transitive on random support graphs" $
             forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 4) matrix of
                     Right p ->
                         let states = finites :: [Finite 4]
                          in conjoin
@@ -486,7 +504,7 @@ spec = do
 
         prop "every finite chain has a recurrent state (random @4)" $
             forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 4) matrix of
                     Right p ->
                         property (not (null (recurrentStates p)))
                     Left err ->
@@ -526,7 +544,34 @@ spec = do
                 `shouldBe` Just True
             (witnessIrreducible sevenState >> Just ()) `shouldBe` Nothing
 
-sameMatrix :: (KnownNat n) => TransitionMatrix (Finite n) -> TransitionMatrix (Finite n) -> Bool
+    describe "named finite states" $ do
+        it "reports communication and periods with named constructors" $ do
+            communicatingClasses namedThreeCycle
+                `shouldBe` [[ClassA, ClassB, ClassC]]
+            map (period namedThreeCycle) [ClassA, ClassB, ClassC]
+                `shouldBe` replicate 3 (Just 3)
+
+        it "returns named recurrent states in canonical order" $
+            recurrentStates namedThreeCycle
+                `shouldBe` [ClassA, ClassB, ClassC]
+
+        it "builds a named classification report" $ do
+            let report = classify namedThreeCycle
+            map classMembers (classesOf report)
+                `shouldBe` [[ClassA, ClassB, ClassC]]
+            recurrentStatesOf report `shouldBe` [ClassA, ClassB, ClassC]
+
+        it "preserves the state type in irreducibility witnesses" $
+            fmap
+                (sameMatrix namedThreeCycle . unIrreducible)
+                (witnessIrreducible namedThreeCycle)
+                `shouldBe` Just True
+
+sameMatrix ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    TransitionMatrix state ->
+    Bool
 sameMatrix a b =
     flat a == flat b
   where
