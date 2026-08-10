@@ -15,11 +15,13 @@ Description : Compile-time indexing for finite named state types.
 
 'FiniteState' identifies a globally finite state type with a canonical total
 indexing by @'Finite' ('Cardinality' state)@. For an ordinary enumeration type,
-derive 'Generic' and declare an empty instance:
+enable @DeriveAnyClass@ and @DeriveGeneric@, then derive both 'Generic' and
+'FiniteState':
 
-@data Weather = Dry | Wet | Storm deriving (Eq, Ord, Show, Generic)@
+@data Weather = Dry | Wet | Storm deriving (Eq, Ord, Show, Generic, FiniteState)@
 
-@instance FiniteState Weather@
+Declaring an empty @instance FiniteState Weather@ remains an equivalent,
+more explicit alternative.
 
 Only nullary constructors are supported by the generic implementation.
 Constructor declaration order determines vector and matrix order. A stock

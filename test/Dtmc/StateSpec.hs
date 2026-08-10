@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE EmptyDataDeriving #-}
@@ -45,17 +46,18 @@ data One = One
     deriving (Eq, Ord, Show, Generic)
 
 data Three = A | B | C
-    deriving (Eq, Ord, Show, Generic)
+    deriving (Eq, Ord, Show, Generic, FiniteState)
 
 instance FiniteState Empty
 
 instance FiniteState One
 
-instance FiniteState Three
-
 spec :: Spec
 spec = do
     describe "generic FiniteState" $ do
+        it "can be derived directly in the state declaration" $
+            finiteStates @Three `shouldBe` [A, B, C]
+
         it "derives cardinalities for empty, singleton, and sum types" $ do
             natVal (Proxy @(Cardinality Empty)) `shouldBe` 0
             natVal (Proxy @(Cardinality One)) `shouldBe` 1

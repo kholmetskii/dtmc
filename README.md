@@ -133,6 +133,7 @@ failure path will be migrated before `1.0`.
 
 ```haskell
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 import Dtmc
@@ -141,9 +142,7 @@ import qualified Numeric.LinearAlgebra.Static as S
 import qualified System.Random.MWC as MWC
 
 data Weather = Dry | Wet
-  deriving (Eq, Ord, Show, Generic)
-
-instance FiniteState Weather
+  deriving (Eq, Ord, Show, Generic, FiniteState)
 
 weatherMatrix :: S.Sq 2
 weatherMatrix =

@@ -16,7 +16,6 @@ maintainer:         Arkadii Kholmetskii <373321aa@gmail.com>
 build-type:         Simple
 tested-with:        GHC ==9.10.3
 extra-doc-files:    README.md
-extra-source-files: test/compile-fail/FiniteStateWithFields.hs
 
 common lang
   default-language: GHC2021
