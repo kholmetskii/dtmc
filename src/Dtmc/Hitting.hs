@@ -149,7 +149,7 @@ Time: @O(t n^2)@; temporary and result space: @O(n)@.
 hittingTimeProbabilitiesAt ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     [Finite n] ->
     Natural ->
     S.R n
@@ -215,7 +215,7 @@ Time: @O(c n^2)@; temporary and result space: @O(n)@.
 hittingTimeProbabilitiesBefore ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     [Finite n] ->
     Natural ->
     S.R n
@@ -273,7 +273,7 @@ Raises an error if the backend rejects the interior solve. Worst-case time:
 -}
 hittingProbabilities ::
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     [Finite n] ->
     S.R n
 hittingProbabilities p targets =
@@ -291,7 +291,7 @@ the first forced query costs @O(n^3)@ worst case and later lookups cost
 hittingProbability ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     [Finite n] ->
     Finite n ->
     Double
@@ -343,7 +343,7 @@ Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 hittingBeforeProbabilities ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     [Finite n] ->
     [Finite n] ->
     S.R n
@@ -406,7 +406,7 @@ solve: the first forced query costs @O(n^3)@ worst case and later lookups cost
 hittingBeforeProbability ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     [Finite n] ->
     [Finite n] ->
     Finite n ->
@@ -432,7 +432,7 @@ Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 expectedHittingTimes ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     [Finite n] ->
     [MeanTime]
 expectedHittingTimes p targets =
@@ -486,7 +486,7 @@ costs @O(n^3)@ worst case and later lookups cost @O(1)@.
 expectedHittingTime ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     [Finite n] ->
     Finite n ->
     MeanTime
@@ -532,7 +532,7 @@ Time: @O(t n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 returnTimeProbabilitiesAt ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     Natural ->
     S.R n
 returnTimeProbabilitiesAt p time =
@@ -586,7 +586,7 @@ Time: @O(c n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 returnTimeProbabilitiesBefore ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     Natural ->
     S.R n
 returnTimeProbabilitiesBefore p bound =
@@ -638,7 +638,7 @@ Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 returnProbabilities ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     S.R n
 returnProbabilities p =
     S.vector [valueAt i | i <- finites]
@@ -679,7 +679,7 @@ Transient queries inherit the numerical behavior and errors of
 returnProbability ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     Finite n ->
     Double
 returnProbability p =
@@ -704,7 +704,7 @@ recurrent state. For @r@ recurrent states, time is @O(n^2 + r n^3)@, at most
 expectedReturnTimes ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     [MeanTime]
 -- Reuse the hitting-time path; an all-state Kac calculation would require
 -- stationary-distribution machinery not otherwise present in this module.
@@ -723,7 +723,7 @@ inherit the numerical behavior and errors of 'expectedHittingTimes'.
 expectedReturnTime ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     Finite n ->
     MeanTime
 expectedReturnTime p i
@@ -733,7 +733,7 @@ expectedReturnTime p i
 expectedReturnTimeFrom ::
     forall n.
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     Finite n ->
     MeanTime
 expectedReturnTimeFrom p i =

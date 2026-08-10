@@ -16,6 +16,9 @@ module Dtmc.TestSupport (
     assignment1Lambda,
 ) where
 
+import Data.Finite (
+    Finite,
+ )
 import Data.Proxy (
     Proxy (..),
  )
@@ -23,6 +26,9 @@ import Dtmc.Distribution.Vector (
     DistributionVector,
     mkDistributionVector,
     unDistributionVector,
+ )
+import Dtmc.State (
+    FiniteState,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -121,7 +127,11 @@ setFirstEntry value ((_ : rest) : rows) =
 setFirstEntry _ rows = rows
 
 approxTransitionMatrixEq ::
-    (KnownNat n) => Double -> TransitionMatrix n -> TransitionMatrix n -> Bool
+    (FiniteState state) =>
+    Double ->
+    TransitionMatrix state ->
+    TransitionMatrix state ->
+    Bool
 approxTransitionMatrixEq tolerance left right =
     and (zipWith close (entries left) (entries right))
   where
@@ -129,10 +139,10 @@ approxTransitionMatrixEq tolerance left right =
     close x y = abs (x - y) <= tolerance
 
 approxDistributionEq ::
-    (KnownNat n) =>
+    (FiniteState state) =>
     Double ->
-    DistributionVector n ->
-    DistributionVector n ->
+    DistributionVector state ->
+    DistributionVector state ->
     Bool
 approxDistributionEq tolerance left right =
     and (zipWith close (entries left) (entries right))
@@ -143,7 +153,7 @@ approxDistributionEq tolerance left right =
 {- | Assignment 1 transition matrix over states @[A, B, C, D, E]@, shared by the
 transition, dynamics, and probability specs.
 -}
-assignment1Matrix :: TransitionMatrix 5
+assignment1Matrix :: TransitionMatrix (Finite 5)
 assignment1Matrix =
     either (error . show) id $
         mkTransitionMatrix
@@ -178,7 +188,7 @@ assignment1Matrix =
             )
 
 -- | Assignment 1 initial law @lambda = [1/4, 1/2, 0, 1/4, 0]@.
-assignment1Lambda :: DistributionVector 5
+assignment1Lambda :: DistributionVector (Finite 5)
 assignment1Lambda =
     either (error . show) id $
         mkDistributionVector (S.vector [1 / 4, 1 / 2, 0, 1 / 4, 0] :: S.R 5)

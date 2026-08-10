@@ -25,6 +25,7 @@ import Dtmc.Dynamics qualified as Dynamics
 import Dtmc.Hitting qualified as Hitting
 import Dtmc.Probability qualified as Probability
 import Dtmc.Simulation qualified as Simulation
+import Dtmc.State qualified as State
 import Dtmc.TestSupport (
     approxEq,
     genTransitionMatrix,
@@ -35,9 +36,6 @@ import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
- )
-import GHC.TypeNats (
-    KnownNat,
  )
 import Numeric.LinearAlgebra.Static qualified as S
 import System.Random.MWC qualified as MWC
@@ -61,7 +59,7 @@ import Test.QuickCheck (
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id
 
-finiteChain :: TransitionMatrix 3
+finiteChain :: TransitionMatrix (Finite 3)
 finiteChain =
     checked $
         mkTransitionMatrix
@@ -79,11 +77,11 @@ finiteChain =
                 S.Sq 3
             )
 
-finiteInitial :: DistributionVector 3
+finiteInitial :: DistributionVector (Finite 3)
 finiteInitial =
     checked (mkDistributionVector (S.vector [0.6, 0.3, 0.1] :: S.R 3))
 
-finiteCycle :: TransitionMatrix 3
+finiteCycle :: TransitionMatrix (Finite 3)
 finiteCycle =
     checked $
         mkTransitionMatrix
@@ -102,28 +100,28 @@ finiteCycle =
             )
 
 asTransitionKernel ::
-    forall n.
-    (KnownNat n) =>
-    TransitionMatrix n ->
-    Kernel.TransitionKernel (Finite n)
+    forall state.
+    (State.FiniteState state) =>
+    TransitionMatrix state ->
+    Kernel.TransitionKernel state
 asTransitionKernel matrix =
     Kernel.transitionKernel $ \source ->
         checked $
             DistributionMap.mkDistributionMap
                 [ (destination, Probability.transitionProbability matrix source destination)
-                | destination <- finites
+                | destination <- State.finiteStates
                 ]
 
 asDistributionMap ::
-    forall n.
-    (KnownNat n) =>
-    DistributionVector n ->
-    DistributionMap.DistributionMap (Finite n)
+    forall state.
+    (State.FiniteState state) =>
+    DistributionVector state ->
+    DistributionMap.DistributionMap state
 asDistributionMap distribution =
     checked $
         DistributionMap.mkDistributionMap
             [ (state, Distribution.probabilityAt distribution state)
-            | state <- finites
+            | state <- State.finiteStates
             ]
 
 kernelChain :: Kernel.TransitionKernel (Finite 3)

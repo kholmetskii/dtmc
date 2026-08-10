@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Dtmc.Transition.MatrixSpec (
@@ -9,7 +10,10 @@ import Data.Finite (
     finites,
     getFinite,
  )
-import Dtmc.Distribution (probabilityAt)
+import Dtmc.Distribution (
+    distributionWeights,
+    probabilityAt,
+ )
 import Dtmc.Distribution.Vector (
     mkDistributionVector,
     unDistributionVector,
@@ -19,6 +23,9 @@ import Dtmc.Probability (
     transitionProbabilityN,
  )
 import Dtmc.Simplex (SimplexError (..))
+import Dtmc.State (
+    FiniteState,
+ )
 import Dtmc.TestSupport (
     approxEq,
     approxTransitionMatrixEq,
@@ -37,6 +44,9 @@ import Dtmc.Transition.Matrix (
     mulTransitionMatrix,
     rowAt,
     unTransitionMatrix,
+ )
+import GHC.Generics (
+    Generic,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
@@ -61,7 +71,12 @@ import Test.QuickCheck (
     (===),
  )
 
-cyclicThree :: TransitionMatrix 3
+data NamedPhase = PhaseA | PhaseB | PhaseC
+    deriving (Eq, Ord, Show, Generic)
+
+instance FiniteState NamedPhase
+
+cyclicThree :: TransitionMatrix (Finite 3)
 cyclicThree =
     either (error . show) id $
         mkTransitionMatrix
@@ -69,20 +84,26 @@ cyclicThree =
                 [0, 1, 0, 0, 0, 1, 1, 0, 0]
             )
 
-twoState :: TransitionMatrix 2
+namedCycle :: TransitionMatrix NamedPhase
+namedCycle =
+    either (error . show) id $
+        mkTransitionMatrix @NamedPhase
+            (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0] :: S.Sq 3)
+
+twoState :: TransitionMatrix (Finite 2)
 twoState =
     either (error . show) id $
         mkTransitionMatrix
             (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
 
-twoStateSquared :: TransitionMatrix 2
+twoStateSquared :: TransitionMatrix (Finite 2)
 twoStateSquared =
     either (error . show) id $
         mkTransitionMatrix
             (S.matrix [0.85, 0.15, 0.6, 0.4] :: S.Sq 2)
 
 -- Assignment 1: states ordered [A, B, C, D, E].
-assignment1 :: TransitionMatrix 5
+assignment1 :: TransitionMatrix (Finite 5)
 assignment1 =
     either (error . show) id $
         mkTransitionMatrix
@@ -117,7 +138,7 @@ assignment1 =
             )
 
 -- Assignment 2: an unnamed three-state chain.
-assignment2 :: TransitionMatrix 3
+assignment2 :: TransitionMatrix (Finite 3)
 assignment2 =
     either (error . show) id $
         mkTransitionMatrix
@@ -139,7 +160,7 @@ assignment2 =
 -- [apple, pear, banana, mango, kiwi, watermelon, grapefruit]. It has period 3
 -- with cyclic classes {apple, pear}, {banana, mango},
 -- {kiwi, watermelon, grapefruit}.
-assignment3 :: TransitionMatrix 7
+assignment3 :: TransitionMatrix (Finite 7)
 assignment3 =
     either (error . show) id $
         mkTransitionMatrix
@@ -220,7 +241,7 @@ spec = do
     describe "mkTransitionMatrix" $ do
         prop "preserves the validated matrix" $
             forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 3) matrix of
                     Right transitionMatrix ->
                         S.extract (unTransitionMatrix transitionMatrix)
                             === S.extract matrix
@@ -235,7 +256,7 @@ spec = do
                         modifyMatrixRows
                             (bumpSmallestInFirstRow 1e-6)
                             matrix
-                 in case mkTransitionMatrix invalid of
+                 in case mkTransitionMatrix @(Finite 3) invalid of
                         Left (InRow 0 (SumOffBy _)) ->
                             property True
                         result ->
@@ -249,7 +270,7 @@ spec = do
                         modifyMatrixRows
                             (setFirstEntry (-1e-6))
                             matrix
-                 in case mkTransitionMatrix invalid of
+                 in case mkTransitionMatrix @(Finite 3) invalid of
                         Left (InRow 0 (NegativeEntry 0 _)) ->
                             property True
                         result ->
@@ -262,9 +283,9 @@ spec = do
             $ forAll
                 ((,) <$> genTransitionMatrix @3 <*> genTransitionMatrix @3)
             $ \(left, right) ->
-                case (mkTransitionMatrix left, mkTransitionMatrix right) of
+                case (mkTransitionMatrix @(Finite 3) left, mkTransitionMatrix @(Finite 3) right) of
                     (Right leftMatrix, Right rightMatrix) ->
-                        case mkTransitionMatrix
+                        case mkTransitionMatrix @(Finite 3)
                             ( unTransitionMatrix
                                 (mulTransitionMatrix leftMatrix rightMatrix)
                             ) of
@@ -281,7 +302,7 @@ spec = do
 
         prop "approximately equals itself at zero tolerance" $
             forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 3) matrix of
                     Right transitionMatrix ->
                         property
                             ( approxTransitionMatrixEq
@@ -303,9 +324,9 @@ spec = do
                     <*> genTransitionMatrix @3
                 )
             $ \(matrixA, matrixB, matrixC) ->
-                case ( mkTransitionMatrix matrixA
-                     , mkTransitionMatrix matrixB
-                     , mkTransitionMatrix matrixC
+                case ( mkTransitionMatrix @(Finite 3) matrixA
+                     , mkTransitionMatrix @(Finite 3) matrixB
+                     , mkTransitionMatrix @(Finite 3) matrixC
                      ) of
                     (Right a, Right b, Right c) ->
                         property $
@@ -321,7 +342,7 @@ spec = do
     describe "TransitionMatrix Monoid" $ do
         prop "has a left identity" $
             forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 3) matrix of
                     Right p ->
                         property $
                             approxTransitionMatrixEq
@@ -335,7 +356,7 @@ spec = do
 
         prop "has a right identity" $
             forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 3) matrix of
                     Right p ->
                         property $
                             approxTransitionMatrixEq
@@ -350,7 +371,7 @@ spec = do
         it "uses the identity transition matrix as mempty" $
             approxTransitionMatrixEq
                 1e-12
-                (mempty :: TransitionMatrix 2)
+                (mempty :: TransitionMatrix (Finite 2))
                 identityMatrix
                 `shouldBe` True
 
@@ -379,9 +400,9 @@ spec = do
         prop "stays stochastic for small exponents" $
             forAll ((,) <$> choose (0, 6 :: Int) <*> genTransitionMatrix @3) $
                 \(k, matrix) ->
-                    case mkTransitionMatrix matrix of
+                    case mkTransitionMatrix @(Finite 3) matrix of
                         Right p ->
-                            case mkTransitionMatrix
+                            case mkTransitionMatrix @(Finite 3)
                                 ( unTransitionMatrix
                                     (matrixPower (fromIntegral k) p)
                                 ) of
@@ -404,7 +425,7 @@ spec = do
                     <*> genTransitionMatrix @3
                 )
             $ \(m, n, matrix) ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 3) matrix of
                     Right p ->
                         property $
                             approxTransitionMatrixEq
@@ -435,10 +456,10 @@ spec = do
 
         prop "always returns a valid distribution" $
             forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 3) matrix of
                     Right transitionMatrix ->
                         conjoin
-                            [ case mkDistributionVector
+                            [ case mkDistributionVector @(Finite 3)
                                 (unDistributionVector (rowAt transitionMatrix index)) of
                                 Right _ ->
                                     property True
@@ -456,7 +477,7 @@ spec = do
     describe "transitionProbability" $ do
         prop "agrees with rowAt then probabilityAt" $
             forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 3) matrix of
                     Right p ->
                         conjoin
                             [ transitionProbability p i j
@@ -479,7 +500,7 @@ spec = do
 
         prop "agrees with transitionProbability at exponent one" $
             forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 3) matrix of
                     Right p ->
                         conjoin
                             [ property $
@@ -520,7 +541,7 @@ spec = do
         prop "agrees with the corresponding matrixPower entry" $
             forAll ((,) <$> choose (0, 6 :: Int) <*> genTransitionMatrix @3) $
                 \(k, matrix) ->
-                    case mkTransitionMatrix matrix of
+                    case mkTransitionMatrix @(Finite 3) matrix of
                         Right p ->
                             let power = matrixPower (fromIntegral k) p
                                 raw = S.extract (unTransitionMatrix power)
@@ -593,3 +614,27 @@ spec = do
                         `shouldBe` True
                 )
                 ([0, 1, 2, 3, 4] :: [Natural])
+
+    describe "named finite states" $ do
+        it "returns a row labelled by named constructors" $
+            distributionWeights (rowAt namedCycle PhaseA)
+                `shouldBe` [(PhaseB, 1)]
+
+        it "uses named constructors for one-step probabilities" $
+            transitionProbability namedCycle PhaseB PhaseC
+                `shouldBe` 1
+
+        it "preserves the named state type through powers" $
+            transitionProbability (matrixPower 2 namedCycle) PhaseA PhaseC
+                `shouldBe` 1
+
+        it "provides a named identity matrix" $
+            transitionProbability (identityMatrix @NamedPhase) PhaseB PhaseB
+                `shouldBe` 1
+
+        it "composes matrices without changing their named state type" $
+            approxTransitionMatrixEq
+                0
+                (namedCycle <> identityMatrix)
+                namedCycle
+                `shouldBe` True

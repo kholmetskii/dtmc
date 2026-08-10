@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeApplications #-}
+
 module Dtmc.DistributionSpec (
     spec,
 ) where
@@ -24,12 +27,18 @@ import Dtmc.Distribution.Vector (
 import Dtmc.Simplex (
     SimplexError (..),
  )
+import Dtmc.State (
+    FiniteState,
+ )
 import Dtmc.TestSupport (
     approxDistributionEq,
     approxEq,
     bumpSmallest,
     genSimplexPoint,
     testTolerance,
+ )
+import GHC.Generics (
+    Generic,
  )
 import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
@@ -50,18 +59,23 @@ import Test.QuickCheck (
     (===),
  )
 
+data NamedState = NamedA | NamedB | NamedC
+    deriving (Eq, Ord, Show, Generic)
+
+instance FiniteState NamedState
+
 spec :: Spec
 spec = do
     describe "mkDistributionVector" $ do
         it "rejects an empty vector" $
-            case mkDistributionVector (S.vector [] :: S.R 0) of
+            case mkDistributionVector @(Finite 0) (S.vector [] :: S.R 0) of
                 Left err ->
                     err `shouldBe` DistributionError (SumOffBy 0)
                 Right _ ->
                     expectationFailure "expected rejection"
 
         it "accepts a tiny negative rounding error" $
-            case mkDistributionVector (S.vector [-1e-17, 1] :: S.R 2) of
+            case mkDistributionVector @(Finite 2) (S.vector [-1e-17, 1] :: S.R 2) of
                 Right _ ->
                     pure ()
                 Left err ->
@@ -69,7 +83,7 @@ spec = do
                         ("expected acceptance, got " <> show err)
 
         it "reports an entry above one" $
-            case mkDistributionVector (S.vector [1.5, -0.5] :: S.R 2) of
+            case mkDistributionVector @(Finite 2) (S.vector [1.5, -0.5] :: S.R 2) of
                 Left err ->
                     err
                         `shouldBe` DistributionError (EntryAboveOne 0 1.5)
@@ -78,7 +92,7 @@ spec = do
 
         prop "accepts normalised vectors" $
             forAll (genSimplexPoint 3) $ \entries ->
-                case mkDistributionVector (S.vector entries :: S.R 3) of
+                case mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3) of
                     Right _ ->
                         property True
                     Left err ->
@@ -88,7 +102,7 @@ spec = do
 
         prop "rejects vectors whose sum is too large" $
             forAll (genSimplexPoint 3) $ \entries ->
-                case mkDistributionVector
+                case mkDistributionVector @(Finite 3)
                     (S.vector (bumpSmallest 1e-6 entries) :: S.R 3) of
                     Left (DistributionError (SumOffBy _)) ->
                         property True
@@ -103,7 +117,7 @@ spec = do
                         case entries of
                             _ : rest -> (-1e-6) : rest
                             [] -> []
-                 in case mkDistributionVector (S.vector invalid :: S.R 3) of
+                 in case mkDistributionVector @(Finite 3) (S.vector invalid :: S.R 3) of
                         Left (DistributionError (NegativeEntry 0 _)) ->
                             property True
                         result ->
@@ -114,7 +128,7 @@ spec = do
         prop "preserves the validated vector" $
             forAll (genSimplexPoint 3) $ \entries ->
                 let simplexVector = S.vector entries :: S.R 3
-                 in case mkDistributionVector simplexVector of
+                 in case mkDistributionVector @(Finite 3) simplexVector of
                         Right distribution ->
                             S.extract (unDistributionVector distribution)
                                 === S.extract simplexVector
@@ -149,7 +163,7 @@ spec = do
     describe "Distribution abstraction" $ do
         let vector =
                 either (error . show) id $
-                    mkDistributionVector (S.vector [0.2, 0, 0.8] :: S.R 3)
+                    mkDistributionVector @(Finite 3) (S.vector [0.2, 0, 0.8] :: S.R 3)
             mapDistribution =
                 either (error . show) id $
                     ( mkDistributionMap [(0, 0.2), (2, 0.8)] ::
@@ -167,7 +181,7 @@ spec = do
     describe "probabilityAt" $ do
         let known =
                 either (error . show) id $
-                    mkDistributionVector (S.vector [0.2, 0.5, 0.3] :: S.R 3)
+                    mkDistributionVector @(Finite 3) (S.vector [0.2, 0.5, 0.3] :: S.R 3)
 
         it "returns each coordinate of a known distribution" $ do
             approxEq testTolerance (probabilityAt known 0) 0.2 `shouldBe` True
@@ -183,7 +197,7 @@ spec = do
         it "returns tolerated stored values without clamping" $ do
             let tolerated =
                     either (error . show) id $
-                        mkDistributionVector (S.vector [-1e-17, 1] :: S.R 2)
+                        mkDistributionVector @(Finite 2) (S.vector [-1e-17, 1] :: S.R 2)
 
             probabilityAt tolerated 0 `shouldBe` (-1e-17)
             probabilityAt tolerated 1 `shouldBe` 1
@@ -191,7 +205,7 @@ spec = do
     describe "approxDistributionEq" $
         prop "is reflexive at zero tolerance" $
             forAll (genSimplexPoint 3) $ \entries ->
-                case mkDistributionVector (S.vector entries :: S.R 3) of
+                case mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3) of
                     Right distribution ->
                         property
                             (approxDistributionEq 0 distribution distribution)
@@ -199,3 +213,31 @@ spec = do
                         counterexample
                             ("generated vector was rejected: " <> show err)
                             False
+
+    describe "named finite states" $ do
+        let namedDistribution =
+                either (error . show) id $
+                    mkDistributionVector @NamedState
+                        (S.vector [0.2, 0, 0.8] :: S.R 3)
+            indexedDistribution =
+                either (error . show) id $
+                    mkDistributionVector @(Finite 3)
+                        (S.vector [0.2, 0, 0.8] :: S.R 3)
+
+        it "indexes coordinates by state constructors" $ do
+            probabilityAt namedDistribution NamedA `shouldBe` 0.2
+            probabilityAt namedDistribution NamedB `shouldBe` 0
+            probabilityAt namedDistribution NamedC `shouldBe` 0.8
+
+        it "reports weights and support in constructor order" $ do
+            distributionWeights namedDistribution
+                `shouldBe` [(NamedA, 0.2), (NamedC, 0.8)]
+            support namedDistribution `shouldBe` [NamedA, NamedC]
+
+        it "converts to a map over the named state type" $
+            unDistributionMap (toDistributionMap namedDistribution)
+                `shouldBe` Map.fromList [(NamedA, 0.2), (NamedC, 0.8)]
+
+        it "matches the low-level indexed representation coordinate for coordinate" $
+            map (probabilityAt namedDistribution) [NamedA, NamedB, NamedC]
+                `shouldBe` map (probabilityAt indexedDistribution) [0, 1, 2]

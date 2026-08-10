@@ -71,10 +71,10 @@ import Test.QuickCheck (
     (===),
  )
 
-fromRows :: (Show e) => Either e (TransitionMatrix n) -> TransitionMatrix n
+fromRows :: (Show e) => Either e (TransitionMatrix (Finite n)) -> TransitionMatrix (Finite n)
 fromRows = either (error . show) id
 
-threeCycle :: TransitionMatrix 3
+threeCycle :: TransitionMatrix (Finite 3)
 threeCycle =
     fromRows $
         mkTransitionMatrix
@@ -91,7 +91,7 @@ threeCycle =
                 ]
             )
 
-selfLoopTwo :: TransitionMatrix 2
+selfLoopTwo :: TransitionMatrix (Finite 2)
 selfLoopTwo =
     fromRows $
         mkTransitionMatrix
@@ -103,7 +103,7 @@ selfLoopTwo =
                 ]
             )
 
-bipartiteTwo :: TransitionMatrix 2
+bipartiteTwo :: TransitionMatrix (Finite 2)
 bipartiteTwo =
     fromRows $
         mkTransitionMatrix
@@ -115,7 +115,7 @@ bipartiteTwo =
                 ]
             )
 
-sevenState :: TransitionMatrix 7
+sevenState :: TransitionMatrix (Finite 7)
 sevenState =
     fromRows $
         mkTransitionMatrix
@@ -172,7 +172,7 @@ sevenState =
                 ]
             )
 
-identityThree :: TransitionMatrix 3
+identityThree :: TransitionMatrix (Finite 3)
 identityThree =
     fromRows $
         mkTransitionMatrix
@@ -190,7 +190,7 @@ identityThree =
             )
 
 -- Exercise 3.2.2: irreducible, period 2, cyclic classes {A,B} and {C,D}.
-fourStateCyclic :: TransitionMatrix 4
+fourStateCyclic :: TransitionMatrix (Finite 4)
 fourStateCyclic =
     fromRows $
         mkTransitionMatrix
@@ -214,7 +214,7 @@ fourStateCyclic =
                 ]
             )
 
-matrixSupport :: (KnownNat n) => TransitionMatrix n -> [[Bool]]
+matrixSupport :: (KnownNat n) => TransitionMatrix (Finite n) -> [[Bool]]
 matrixSupport =
     map (map (> 0)) . LA.toLists . S.extract . unTransitionMatrix
 
@@ -240,10 +240,10 @@ referencePeriod s i =
     powers = take bound (drop 1 (iterate (boolMul s) (boolIdentity dim)))
     returns = [k | (k, m) <- zip [1 :: Int ..] powers, (m !! i) !! i]
 
-classesAsInts :: (KnownNat n) => TransitionMatrix n -> [[Integer]]
+classesAsInts :: (KnownNat n) => TransitionMatrix (Finite n) -> [[Integer]]
 classesAsInts = map (map getFinite) . communicatingClasses
 
-cyclicClassesAsInts :: (KnownNat n) => TransitionMatrix n -> Maybe [[Integer]]
+cyclicClassesAsInts :: (KnownNat n) => TransitionMatrix (Finite n) -> Maybe [[Integer]]
 cyclicClassesAsInts = fmap (map (map getFinite)) . cyclicClasses
 
 sortUnique :: (Ord a) => [a] -> [a]
@@ -255,7 +255,7 @@ sortUnique = foldr insert []
         | x == y = y : ys
         | otherwise = y : insert x ys
 
-periodMatchesReference :: (KnownNat n) => TransitionMatrix n -> [Finite n] -> Property
+periodMatchesReference :: (KnownNat n) => TransitionMatrix (Finite n) -> [Finite n] -> Property
 periodMatchesReference p states =
     conjoin
         [ period p i === referencePeriod s (fromIntegral (getFinite i))
@@ -526,7 +526,7 @@ spec = do
                 `shouldBe` Just True
             (witnessIrreducible sevenState >> Just ()) `shouldBe` Nothing
 
-sameMatrix :: (KnownNat n) => TransitionMatrix n -> TransitionMatrix n -> Bool
+sameMatrix :: (KnownNat n) => TransitionMatrix (Finite n) -> TransitionMatrix (Finite n) -> Bool
 sameMatrix a b =
     flat a == flat b
   where

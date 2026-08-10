@@ -18,7 +18,6 @@ module Dtmc.Transition.Matrix.Internal (
 ) where
 
 import Data.Finite (
-    Finite,
     getFinite,
  )
 import Dtmc.Distribution.Map (
@@ -31,38 +30,44 @@ import Dtmc.Internal.Graph (
     Graph,
     fromAdjacency,
  )
+import Dtmc.State (
+    Cardinality,
+    FiniteState,
+    stateIndex,
+ )
 import Dtmc.Transition (
     Transition (..),
  )
 import GHC.TypeNats (
     KnownNat,
-    Nat,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 
-{- | A stored @n x n@ matrix with entry @(i,j)@ representing the transition
-probability from state @i@ to state @j@. The public constructor applies
-tolerant row validation; the internal constructor and arithmetic instances do
-not revalidate.
+{- | A stored square matrix whose rows and columns follow the canonical order
+of its finite state type. Entry @(i,j)@ is the transition probability from
+state @i@ to state @j@. The public constructor applies tolerant row validation;
+the internal constructor and arithmetic instances do not revalidate.
 
 Each value also carries its support graph as a /lazy/ second argument, so any
 graph-based analyses on the same value share one build. Construct internal
 values with @unsafeTransitionMatrix@ rather than pairing a matrix and graph
 directly.
 -}
-data TransitionMatrix (n :: Nat)
+data TransitionMatrix state
     = -- | Unchecked matrix/cache pair; the graph must match the matrix.
-      TransitionMatrix (S.Sq n) Graph
+      TransitionMatrix (S.Sq (Cardinality state)) Graph
 
--- Nominal role on @n@, for the same reason as
--- t'Dtmc.Distribution.Vector.DistributionVector'.
+-- Nominal role prevents coercion between distinct state types, including
+-- state types with the same cardinality.
 type role TransitionMatrix nominal
 
 {- | Return the stored matrix unchanged. This is an @O(1)@ projection and does
 not force the support graph.
 -}
-unTransitionMatrix :: TransitionMatrix n -> S.Sq n
+unTransitionMatrix ::
+    TransitionMatrix state ->
+    S.Sq (Cardinality state)
 unTransitionMatrix (TransitionMatrix matrix _) = matrix
 
 {- | The lazy support graph, with edge @i -> j@ exactly when the stored entry
@@ -72,12 +77,12 @@ creates an edge, while zero or a negative value does not.
 The projection is @O(1)@. The first analysis that builds adjacency scans all
 @n^2@ entries; the result is shared by later analyses of the same value.
 -}
-tmSupport :: TransitionMatrix n -> Graph
+tmSupport :: TransitionMatrix state -> Graph
 tmSupport (TransitionMatrix _ support) = support
 
 -- Manual 'Show': 'Graph' has no 'Show', and the derived cache should not
 -- appear in the rendering.
-instance (KnownNat n) => Show (TransitionMatrix n) where
+instance (FiniteState state) => Show (TransitionMatrix state) where
     showsPrec d p =
         showParen (d > 10) $
             showString "TransitionMatrix "
@@ -89,33 +94,39 @@ establish the required invariant.
 
 Construction is @O(1)@ before the graph is forced.
 -}
-unsafeTransitionMatrix :: (KnownNat n) => S.Sq n -> TransitionMatrix n
+unsafeTransitionMatrix ::
+    (FiniteState state) =>
+    S.Sq (Cardinality state) ->
+    TransitionMatrix state
 unsafeTransitionMatrix matrix =
     TransitionMatrix matrix (supportGraphOf matrix)
 
 {- | Wrap one stored matrix row as a distribution vector without revalidation.
-The 'Finite' index makes the lookup total.
+The finite-state index makes the lookup total.
 -}
 matrixRowAt ::
-    (KnownNat n) =>
-    TransitionMatrix n ->
-    Finite n ->
-    DistributionVector n
-matrixRowAt matrix index =
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    DistributionVector state
+matrixRowAt matrix state =
     DistributionVector
         ( S.toRows (unTransitionMatrix matrix)
-            !! fromIntegral (getFinite index)
+            !! fromIntegral (getFinite (stateIndex state))
         )
 
-instance (KnownNat n) => Transition (TransitionMatrix n) where
-    type TransitionState (TransitionMatrix n) = Finite n
+instance (FiniteState state) => Transition (TransitionMatrix state) where
+    type TransitionState (TransitionMatrix state) = state
 
     transitionLaw matrix =
         toDistributionMap . matrixRowAt matrix
 
 -- Use strict positivity without tolerance so graph queries reflect the stored
 -- matrix exactly; keep construction here so the cache cannot become stale.
-supportGraphOf :: (KnownNat n) => S.Sq n -> Graph
+supportGraphOf ::
+    (KnownNat dimension) =>
+    S.Sq dimension ->
+    Graph
 supportGraphOf matrix =
     fromAdjacency
         dim
@@ -132,13 +143,16 @@ step followed by a @q@ step. Exact products preserve row-stochasticity and
 associativity; 'Double' results are neither revalidated nor exactly
 associative.
 -}
-instance (KnownNat n) => Semigroup (TransitionMatrix n) where
-    (<>) :: TransitionMatrix n -> TransitionMatrix n -> TransitionMatrix n
+instance (FiniteState state) => Semigroup (TransitionMatrix state) where
+    (<>) ::
+        TransitionMatrix state ->
+        TransitionMatrix state ->
+        TransitionMatrix state
     p <> q = unsafeTransitionMatrix (unTransitionMatrix p S.<> unTransitionMatrix q)
 
 {- | The identity matrix represents zero transitions and is the unit of the
 transition-composition monoid.
 -}
-instance (KnownNat n) => Monoid (TransitionMatrix n) where
-    mempty :: TransitionMatrix n
+instance (FiniteState state) => Monoid (TransitionMatrix state) where
+    mempty :: TransitionMatrix state
     mempty = unsafeTransitionMatrix S.eye

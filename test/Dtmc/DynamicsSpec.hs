@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -6,6 +7,7 @@ module Dtmc.DynamicsSpec (
 ) where
 
 import Data.Finite (
+    Finite,
     finites,
  )
 import Data.Proxy (
@@ -26,6 +28,9 @@ import Dtmc.Dynamics (
 import Dtmc.Probability (
     probabilityAtTime,
  )
+import Dtmc.State (
+    FiniteState,
+ )
 import Dtmc.TestSupport (
     approxDistributionEq,
     approxEq,
@@ -36,6 +41,9 @@ import Dtmc.TestSupport (
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
+ )
+import GHC.Generics (
+    Generic,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -61,19 +69,36 @@ import Test.QuickCheck (
     property,
  )
 
+data NamedPosition = LowerPosition | UpperPosition
+    deriving (Eq, Ord, Show, Generic)
+
+instance FiniteState NamedPosition
+
 genDistribution :: forall n. (KnownNat n) => Gen (S.R n)
 genDistribution = do
     entries <- genSimplexPoint (fromIntegral (natVal (Proxy @n)))
     pure (S.vector entries)
 
-twoState :: TransitionMatrix 2
+twoState :: TransitionMatrix (Finite 2)
 twoState =
     either (error . show) id $
         mkTransitionMatrix
             (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
 
+namedInitial :: DistributionVector NamedPosition
+namedInitial =
+    either (error . show) id $
+        mkDistributionVector @NamedPosition
+            (S.vector [1, 0] :: S.R 2)
+
+namedTwoState :: TransitionMatrix NamedPosition
+namedTwoState =
+    either (error . show) id $
+        mkTransitionMatrix @NamedPosition
+            (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+
 -- Assignment 1: states ordered [A, B, C, D, E].
-assignment1 :: TransitionMatrix 5
+assignment1 :: TransitionMatrix (Finite 5)
 assignment1 =
     either (error . show) id $
         mkTransitionMatrix
@@ -108,7 +133,7 @@ assignment1 =
             )
 
 -- Assignment 1 initial law lambda = [1/4, 1/2, 0, 1/4, 0].
-assignment1Initial :: DistributionVector 5
+assignment1Initial :: DistributionVector (Finite 5)
 assignment1Initial =
     either (error . show) id $
         mkDistributionVector (S.vector [1 / 4, 1 / 2, 0, 1 / 4, 0] :: S.R 5)
@@ -119,9 +144,9 @@ spec = do
         prop "keeps the distribution on the simplex" $
             forAll ((,) <$> genDistribution @3 <*> genTransitionMatrix @3) $
                 \(vector, matrix) ->
-                    case (mkDistributionVector vector, mkTransitionMatrix matrix) of
+                    case (mkDistributionVector @(Finite 3) vector, mkTransitionMatrix matrix) of
                         (Right mu, Right p) ->
-                            case mkDistributionVector (unDistributionVector (evolveVector mu p)) of
+                            case mkDistributionVector @(Finite 3) (unDistributionVector (evolveVector mu p)) of
                                 Right _ ->
                                     property True
                                 Left err ->
@@ -136,17 +161,23 @@ spec = do
         it "matches a hand-computed two-state step" $ do
             let mu =
                     either (error . show) id $
-                        mkDistributionVector
+                        mkDistributionVector @(Finite 2)
                             (S.vector [1, 0] :: S.R 2)
 
             LA.toList (S.extract (unDistributionVector (evolveVector mu twoState)))
                 `shouldBe` [0.9, 0.1]
 
+        it "preserves named states while evolving the dense vector" $ do
+            probabilityAt (evolveVector namedInitial namedTwoState) LowerPosition
+                `shouldBe` 0.9
+            probabilityAt (evolveVector namedInitial namedTwoState) UpperPosition
+                `shouldBe` 0.1
+
     describe "evolveVectorN" $ do
         it "leaves a distribution unchanged after zero steps" $ do
             let mu =
                     either (error . show) id $
-                        mkDistributionVector
+                        mkDistributionVector @(Finite 2)
                             (S.vector [0.25, 0.75] :: S.R 2)
 
             approxDistributionEq
@@ -163,7 +194,7 @@ spec = do
                     <*> genTransitionMatrix @3
                 )
             $ \(k, vector, matrix) ->
-                case (mkDistributionVector vector, mkTransitionMatrix matrix) of
+                case (mkDistributionVector @(Finite 3) vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
                         let iterated =
                                 iterate (`evolveVector` p) mu !! k
@@ -186,7 +217,7 @@ spec = do
                     <*> genTransitionMatrix @3
                 )
             $ \(m, n, vector, matrix) ->
-                case (mkDistributionVector vector, mkTransitionMatrix matrix) of
+                case (mkDistributionVector @(Finite 3) vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
                         property $
                             approxDistributionEq
@@ -206,7 +237,7 @@ spec = do
         it "returns the initial probability at time zero" $ do
             let mu =
                     either (error . show) id $
-                        mkDistributionVector (S.vector [0.25, 0.75] :: S.R 2)
+                        mkDistributionVector @(Finite 2) (S.vector [0.25, 0.75] :: S.R 2)
 
             conjoin
                 [ property $
@@ -225,7 +256,7 @@ spec = do
                     <*> genTransitionMatrix @3
                 )
             $ \(k, vector, matrix) ->
-                case (mkDistributionVector vector, mkTransitionMatrix matrix) of
+                case (mkDistributionVector @(Finite 3) vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
                         conjoin
                             [ property $
@@ -248,7 +279,7 @@ spec = do
                     <*> genTransitionMatrix @3
                 )
             $ \(k, vector, matrix) ->
-                case (mkDistributionVector vector, mkTransitionMatrix matrix) of
+                case (mkDistributionVector @(Finite 3) vector, mkTransitionMatrix matrix) of
                     (Right mu, Right p) ->
                         let iterated = iterate (`evolveVector` p) mu !! k
                          in conjoin

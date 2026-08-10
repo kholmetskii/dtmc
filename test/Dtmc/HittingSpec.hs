@@ -69,12 +69,12 @@ import Test.QuickCheck (
     (===),
  )
 
-fromRows :: (Show e) => Either e (TransitionMatrix n) -> TransitionMatrix n
+fromRows :: (Show e) => Either e (TransitionMatrix (Finite n)) -> TransitionMatrix (Finite n)
 fromRows = either (error . show) id
 
 -- Gambler's ruin on {0..4}: win 1 with probability p, lose 1 with
 -- probability 1-p; 0 (ruin) and 4 (goal) are absorbing.
-gambler :: Double -> TransitionMatrix 5
+gambler :: Double -> TransitionMatrix (Finite 5)
 gambler p =
     fromRows $
         mkTransitionMatrix
@@ -109,7 +109,7 @@ gambler p =
 
 -- Oscillator: states 0 and 1 swap with probability 1/2 or exit to
 -- their own absorbing state (0 -> 2, 1 -> 3).
-oscillator :: TransitionMatrix 4
+oscillator :: TransitionMatrix (Finite 4)
 oscillator =
     fromRows $
         mkTransitionMatrix
@@ -133,7 +133,7 @@ oscillator =
                 ]
             )
 
-twoCycle :: TransitionMatrix 2
+twoCycle :: TransitionMatrix (Finite 2)
 twoCycle =
     fromRows $
         mkTransitionMatrix
@@ -145,7 +145,7 @@ twoCycle =
                 ]
             )
 
-nonUniformRecurrent :: TransitionMatrix 2
+nonUniformRecurrent :: TransitionMatrix (Finite 2)
 nonUniformRecurrent =
     fromRows $
         mkTransitionMatrix
@@ -158,7 +158,7 @@ nonUniformRecurrent =
             )
 
 -- Assignment 4 cafe chain, states [T, M, D, F, W, C, L].
-cafe :: TransitionMatrix 7
+cafe :: TransitionMatrix (Finite 7)
 cafe =
     fromRows $
         mkTransitionMatrix
@@ -224,7 +224,7 @@ chocolateWaffle = 5
 leave = 6
 
 -- 0 -> 1 -> 2 (absorbing): reaching 2 requires passing through 1 first.
-pathChain :: TransitionMatrix 3
+pathChain :: TransitionMatrix (Finite 3)
 pathChain =
     fromRows $
         mkTransitionMatrix
@@ -273,7 +273,7 @@ meanCloseTo _ InfiniteMean = False
 checkedChain ::
     (KnownNat n) =>
     S.Sq n ->
-    (TransitionMatrix n -> Property) ->
+    (TransitionMatrix (Finite n) -> Property) ->
     Property
 checkedChain matrix check =
     case mkTransitionMatrix matrix of
@@ -345,7 +345,7 @@ spec = do
 
     describe "bounded hitting times" $ do
         it "returns an empty result for the empty chain" $
-            entries (hittingTimeProbabilitiesBefore (identityMatrix @0) [] 3)
+            entries (hittingTimeProbabilitiesBefore (identityMatrix @(Finite 0)) [] 3)
                 `shouldBe` []
 
         it "places all time-zero mass on the target" $
@@ -652,7 +652,7 @@ spec = do
 
     describe "bounded first-return times" $ do
         it "returns an empty result for the empty chain" $
-            entries (returnTimeProbabilitiesBefore (identityMatrix @0) 3)
+            entries (returnTimeProbabilitiesBefore (identityMatrix @(Finite 0)) 3)
                 `shouldBe` []
 
         it "has no return mass at time zero" $

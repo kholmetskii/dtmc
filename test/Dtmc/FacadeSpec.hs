@@ -2,6 +2,9 @@ module Dtmc.FacadeSpec (
     spec,
 ) where
 
+import Data.Finite (
+    Finite,
+ )
 import Dtmc
 import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
@@ -14,11 +17,11 @@ import Test.Hspec (
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id
 
-finiteInitial :: DistributionVector 2
+finiteInitial :: DistributionVector (Finite 2)
 finiteInitial =
     checked (mkDistributionVector (S.vector [1, 0] :: S.R 2))
 
-finiteTransition :: TransitionMatrix 2
+finiteTransition :: TransitionMatrix (Finite 2)
 finiteTransition =
     checked
         ( mkTransitionMatrix

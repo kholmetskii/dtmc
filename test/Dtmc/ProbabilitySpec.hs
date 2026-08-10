@@ -4,6 +4,9 @@ module Dtmc.ProbabilitySpec (
     spec,
 ) where
 
+import Data.Finite (
+    Finite,
+ )
 import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
@@ -56,7 +59,7 @@ import Test.QuickCheck (
  )
 
 -- A three-state chain with several impossible one-step transitions.
-chain :: TransitionMatrix 3
+chain :: TransitionMatrix (Finite 3)
 chain =
     either (error . show) id $
         mkTransitionMatrix
@@ -74,7 +77,7 @@ chain =
                 S.Sq 3
             )
 
-initial :: DistributionVector 3
+initial :: DistributionVector (Finite 3)
 initial =
     either (error . show) id $
         mkDistributionVector (S.vector [0.6, 0.3, 0.1] :: S.R 3)
@@ -135,7 +138,7 @@ spec = do
         prop "a one-state path equals the initial probability" $
             forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
                 \(entries, matrix) ->
-                    case ( mkDistributionVector (S.vector entries :: S.R 3)
+                    case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
                          , mkTransitionMatrix matrix
                          ) of
                         (Right mu, Right p) ->
@@ -152,7 +155,7 @@ spec = do
         prop "a two-state path equals lambda_i * P(i, j)" $
             forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
                 \(entries, matrix) ->
-                    case ( mkDistributionVector (S.vector entries :: S.R 3)
+                    case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
                          , mkTransitionMatrix matrix
                          ) of
                         (Right mu, Right p) ->
@@ -224,7 +227,7 @@ spec = do
         prop "a single observation equals probabilityAtTime" $
             forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
                 \(entries, matrix) ->
-                    case ( mkDistributionVector (S.vector entries :: S.R 3)
+                    case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
                          , mkTransitionMatrix matrix
                          ) of
                         (Right mu, Right p) ->
@@ -245,7 +248,7 @@ spec = do
         prop "is invariant under observation order" $
             forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
                 \(entries, matrix) ->
-                    case ( mkDistributionVector (S.vector entries :: S.R 3)
+                    case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
                          , mkTransitionMatrix matrix
                          ) of
                         (Right mu, Right p) ->

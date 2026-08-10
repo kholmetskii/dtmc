@@ -85,7 +85,7 @@ tolerance is applied.
 
 Time: @O(outDegree(i))@ after the support graph is built.
 -}
-supportEdge :: TransitionMatrix n -> Finite n -> Finite n -> Bool
+supportEdge :: TransitionMatrix (Finite n) -> Finite n -> Finite n -> Bool
 supportEdge p i j = G.hasEdge (tmSupport p) (toIndex i) (toIndex j)
 
 {- | Whether @j@ is reachable from @i@ in zero or more transitions. Hence every
@@ -93,7 +93,7 @@ state is reachable from itself, even without a self-transition.
 
 Time: @O(n + E)@; traversal space: @O(n)@.
 -}
-accessible :: TransitionMatrix n -> Finite n -> Finite n -> Bool
+accessible :: TransitionMatrix (Finite n) -> Finite n -> Finite n -> Bool
 accessible p i j = G.reachable (tmSupport p) (toIndex i) (toIndex j)
 
 {- | Whether any target is reachable from @i@ in zero or more transitions.
@@ -102,7 +102,7 @@ An empty target list gives 'False'; including @i@ gives 'True'.
 The graph is traversed once rather than once per target. Worst-case time:
 @O(n + E + t)@ for @t@ supplied targets; space: @O(n)@.
 -}
-reachesAny :: TransitionMatrix n -> Finite n -> [Finite n] -> Bool
+reachesAny :: TransitionMatrix (Finite n) -> Finite n -> [Finite n] -> Bool
 reachesAny p i targets =
     G.reachesAny (tmSupport p) (toIndex i) (map toIndex targets)
 
@@ -115,7 +115,7 @@ space: @O(n + E)@.
 -}
 backwardReachable ::
     (KnownNat n) =>
-    TransitionMatrix n ->
+    TransitionMatrix (Finite n) ->
     (Finite n -> Bool) ->
     [Finite n] ->
     [Finite n]
@@ -127,7 +127,7 @@ This is an equivalence relation on the state space.
 
 Time: @O(1)@ after strongly connected components are cached.
 -}
-communicates :: TransitionMatrix n -> Finite n -> Finite n -> Bool
+communicates :: TransitionMatrix (Finite n) -> Finite n -> Finite n -> Bool
 communicates p i j =
     G.sameComponent (tmSupport p) (toIndex i) (toIndex j)
 
@@ -137,7 +137,7 @@ least member are both in ascending order.
 
 Result construction takes @O(n)@ after components are cached.
 -}
-communicatingClasses :: (KnownNat n) => TransitionMatrix n -> [[Finite n]]
+communicatingClasses :: (KnownNat n) => TransitionMatrix (Finite n) -> [[Finite n]]
 communicatingClasses p = map (map toFinite) (G.components (tmSupport p))
 
 {- | Whether every state communicates with every other state. The empty chain
@@ -145,7 +145,7 @@ is not irreducible.
 
 Time: @O(1)@ after communicating classes are cached.
 -}
-irreducible :: TransitionMatrix n -> Bool
+irreducible :: TransitionMatrix (Finite n) -> Bool
 irreducible p =
     case G.components (tmSupport p) of
         [c] -> not (null c)
@@ -158,7 +158,7 @@ self-transition.
 
 Time: @O(1)@ after periods are cached.
 -}
-period :: TransitionMatrix n -> Finite n -> Maybe Natural
+period :: TransitionMatrix (Finite n) -> Finite n -> Maybe Natural
 period p i = G.periodOf (tmSupport p) (toIndex i)
 
 {- | Whether every communicating class has period @1@. The empty chain and a
@@ -167,7 +167,7 @@ definition.
 
 Time: @O(c)@ for @c@ cached communicating classes.
 -}
-aperiodic :: TransitionMatrix n -> Bool
+aperiodic :: TransitionMatrix (Finite n) -> Bool
 aperiodic p =
     not (null cs) && all ((== Just 1) . G.componentPeriod g) cs
   where
@@ -181,7 +181,7 @@ reducible chain or an undefined period.
 
 Time and result space: @O(n)@ after graph facts are cached.
 -}
-cyclicClasses :: (KnownNat n) => TransitionMatrix n -> Maybe [[Finite n]]
+cyclicClasses :: (KnownNat n) => TransitionMatrix (Finite n) -> Maybe [[Finite n]]
 cyclicClasses p
     | not (irreducible p) = Nothing
     | otherwise =
@@ -207,7 +207,7 @@ class.
 
 Time: @O(1)@ after class closedness is cached.
 -}
-recurrentState :: TransitionMatrix n -> Finite n -> Bool
+recurrentState :: TransitionMatrix (Finite n) -> Finite n -> Bool
 recurrentState p i = G.inClosedComponent (tmSupport p) (toIndex i)
 
 {- | Whether @i@ is transient: the probability of returning from @i@ is less
@@ -215,7 +215,7 @@ than one. This is the negation of 'recurrentState' for a finite DTMC.
 
 Time: @O(1)@ after class closedness is cached.
 -}
-transientState :: TransitionMatrix n -> Finite n -> Bool
+transientState :: TransitionMatrix (Finite n) -> Finite n -> Bool
 transientState p i = not (recurrentState p i)
 
 {- | Members of the closed communicating classes, ordered by class and state
@@ -224,7 +224,7 @@ the empty list.
 
 Time and result space: @O(n)@ after class closedness is cached.
 -}
-recurrentStates :: (KnownNat n) => TransitionMatrix n -> [Finite n]
+recurrentStates :: (KnownNat n) => TransitionMatrix (Finite n) -> [Finite n]
 recurrentStates p =
     concatMap (map toFinite) closedComponents
   where
@@ -239,7 +239,7 @@ state index. The result is empty exactly when every class is closed.
 
 Time and result space: @O(n)@ after class closedness is cached.
 -}
-transientStates :: (KnownNat n) => TransitionMatrix n -> [Finite n]
+transientStates :: (KnownNat n) => TransitionMatrix (Finite n) -> [Finite n]
 transientStates p =
     concatMap (map toFinite) openComponents
   where
@@ -256,7 +256,7 @@ irreducibility, and aperiodicity summaries from one shared support graph.
 On an unforced matrix, time is @O(n^2 + n log n + E)@ and cached graph plus
 report space is @O(n + E)@.
 -}
-classify :: (KnownNat n) => TransitionMatrix n -> Classification n
+classify :: (KnownNat n) => TransitionMatrix (Finite n) -> Classification n
 classify p =
     Classification
         { classesOf = cs
@@ -291,7 +291,7 @@ wrapped unchanged.
 
 Time: @O(1)@ after communicating classes are cached.
 -}
-witnessIrreducible :: TransitionMatrix n -> Maybe (Irreducible n)
+witnessIrreducible :: TransitionMatrix (Finite n) -> Maybe (Irreducible n)
 witnessIrreducible p
     | irreducible p = Just (Irreducible p)
     | otherwise = Nothing

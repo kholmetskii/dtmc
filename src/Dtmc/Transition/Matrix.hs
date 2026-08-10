@@ -1,8 +1,8 @@
 {- |
 Module      : Dtmc.Transition.Matrix
-Description : Row-stochastic transition matrices and their monoid.
+Description : Row-stochastic matrices over finite state types.
 
-One-step transition probabilities for a DTMC on @n@ states.
+One-step transition probabilities for a DTMC over a 'FiniteState' type.
 'mkTransitionMatrix' validates each row with the simplex tolerance;
 'mulTransitionMatrix', 'identityMatrix', and 'matrixPower' provide multi-step
 transitions.
@@ -21,9 +21,6 @@ module Dtmc.Transition.Matrix (
 import Data.Bifunctor (
     first,
  )
-import Data.Finite (
-    Finite,
- )
 import Data.Foldable (
     traverse_,
  )
@@ -39,14 +36,15 @@ import Dtmc.Simplex (
 import Dtmc.Simplex.Internal (
     validateSimplex,
  )
+import Dtmc.State (
+    Cardinality,
+    FiniteState,
+ )
 import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
     matrixRowAt,
     unTransitionMatrix,
     unsafeTransitionMatrix,
- )
-import GHC.TypeNats (
-    KnownNat,
  )
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
@@ -68,9 +66,9 @@ the support graph remains lazy. The empty @0 x 0@ matrix is accepted.
 Time: @O(n^2)@. Additional validation space: @O(n)@.
 -}
 mkTransitionMatrix ::
-    (KnownNat n) =>
-    S.Sq n ->
-    Either TransitionMatrixError (TransitionMatrix n)
+    (FiniteState state) =>
+    S.Sq (Cardinality state) ->
+    Either TransitionMatrixError (TransitionMatrix state)
 mkTransitionMatrix matrix =
     unsafeTransitionMatrix matrix <$ traverse_ validateRow (zip [0 ..] (S.toRows matrix))
   where
@@ -87,10 +85,10 @@ accumulate, so the result may fail 'mkTransitionMatrix' if checked again.
 Time: @O(n^3)@. Result space: @O(n^2)@; its support graph is built lazily.
 -}
 mulTransitionMatrix ::
-    (KnownNat n) =>
-    TransitionMatrix n ->
-    TransitionMatrix n ->
-    TransitionMatrix n
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    TransitionMatrix state ->
+    TransitionMatrix state
 mulTransitionMatrix = (<>)
 
 {- | The @n x n@ identity: the zero-step transition that leaves every state
@@ -98,7 +96,7 @@ unchanged. For @n = 0@ this is the empty matrix.
 
 Time and result space: @O(n^2)@.
 -}
-identityMatrix :: (KnownNat n) => TransitionMatrix n
+identityMatrix :: (FiniteState state) => TransitionMatrix state
 identityMatrix = mempty
 
 {- | The @k@-step transition matrix @p^k@. Exponent zero returns
@@ -110,12 +108,20 @@ may differ by floating-point rounding and are not revalidated.
 
 Time: @O(n^2 + n^3 log(k + 1))@.
 -}
-matrixPower :: (KnownNat n) => Natural -> TransitionMatrix n -> TransitionMatrix n
+matrixPower ::
+    (FiniteState state) =>
+    Natural ->
+    TransitionMatrix state ->
+    TransitionMatrix state
 matrixPower = mtimesDefault
 
-{- | The stored row for state @i@: its next-state distribution. The 'Finite'
-index makes the lookup total. The row is wrapped without revalidation, so any
-floating-point drift from matrix arithmetic is preserved.
+{- | The stored row for a state: its next-state distribution. 'FiniteState'
+indexing makes the lookup total. The row is wrapped without revalidation, so
+any floating-point drift from matrix arithmetic is preserved.
 -}
-rowAt :: (KnownNat n) => TransitionMatrix n -> Finite n -> DistributionVector n
+rowAt ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    DistributionVector state
 rowAt = matrixRowAt

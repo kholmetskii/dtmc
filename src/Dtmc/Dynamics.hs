@@ -30,6 +30,9 @@ import Dtmc.Distribution.Vector.Internal (
 import Dtmc.Dynamics.Internal (
     pushSparseWeights,
  )
+import Dtmc.State (
+    FiniteState,
+ )
 import Dtmc.Transition (
     Transition (..),
  )
@@ -39,9 +42,6 @@ import Dtmc.Transition.Matrix (
 import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
     unTransitionMatrix,
- )
-import GHC.TypeNats (
-    KnownNat,
  )
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (Natural)
@@ -56,10 +56,10 @@ validation fail.
 Time: @O(n^2)@. Result space: @O(n)@.
 -}
 evolveVector ::
-    (KnownNat n) =>
-    DistributionVector n ->
-    TransitionMatrix n ->
-    DistributionVector n
+    (FiniteState state) =>
+    DistributionVector state ->
+    TransitionMatrix state ->
+    DistributionVector state
 evolveVector (DistributionVector v) p =
     DistributionVector (S.tr (unTransitionMatrix p) S.#> v)
 
@@ -73,11 +73,11 @@ may differ by floating-point rounding. The result is not revalidated.
 Time: @O(n^2 + n^3 log(k + 1))@.
 -}
 evolveVectorN ::
-    (KnownNat n) =>
+    (FiniteState state) =>
     Natural ->
-    DistributionVector n ->
-    TransitionMatrix n ->
-    DistributionVector n
+    DistributionVector state ->
+    TransitionMatrix state ->
+    DistributionVector state
 evolveVectorN k mu p =
     evolveVector mu (matrixPower k p)
 

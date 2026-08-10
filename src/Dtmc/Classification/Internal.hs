@@ -96,12 +96,12 @@ deriving instance (KnownNat n) => Show (Classification n)
 trusted internal use but hidden by "Dtmc.Classification", so user code cannot
 forge the witness through the public API.
 -}
-newtype Irreducible n = Irreducible (TransitionMatrix n)
+newtype Irreducible n = Irreducible (TransitionMatrix (Finite n))
 
 type role Irreducible nominal
 
 deriving instance (KnownNat n) => Show (Irreducible n)
 
 -- | Recover the certified transition matrix in @O(1)@ time.
-unIrreducible :: Irreducible n -> TransitionMatrix n
+unIrreducible :: Irreducible n -> TransitionMatrix (Finite n)
 unIrreducible (Irreducible p) = p
