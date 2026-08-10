@@ -80,7 +80,9 @@ test-suite spec
   main-is:          Spec.hs
 
   other-modules:
-      Dtmc.DistributionSpec
+      Dtmc.Distribution.VectorSpec
+      Dtmc.Distribution.MapSpec
+      Dtmc.Distribution.InterfaceSpec
       Dtmc.StateSpec
       Dtmc.Transition.MatrixSpec
       Dtmc.SimulationSpec
@@ -89,6 +91,7 @@ test-suite spec
       Dtmc.ClassificationSpec
       Dtmc.HittingSpec
       Dtmc.Transition.KernelSpec
+      Dtmc.Transition.InterfaceSpec
       Dtmc.FacadeSpec
       Dtmc.TestSupport
 
