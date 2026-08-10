@@ -46,3 +46,7 @@ spec =
         it "converts both representations to the same canonical map" $ do
             toDistributionMap vector `shouldBe` mapDistribution
             toDistributionMap mapDistribution `shouldBe` mapDistribution
+
+        it "converts a dense law without changing its weights" $
+            distributionWeights (toDistributionMap vector)
+                `shouldBe` [(0, 0.2), (2, 0.8)]

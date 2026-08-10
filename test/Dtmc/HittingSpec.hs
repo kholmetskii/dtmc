@@ -49,6 +49,10 @@ import Dtmc.Transition.Matrix (
     mkTransitionMatrix,
     unTransitionMatrix,
  )
+import Dtmc.Transition.TestSupport (
+    asTransitionKernel,
+    simpleRandomWalk,
+ )
 import GHC.Generics (
     Generic,
  )
@@ -863,7 +867,56 @@ spec = do
                             isFinite (expectedReturnTime p i)
                                 === recurrentState p i
                         | i <- finites :: [Finite 4]
-                        ]
+                                ]
+
+    describe "Transition realization independence" $ do
+        it "uses strict hitting bounds on an infinite random walk" $ do
+            hittingTimeProbabilityAt simpleRandomWalk (== 2) 0 2
+                `shouldSatisfy` closeTo 0.25
+            hittingTimeProbabilityBefore simpleRandomWalk (== 2) 0 2
+                `shouldBe` 0
+            hittingTimeProbabilityBefore simpleRandomWalk (== 2) 0 3
+                `shouldSatisfy` closeTo 0.25
+
+        it "distinguishes return time from time-zero hitting" $ do
+            hittingTimeProbabilityAt simpleRandomWalk (== 0) 0 0
+                `shouldBe` 1
+            returnTimeProbabilityAt simpleRandomWalk 0 0
+                `shouldBe` 0
+            returnTimeProbabilityAt simpleRandomWalk 0 2
+                `shouldSatisfy` closeTo 0.5
+            returnTimeProbabilityBefore simpleRandomWalk 0 2
+                `shouldBe` 0
+            returnTimeProbabilityBefore simpleRandomWalk 0 3
+                `shouldSatisfy` closeTo 0.5
+
+        prop "matches matrix and equivalent-kernel bounded queries" $
+            forAll (genTransitionMatrix @3) $ \rawMatrix ->
+                case mkTransitionMatrix rawMatrix of
+                    Left problem -> counterexample (show problem) False
+                    Right matrix ->
+                        let kernel = asTransitionKernel matrix
+                            target state = state == (2 :: Finite 3)
+                         in conjoin
+                                [ counterexample (show (state, time)) $
+                                    property $
+                                        and
+                                            [ closeTo
+                                                (hittingTimeProbabilityAt matrix target state time)
+                                                (hittingTimeProbabilityAt kernel target state time)
+                                            , closeTo
+                                                (hittingTimeProbabilityBefore matrix target state time)
+                                                (hittingTimeProbabilityBefore kernel target state time)
+                                            , closeTo
+                                                (returnTimeProbabilityAt matrix state time)
+                                                (returnTimeProbabilityAt kernel state time)
+                                            , closeTo
+                                                (returnTimeProbabilityBefore matrix state time)
+                                                (returnTimeProbabilityBefore kernel state time)
+                                            ]
+                                | state <- finites :: [Finite 3]
+                                , time <- [0 .. 4]
+                                ]
 
     describe "named finite states" $ do
         it "solves eventual and competing hitting queries by constructor" $ do

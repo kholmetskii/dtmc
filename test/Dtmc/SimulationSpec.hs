@@ -16,8 +16,9 @@ import Data.Finite (
  )
 import Dtmc.Distribution.Map (pointMass)
 import Dtmc.Distribution.Vector (mkDistributionVector)
-import Dtmc.Simulation (sample, step)
+import Dtmc.Simulation (sample, simulateN, step)
 import Dtmc.State (FiniteState)
+import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
@@ -143,3 +144,20 @@ spec = do
 
         it "runs in ST through PrimMonad" $
             length threeCycleOrbit `shouldBe` 3
+
+    describe "simulateN" $ do
+        it "simulates a finite matrix through the shared interface" $
+            let trajectory = runST $ do
+                    generator <- MWC.create
+                    simulateN 4 cyclicThree 0 generator
+             in trajectory `shouldBe` [0, 1, 2, 0, 1]
+
+        it "returns the initial state plus the requested kernel transitions" $
+            let trajectory = runST $ do
+                    generator <- MWC.create
+                    simulateN
+                        4
+                        (Kernel.deterministicKernel (\state -> (state + 1) `mod` (3 :: Int)))
+                        0
+                        generator
+             in trajectory `shouldBe` [0, 1, 2, 0, 1]

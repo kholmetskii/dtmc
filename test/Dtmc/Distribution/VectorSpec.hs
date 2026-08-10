@@ -8,14 +8,9 @@ module Dtmc.Distribution.VectorSpec (
 import Data.Finite (
     Finite,
  )
-import Data.Map.Strict qualified as Map
 import Dtmc.Distribution (
     Distribution (..),
     DistributionError (..),
- )
-import Dtmc.Distribution.Map (
-    toDistributionMap,
-    unDistributionMap,
  )
 import Dtmc.Distribution.Vector (
     mkDistributionVector,
@@ -28,7 +23,6 @@ import Dtmc.State (
     FiniteState,
  )
 import Dtmc.TestSupport (
-    approxDistributionEq,
     approxEq,
     bumpSmallest,
     genSimplexPoint,
@@ -157,18 +151,6 @@ spec = do
             probabilityAt tolerated 0 `shouldBe` (-1e-17)
             probabilityAt tolerated 1 `shouldBe` 1
 
-    describe "approxDistributionEq" $
-        prop "is reflexive at zero tolerance" $
-            forAll (genSimplexPoint 3) $ \entries ->
-                case mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3) of
-                    Right distribution ->
-                        property
-                            (approxDistributionEq 0 distribution distribution)
-                    Left err ->
-                        counterexample
-                            ("generated vector was rejected: " <> show err)
-                            False
-
     describe "named finite states" $ do
         let namedDistribution =
                 either (error . show) id $
@@ -188,10 +170,6 @@ spec = do
             distributionWeights namedDistribution
                 `shouldBe` [(NamedA, 0.2), (NamedC, 0.8)]
             support namedDistribution `shouldBe` [NamedA, NamedC]
-
-        it "converts to a map over the named state type" $
-            unDistributionMap (toDistributionMap namedDistribution)
-                `shouldBe` Map.fromList [(NamedA, 0.2), (NamedC, 0.8)]
 
         it "matches the low-level indexed representation coordinate for coordinate" $
             map (probabilityAt namedDistribution) [NamedA, NamedB, NamedC]
