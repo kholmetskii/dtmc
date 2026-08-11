@@ -139,11 +139,13 @@ spec =
             probabilityAt cafeInitial Thinking `shouldBe` 1
             absorbingStates (classify cafeTransition) `shouldBe` [Leave]
             abs
-                ( hittingBeforeProbability
-                    cafeTransition
-                    [PlainWaffle, ChocolateWaffle]
-                    [Drink, Leave]
-                    Thinking
+                ( checked
+                    ( hittingBeforeProbability
+                        cafeTransition
+                        [PlainWaffle, ChocolateWaffle]
+                        [Drink, Leave]
+                        Thinking
+                    )
                     - 29 / 43
                 )
                 < 1e-12

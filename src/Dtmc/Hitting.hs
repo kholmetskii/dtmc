@@ -16,15 +16,15 @@ Exact-time and strictly bounded queries use finite recurrences and never invoke
 a linear solver. For eventual probabilities and means, reachability decides
 unreachable zeros, recurrent returns, and infinite means from the
 strict-positive support graph; remaining values use 'Double' LU solves of
-@(I - Q)x = b@. No tolerance, conditioning test, residual check, or clamping
-is applied, so computed results may leave their mathematical ranges or become
-non-finite. A backend-reported singular system raises an error; for a valid
-transition matrix the systems are nonsingular in exact arithmetic.
+@(I - Q)x = b@. Results are not clamped or renormalised. Every numerical solve
+checks input and result finiteness, conditioning, and a scaled residual, and
+returns an explicit 'LinearSystemError' when the result cannot be accepted.
 
 All-state functions return empty results for a @0 x 0@ matrix. State-specific
 functions cannot be called because the state type has no inhabitants.
 -}
 module Dtmc.Hitting (
+    LinearSystemError (..),
     MeanTime (..),
     hittingTimeProbabilitiesAt,
     hittingTimeProbabilityAt,
@@ -46,6 +46,7 @@ module Dtmc.Hitting (
     expectedReturnTime,
 ) where
 
+import Control.Monad (foldM)
 import Data.Array qualified as Array
 import Data.Array.Unboxed qualified as Unboxed
 import Data.Finite (
@@ -74,6 +75,7 @@ import Dtmc.Hitting.Internal (
     MeanTime (..),
  )
 import Dtmc.Internal.LinearSystem (
+    LinearSystemError (..),
     fundamental,
     rowSums,
     solveIminusQVector,
@@ -275,14 +277,14 @@ The result is the minimal non-negative solution of @h_i = 1@ on @A@ and
 states from which @A@ is unreachable are exactly @0@. Remaining entries solve
 @(I - P[D,D])x = P[D,A]1@ and inherit floating-point error.
 
-Raises an error if the backend rejects the interior solve. Worst-case time:
-@O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
+Returns 'Left' if the interior solve fails the numerical contract. Worst-case
+time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
 hittingProbabilities ::
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
-    S.R (Cardinality state)
+    Either LinearSystemError (S.R (Cardinality state))
 hittingProbabilities p targets =
     -- The ordinary hitting problem is the competing problem with no competing
     -- boundary (@H_B = infinity@), so it reuses the same single solve.
@@ -301,11 +303,11 @@ hittingProbability ::
     TransitionMatrix state ->
     [state] ->
     state ->
-    Double
+    Either LinearSystemError Double
 hittingProbability p targets =
-    \i -> probabilities `LA.atIndex` toIndex i
+    \i -> (`LA.atIndex` toIndex i) <$> probabilities
   where
-    probabilities = S.extract (hittingProbabilities p targets)
+    probabilities = S.extract <$> hittingProbabilities p targets
 
 {- | Competing hitting probabilities
 @h_i = P(H_A < H_B | X_0 = i)@ in state order, for a successful boundary @A@
@@ -341,9 +343,10 @@ a state that cannot reach @A'@ at all, or can reach it only by first entering
 from the shared 'Double' linear solver, inherit its rounding, and are not
 clamped to @[0, 1]@, renormalised, or given any tolerance.
 
-Raises an error if the backend rejects the interior solve; for a valid
-transition matrix that system is nonsingular in exact arithmetic. The all-state
-result performs at most one linear solve.
+Returns 'Left' if the interior solve fails the numerical contract. For a valid
+transition matrix the system is nonsingular in exact arithmetic, but may still
+be too ill-conditioned for a reliable 'Double' result. The all-state result
+performs at most one linear solve.
 
 Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
@@ -353,9 +356,28 @@ hittingBeforeProbabilities ::
     TransitionMatrix state ->
     [state] ->
     [state] ->
-    S.R (Cardinality state)
-hittingBeforeProbabilities p successful competing =
-    S.vector [valueAt i | i <- [0 .. dim - 1]]
+    Either LinearSystemError (S.R (Cardinality state))
+hittingBeforeProbabilities p successful competing = do
+    solved <-
+        if null interiorIdx
+            then Right []
+            else
+                LA.toList
+                    <$> solveIminusQVector
+                        (subMatrix interiorIdx interiorIdx matrix)
+                        (rowSums (subMatrix interiorIdx effectiveIdx matrix))
+    let interiorValues :: Unboxed.UArray Int Double
+        interiorValues =
+            Unboxed.accumArray
+                (\_ x -> x)
+                0
+                (0, dim - 1)
+                (zip interiorIdx solved)
+        valueAt i
+            | inEffective i = 1
+            | canReach i = interiorValues Unboxed.! i
+            | otherwise = 0
+    pure (S.vector [valueAt i | i <- [0 .. dim - 1]])
   where
     dim = fromIntegral (natVal (Proxy @(Cardinality state)))
     -- Masks keep boundary and solution lookup constant-time during assembly.
@@ -382,24 +404,6 @@ hittingBeforeProbabilities p successful competing =
     canReach i = reachMask Unboxed.! i
     interiorIdx = [i | i <- [0 .. dim - 1], not (inEffective i), canReach i]
     matrix = S.extract (unTransitionMatrix p)
-    solved
-        | null interiorIdx = []
-        | otherwise =
-            case solveIminusQVector
-                (subMatrix interiorIdx interiorIdx matrix)
-                (rowSums (subMatrix interiorIdx effectiveIdx matrix)) of
-                Just x -> LA.toList x
-                Nothing ->
-                    error
-                        "Dtmc.Hitting.hittingBeforeProbabilities: interior system \
-                        \singular; impossible for a valid transition matrix"
-    interiorValues :: Unboxed.UArray Int Double
-    interiorValues =
-        Unboxed.accumArray (\_ x -> x) 0 (0, dim - 1) (zip interiorIdx solved)
-    valueAt i
-        | inEffective i = 1
-        | canReach i = interiorValues Unboxed.! i
-        | otherwise = 0
 
 {- | The probability of hitting the successful boundary strictly before the
 competing boundary from one state, @P(H_A < H_B | X_0 = i)@. This has the same
@@ -417,11 +421,12 @@ hittingBeforeProbability ::
     [state] ->
     [state] ->
     state ->
-    Double
+    Either LinearSystemError Double
 hittingBeforeProbability p successful competing =
-    \i -> probabilities `LA.atIndex` toIndex i
+    \i -> (`LA.atIndex` toIndex i) <$> probabilities
   where
-    probabilities = S.extract (hittingBeforeProbabilities p successful competing)
+    probabilities =
+        S.extract <$> hittingBeforeProbabilities p successful competing
 
 {- | Expected hitting times @E(H_A | X_0 = i)@ in state order. Targets have
 exact mean zero. A non-target state is 'InfiniteMean' exactly when the target
@@ -431,8 +436,8 @@ not a floating-point comparison. An empty target set therefore gives
 
 Finite entries are the solution of
 @eta_i = 1 + sum_(j not in A) P(i,j) eta_j@. They inherit solver rounding and
-are not clamped. Raises an error if the backend rejects the finite-state
-system.
+are not clamped. Returns 'Left' if the finite-state system fails the numerical
+contract.
 
 Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
@@ -441,9 +446,28 @@ expectedHittingTimes ::
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
-    [MeanTime]
-expectedHittingTimes p targets =
-    [valueAt i | i <- [0 .. dim - 1]]
+    Either LinearSystemError [MeanTime]
+expectedHittingTimes p targets = do
+    solved <-
+        if null certainIdx
+            then Right []
+            else
+                LA.toList
+                    <$> solveIminusQVector
+                        (subMatrix certainIdx certainIdx matrix)
+                        (LA.konst 1 (length certainIdx))
+    let certainValues :: Unboxed.UArray Int Double
+        certainValues =
+            Unboxed.accumArray
+                (\_ x -> x)
+                0
+                (0, dim - 1)
+                (zip certainIdx solved)
+        valueAt i
+            | inTarget i = FiniteMean 0
+            | doomedMask Unboxed.! i = InfiniteMean
+            | otherwise = FiniteMean (certainValues Unboxed.! i)
+    pure [valueAt i | i <- [0 .. dim - 1]]
   where
     dim = fromIntegral (natVal (Proxy @(Cardinality state)))
     targetMask = indexMask dim (map toIndex targets)
@@ -464,25 +488,6 @@ expectedHittingTimes p targets =
     certainIdx =
         [i | i <- [0 .. dim - 1], not (inTarget i), not (doomedMask Unboxed.! i)]
     matrix = S.extract (unTransitionMatrix p)
-    solved
-        | null certainIdx = []
-        | otherwise =
-            case solveIminusQVector
-                (subMatrix certainIdx certainIdx matrix)
-                (LA.konst 1 (length certainIdx)) of
-                Just x -> LA.toList x
-                Nothing ->
-                    error
-                        "Dtmc.Hitting.expectedHittingTimes: certain system \
-                        \singular; impossible for a valid transition matrix"
-    -- A mask-backed table avoids linear list lookup while assembling results.
-    certainValues :: Unboxed.UArray Int Double
-    certainValues =
-        Unboxed.accumArray (\_ x -> x) 0 (0, dim - 1) (zip certainIdx solved)
-    valueAt i
-        | inTarget i = FiniteMean 0
-        | doomedMask Unboxed.! i = InfiniteMean
-        | otherwise = FiniteMean (certainValues Unboxed.! i)
 
 {- | The expected time to hit the target set from one state. This has the same
 edge cases, numerical behavior, and errors as 'expectedHittingTimes'.
@@ -496,13 +501,14 @@ expectedHittingTime ::
     TransitionMatrix state ->
     [state] ->
     state ->
-    MeanTime
+    Either LinearSystemError MeanTime
 expectedHittingTime p targets =
-    \i -> table Array.! toIndex i
+    \i -> (Array.! toIndex i) <$> table
   where
     -- Back the shared table with a boxed array so each state query is O(1)
     -- (list @!!@ was O(index)); the single solve is still shared across queries.
-    table = Array.listArray (0, dim - 1) (expectedHittingTimes p targets)
+    table =
+        Array.listArray (0, dim - 1) <$> expectedHittingTimes p targets
     dim = fromIntegral (natVal (Proxy @(Cardinality state)))
 
 -- Advance, for every possible origin, the mass that has not yet returned to
@@ -637,8 +643,8 @@ exactly @1@ from support classification.
 
 For all transient states, one fundamental-matrix solve computes
 @N = (I - Q)^-1@ and @f_i = 1 - 1/N(i,i)@. Transient results inherit solver
-rounding and are not clamped to @[0,1]@. Raises an error if the backend rejects
-the transient system.
+rounding and are not clamped to @[0,1]@. Returns 'Left' if the transient system
+fails the numerical contract.
 
 Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
@@ -646,34 +652,33 @@ returnProbabilities ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
-    S.R (Cardinality state)
-returnProbabilities p =
-    S.vector [valueAt i | i <- finiteStates]
+    Either LinearSystemError (S.R (Cardinality state))
+returnProbabilities p = do
+    transientReturns <-
+        if null transient
+            then Right []
+            else do
+                nMatrix <- fundamental (subMatrix transientIdx transientIdx matrix)
+                pure
+                    [ 1 - 1 / (nMatrix `LA.atIndex` (k, k))
+                    | k <- [0 .. length transient - 1]
+                    ]
+    let transientValues :: Unboxed.UArray Int Double
+        transientValues =
+            Unboxed.accumArray
+                (\_ x -> x)
+                0
+                (0, dim - 1)
+                (zip transientIdx transientReturns)
+        valueAt i
+            | recurrentState p i = 1
+            | otherwise = transientValues Unboxed.! toIndex i
+    pure (S.vector [valueAt i | i <- finiteStates])
   where
     dim = fromIntegral (natVal (Proxy @(Cardinality state)))
     transient = transientStates p
     transientIdx = map toIndex transient
     matrix = S.extract (unTransitionMatrix p)
-    -- One fundamental matrix supplies every transient return probability.
-    transientReturns
-        | null transient = []
-        | otherwise =
-            case fundamental (subMatrix transientIdx transientIdx matrix) of
-                Just nMatrix ->
-                    [ 1 - 1 / (nMatrix `LA.atIndex` (k, k))
-                    | k <- [0 .. length transient - 1]
-                    ]
-                Nothing ->
-                    error
-                        "Dtmc.Hitting.returnProbabilities: transient system \
-                        \singular or numerically ill-conditioned"
-    -- Index results once so output assembly does not scan the transient list.
-    transientValues :: Unboxed.UArray Int Double
-    transientValues =
-        Unboxed.accumArray (\_ x -> x) 0 (0, dim - 1) (zip transientIdx transientReturns)
-    valueAt i
-        | recurrentState p i = 1
-        | otherwise = transientValues Unboxed.! toIndex i
 
 {- | The probability of returning to one state after at least one transition.
 A recurrent-state query returns exactly @1@ without forcing the
@@ -688,14 +693,14 @@ returnProbability ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
-    Double
+    Either LinearSystemError Double
 returnProbability p =
     \i ->
         if recurrentState p i
-            then 1
-            else probabilities `LA.atIndex` toIndex i
+            then Right 1
+            else (`LA.atIndex` toIndex i) <$> probabilities
   where
-    probabilities = S.extract (returnProbabilities p)
+    probabilities = S.extract <$> returnProbabilities p
 
 {- | Expected first-return times @E(T_i | X_0 = i)@ in state order. Transient
 states are exactly 'InfiniteMean'. Each recurrent state uses the first-step
@@ -712,11 +717,11 @@ expectedReturnTimes ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
-    [MeanTime]
+    Either LinearSystemError [MeanTime]
 -- Reuse the hitting-time path; an all-state Kac calculation would require
 -- stationary-distribution machinery not otherwise present in this module.
 expectedReturnTimes p =
-    map (expectedReturnTime p) finiteStates
+    traverse (expectedReturnTime p) finiteStates
 
 {- | The expected first-return time for one state. A transient state returns
 'InfiniteMean' without a linear solve. A recurrent state performs one
@@ -732,26 +737,28 @@ expectedReturnTime ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
-    MeanTime
+    Either LinearSystemError MeanTime
 expectedReturnTime p i
     | recurrentState p i = expectedReturnTimeFrom p i
-    | otherwise = InfiniteMean
+    | otherwise = Right InfiniteMean
 
 expectedReturnTimeFrom ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
-    MeanTime
+    Either LinearSystemError MeanTime
 expectedReturnTimeFrom p i =
-    foldl' addTerm (FiniteMean 1) (zip finiteStates row)
+    foldM addTerm (FiniteMean 1) (zip finiteStates row)
   where
     eta = expectedHittingTime p [i]
     row = LA.toList (S.extract (unDistributionVector (rowAt p i)))
     addTerm acc (j, pij)
-        | pij <= 0 = acc
-        | otherwise =
-            case (acc, eta j) of
-                (FiniteMean total, FiniteMean hittingTime) ->
-                    FiniteMean (total + pij * hittingTime)
-                _ -> InfiniteMean
+        | pij <= 0 = Right acc
+        | otherwise = do
+            hitting <- eta j
+            pure $
+                case (acc, hitting) of
+                    (FiniteMean total, FiniteMean hittingTime) ->
+                        FiniteMean (total + pij * hittingTime)
+                    _ -> InfiniteMean

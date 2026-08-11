@@ -123,11 +123,10 @@ renormalised. Support-graph algorithms treat a stored entry as an edge exactly
 when it is strictly positive.
 
 Construction and mathematically undefined query results use explicit error
-values. The current `0.x` hitting routines can still raise an exception if the
-numerical backend rejects a linear system that is nonsingular in exact
-arithmetic; their module documentation identifies those cases. New numerical
-analyses must return an explicit error value instead, and the existing solver
-failure path will be migrated before `1.0`.
+values. Eventual and expected hitting/return analyses return
+`Either LinearSystemError result`. The shared solver rejects non-finite systems or
+solutions, reciprocal condition estimates below `1e-12`, and scaled residuals
+above `1e-9`; no numerical failure is converted into a runtime exception.
 
 ## Quick start
 

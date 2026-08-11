@@ -24,6 +24,7 @@ module to build, analyse, and run chains. Focused imports are available through
 -}
 module Dtmc (
     type Cardinality,
+    LinearSystemError (..),
     FiniteState,
     finiteStates,
     stateIndex,
@@ -211,6 +212,7 @@ import Dtmc.Classification (
  )
 
 import Dtmc.Hitting (
+    LinearSystemError (..),
     MeanTime (..),
     expectedHittingTime,
     expectedHittingTimes,

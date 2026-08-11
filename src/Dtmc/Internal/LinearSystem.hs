@@ -7,10 +7,12 @@ blocks indexed by runtime state sets and solve systems of the form
 @(I - Q) x = b@. Public modules convert bounded state indices to 'Int' and
 keep dynamically sized matrices inside the implementation.
 
-All arithmetic uses 'Double'. This module adds no numeric tolerance,
-conditioning test, or residual check.
+All arithmetic uses 'Double'. Every solve validates finiteness, rejects a
+reciprocal condition estimate below @1e-12@, and verifies a scaled residual
+against @1e-9@.
 -}
 module Dtmc.Internal.LinearSystem (
+    LinearSystemError (..),
     subMatrix,
     rowSums,
     solveIminusQ,
@@ -19,6 +21,58 @@ module Dtmc.Internal.LinearSystem (
 ) where
 
 import Numeric.LinearAlgebra qualified as LA
+
+{- | A numerical linear system could not be accepted safely.
+
+The reciprocal condition estimate and relative residual are dimensionless.
+Smaller reciprocal condition estimates indicate greater sensitivity; smaller
+relative residuals indicate a better computed solution.
+-}
+data LinearSystemError
+    = -- | A solver reported that the coefficient matrix is singular.
+      SingularSystem
+    | -- | The coefficient matrix is too sensitive for the numerical contract.
+      IllConditionedSystem
+        { reciprocalConditionEstimate :: Double
+        }
+    | -- | A coefficient or right-hand-side entry was @NaN@ or infinite.
+      NonFiniteSystem
+    | -- | The solver produced a @NaN@ or infinite result.
+      NonFiniteSolution
+    | -- | The computed solution did not satisfy the equations closely enough.
+      ResidualTooLarge
+        { relativeResidual :: Double
+        , residualLimit :: Double
+        }
+    deriving (Eq, Show)
+
+conditionLimit :: Double
+conditionLimit = 1e-12
+
+residualLimitValue :: Double
+residualLimitValue = 1e-9
+
+allFinite :: LA.Matrix Double -> Bool
+allFinite = all isFinite . LA.toList . LA.flatten
+
+isFinite :: Double -> Bool
+isFinite value = not (isNaN value || isInfinite value)
+
+infinityNorm :: LA.Matrix Double -> Double
+infinityNorm = maximum . (0 :) . map (sum . map abs) . LA.toLists
+
+relativeSystemResidual ::
+    LA.Matrix Double ->
+    LA.Matrix Double ->
+    LA.Matrix Double ->
+    Double
+relativeSystemResidual coefficient solution rightHandSide =
+    infinityNorm (coefficient LA.<> solution - rightHandSide)
+        / max
+            1
+            ( infinityNorm coefficient * infinityNorm solution
+                + infinityNorm rightHandSide
+            )
 
 {- | The block of @m@ selected by the row and column indices. Their order and
 multiplicity are preserved; an empty list produces a zero-sized dimension.
@@ -46,24 +100,52 @@ rowSums m = m LA.#> LA.konst 1 (LA.cols m)
 must be @n x r@, and all entries must be finite; incompatible dimensions
 raise a backend error.
 
-Returns 'Nothing' when the backend reports singularity, including @n = 0@.
-Current DTMC callers choose @Q@ with spectral radius below one, which
-guarantees invertibility in exact arithmetic. This wrapper applies no
-tolerance or residual check, so an ill-conditioned system may yield an
-inaccurate result.
+Returns a 'LinearSystemError' when the input or result is non-finite, the backend
+reports singularity, the reciprocal condition estimate is below @1e-12@, or
+the scaled infinity-norm residual exceeds @1e-9@. Current DTMC callers choose
+@Q@ with spectral radius below one, which guarantees invertibility in exact
+arithmetic, but does not guarantee a reliable 'Double' result.
 
 Time: @O(n^3 + n^2 r)@. Space: @O(n^2 + nr)@.
 -}
-solveIminusQ :: LA.Matrix Double -> LA.Matrix Double -> Maybe (LA.Matrix Double)
-solveIminusQ q =
-    LA.linearSolve (LA.ident (LA.rows q) - q)
+solveIminusQ ::
+    LA.Matrix Double ->
+    LA.Matrix Double ->
+    Either LinearSystemError (LA.Matrix Double)
+solveIminusQ q rightHandSide
+    | not (allFinite q && allFinite rightHandSide) = Left NonFiniteSystem
+    | otherwise =
+        case LA.linearSolve coefficient rightHandSide of
+            Nothing -> Left SingularSystem
+            Just solution
+                | not (allFinite solution) -> Left NonFiniteSolution
+                | not (isFinite reciprocalCondition) -> Left NonFiniteSystem
+                | reciprocalCondition < conditionLimit ->
+                    Left (IllConditionedSystem reciprocalCondition)
+                | residual > residualLimitValue ->
+                    Left
+                        ( ResidualTooLarge
+                            { relativeResidual = residual
+                            , residualLimit = residualLimitValue
+                            }
+                        )
+                | otherwise -> Right solution
+              where
+                residual =
+                    relativeSystemResidual coefficient solution rightHandSide
+  where
+    coefficient = LA.ident (LA.rows q) - q
+    reciprocalCondition = LA.rcond coefficient
 
 {- | 'solveIminusQ' for a vector of length @n@. It has the same shape,
 singularity, and floating-point behaviour.
 
 Time: @O(n^3)@. Space: @O(n^2)@.
 -}
-solveIminusQVector :: LA.Matrix Double -> LA.Vector Double -> Maybe (LA.Vector Double)
+solveIminusQVector ::
+    LA.Matrix Double ->
+    LA.Vector Double ->
+    Either LinearSystemError (LA.Vector Double)
 solveIminusQVector q b =
     LA.flatten <$> solveIminusQ q (LA.asColumn b)
 
@@ -72,10 +154,10 @@ transient-to-transient transition block with spectral radius below one, this
 is the fundamental matrix @sum_{k=0}^infinity Q^k@.
 
 Requires a non-empty square matrix with finite entries and inherits the
-singularity and floating-point behaviour of 'solveIminusQ'.
+validation and error behaviour of 'solveIminusQ'.
 
 Time: @O(n^3)@. Space: @O(n^2)@.
 -}
-fundamental :: LA.Matrix Double -> Maybe (LA.Matrix Double)
+fundamental :: LA.Matrix Double -> Either LinearSystemError (LA.Matrix Double)
 fundamental q =
     solveIminusQ q (LA.ident (LA.rows q))
