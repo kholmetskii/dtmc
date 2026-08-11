@@ -15,6 +15,7 @@ import Dtmc.Classification (
     accessible,
     recurrentState,
  )
+import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.Hitting (
     LinearSystemError (..),
     MeanTime (..),
@@ -37,22 +38,23 @@ import Dtmc.Hitting (
     returnTimeProbabilityAt,
     returnTimeProbabilityBefore,
  )
+import Dtmc.Probability (
+    transitionProbability,
+ )
 import Dtmc.State (
     FiniteState,
+    finiteStates,
  )
 import Dtmc.TestSupport (
     genTransitionMatrix,
     testTolerance,
  )
+import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     identityMatrix,
     mkTransitionMatrix,
     unTransitionMatrix,
- )
-import Dtmc.Transition.TestSupport (
-    asTransitionKernel,
-    simpleRandomWalk,
  )
 import GHC.Generics (
     Generic,
@@ -89,6 +91,24 @@ instance FiniteState NamedRuinState
 
 fromRows :: (Show e) => Either e (TransitionMatrix (Finite n)) -> TransitionMatrix (Finite n)
 fromRows = either (error . show) id
+
+asTransitionKernel ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    Kernel.TransitionKernel state
+asTransitionKernel matrix =
+    Kernel.transitionKernel $ \source ->
+        either (error . show) id $
+            DistributionMap.mkDistributionMap
+                [ (destination, transitionProbability matrix source destination)
+                | destination <- finiteStates
+                ]
+
+simpleRandomWalk :: Kernel.TransitionKernel Integer
+simpleRandomWalk =
+    Kernel.transitionKernel $ \state ->
+        either (error . show) id $
+            DistributionMap.mkDistributionMap [(state - 1, 0.5), (state + 1, 0.5)]
 
 -- Gambler's ruin on {0..4}: win 1 with probability p, lose 1 with
 -- probability 1-p; 0 (ruin) and 4 (goal) are absorbing.
@@ -208,72 +228,6 @@ nonUniformRecurrent =
                 , 0.6
                 ]
             )
-
--- Assignment 4 cafe chain, states [T, M, D, F, W, C, L].
-cafe :: TransitionMatrix (Finite 7)
-cafe =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
-                [ 0
-                , 1 / 5
-                , 0
-                , 1 / 5
-                , 1 / 5
-                , 1 / 5
-                , 1 / 5 -- T
-                , 1 / 5
-                , 0
-                , 2 / 5
-                , 0
-                , 2 / 5
-                , 0
-                , 0 -- M
-                , 0
-                , 0
-                , 0
-                , 1 / 2
-                , 0
-                , 0
-                , 1 / 2 -- D
-                , 1 / 2
-                , 0
-                , 0
-                , 0
-                , 0
-                , 1 / 2
-                , 0 -- F
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 1 -- W
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 1 -- C
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 1 -- L
-                ]
-            )
-
--- Named cafe states used by the tests (order [T, M, D, F, W, C, L]).
-thinking, drink, plainWaffle, chocolateWaffle, leave :: Finite 7
-thinking = 0
-drink = 2
-plainWaffle = 4
-chocolateWaffle = 5
-leave = 6
 
 -- 0 -> 1 -> 2 (absorbing): reaching 2 requires passing through 1 first.
 pathChain :: TransitionMatrix (Finite 3)
@@ -462,21 +416,21 @@ spec = do
                 `shouldSatisfy` closeTo 0.5
 
         it "ignores duplicate and reordered targets" $
-            entries (hittingTimeProbabilitiesBefore cafe [drink, leave, drink] 4)
-                `shouldBe` entries (hittingTimeProbabilitiesBefore cafe [leave, drink] 4)
+            entries (hittingTimeProbabilitiesBefore oscillator [2, 3, 2] 4)
+                `shouldBe` entries (hittingTimeProbabilitiesBefore oscillator [3, 2] 4)
 
         it "single-state queries look up the all-state results" $ do
-            let exact = entries (hittingTimeProbabilitiesAt cafe [leave] 3)
-                bounded = entries (hittingTimeProbabilitiesBefore cafe [leave] 4)
+            let exact = entries (hittingTimeProbabilitiesAt oscillator [2] 3)
+                bounded = entries (hittingTimeProbabilitiesBefore oscillator [2] 4)
             sequence_
-                [ hittingTimeProbabilityAt cafe (== leave) i 3
+                [ hittingTimeProbabilityAt oscillator (== 2) i 3
                     `shouldSatisfy` closeTo exactAt
-                | (i, exactAt) <- zip (finites :: [Finite 7]) exact
+                | (i, exactAt) <- zip (finites :: [Finite 4]) exact
                 ]
             sequence_
-                [ hittingTimeProbabilityBefore cafe (== leave) i 4
+                [ hittingTimeProbabilityBefore oscillator (== 2) i 4
                     `shouldSatisfy` closeTo boundedAt
-                | (i, boundedAt) <- zip (finites :: [Finite 7]) bounded
+                | (i, boundedAt) <- zip (finites :: [Finite 4]) bounded
                 ]
 
         prop "bounded increments equal exact-time mass (random @4)" $
@@ -520,30 +474,30 @@ spec = do
             hittingBeforeProbability (gambler 0.5) [4] [0] 0 `shouldBe` Right 0
 
         it "is exactly zero on an overlapping (tied) state" $
-            -- drink is in both boundaries, so the tie loses: value zero.
-            hittingBeforeProbability cafe [plainWaffle, drink] [drink, leave] drink
+            -- State 2 is in both boundaries, so the tie loses: value zero.
+            hittingBeforeProbability oscillator [2] [2, 3] 2
                 `shouldBe` Right 0
 
         it "gives all zeros for identical successful and competing sets" $
             ( entries
                 <$> hittingBeforeProbabilities
-                    cafe
-                    [plainWaffle, chocolateWaffle]
-                    [plainWaffle, chocolateWaffle]
+                    oscillator
+                    [2, 3]
+                    [2, 3]
             )
-                `shouldBe` Right (replicate 7 0)
+                `shouldBe` Right (replicate 4 0)
 
         it "gives all zeros for an empty successful set" $
-            (entries <$> hittingBeforeProbabilities cafe [] [drink, leave])
-                `shouldBe` Right (replicate 7 0)
+            (entries <$> hittingBeforeProbabilities oscillator [] [2, 3])
+                `shouldBe` Right (replicate 4 0)
 
         it "agrees with hittingProbabilities for an empty competing set" $ do
             case
                 ( hittingBeforeProbabilities
-                    cafe
-                    [plainWaffle, chocolateWaffle]
+                    oscillator
+                    [2, 3]
                     []
-                , hittingProbabilities cafe [plainWaffle, chocolateWaffle]
+                , hittingProbabilities oscillator [2, 3]
                 ) of
                 (Left err, _) -> expectationFailure (show err)
                 (_, Left err) -> expectationFailure (show err)
@@ -554,8 +508,8 @@ spec = do
                         ]
 
         it "is exactly zero when the successful set is unreachable" $
-            -- From C only L is ever reached, so a plain waffle never is.
-            hittingBeforeProbability cafe [plainWaffle] [] chocolateWaffle
+            -- Absorbing state 3 cannot reach absorbing state 2.
+            hittingBeforeProbability oscillator [2] [] 3
                 `shouldBe` Right 0
 
         it "is exactly zero when success needs a competitor first" $
@@ -565,13 +519,13 @@ spec = do
         it "ignores duplicate targets" $ do
             case
                 ( hittingBeforeProbabilities
-                    cafe
-                    [plainWaffle, chocolateWaffle, plainWaffle]
-                    [drink, leave, drink]
+                    oscillator
+                    [2, 2]
+                    [3, 3]
                 , hittingBeforeProbabilities
-                    cafe
-                    [plainWaffle, chocolateWaffle]
-                    [drink, leave]
+                    oscillator
+                    [2]
+                    [3]
                 ) of
                 (Left err, _) -> expectationFailure (show err)
                 (_, Left err) -> expectationFailure (show err)
@@ -584,13 +538,13 @@ spec = do
         it "ignores target order" $ do
             case
                 ( hittingBeforeProbabilities
-                    cafe
-                    [chocolateWaffle, plainWaffle]
-                    [leave, drink]
+                    oscillator
+                    [2, 0]
+                    [3, 1]
                 , hittingBeforeProbabilities
-                    cafe
-                    [plainWaffle, chocolateWaffle]
-                    [drink, leave]
+                    oscillator
+                    [0, 2]
+                    [1, 3]
                 ) of
                 (Left err, _) -> expectationFailure (show err)
                 (_, Left err) -> expectationFailure (show err)
@@ -603,20 +557,20 @@ spec = do
         it "single-state lookups match the all-state vector" $
             case
                 hittingBeforeProbabilities
-                    cafe
-                    [plainWaffle, chocolateWaffle]
-                    [drink, leave] of
+                    oscillator
+                    [2]
+                    [3] of
                 Left err -> expectationFailure (show err)
                 Right result ->
                     sequence_
                         [ hittingBeforeProbability
-                            cafe
-                            [plainWaffle, chocolateWaffle]
-                            [drink, leave]
+                            oscillator
+                            [2]
+                            [3]
                             i
                             `shouldSatisfy` either (const False) (closeTo x)
                         | (i, x) <-
-                            zip (finites :: [Finite 7]) (entries result)
+                            zip (finites :: [Finite 4]) (entries result)
                         ]
 
         it "solves the oscillator race against a competing absorber" $ do
@@ -653,33 +607,6 @@ spec = do
                 | pp <- [0.3, 0.5, 0.7]
                 , let g = gambler pp
                 ]
-
-        it "matches the Assignment 4 cafe results" $ do
-            -- Existing ordinary hitting results.
-            hittingProbability cafe [leave] thinking
-                `shouldSatisfy` either (const False) (closeTo 1)
-            hittingProbability cafe [drink] thinking
-                `shouldSatisfy` either (const False) (closeTo (4 / 43))
-            -- New competing result: reach a waffle before a drink or leaving.
-            hittingBeforeProbability
-                cafe
-                [plainWaffle, chocolateWaffle]
-                [drink, leave]
-                thinking
-                `shouldSatisfy` either (const False) (closeTo (29 / 43))
-            case
-                hittingBeforeProbabilities
-                    cafe
-                    [plainWaffle, chocolateWaffle]
-                    [drink, leave] of
-                Left err -> expectationFailure (show err)
-                Right result ->
-                    sequence_
-                        [ x `shouldSatisfy` closeTo (29 / 43)
-                        | (i, x) <-
-                            zip (finites :: [Finite 7]) (entries result)
-                        , i == thinking
-                        ]
 
     describe "expectedHittingTimes" $ do
         it "returns one entry per state" $ do
@@ -798,17 +725,17 @@ spec = do
                 `shouldBe` [1, 1]
 
         it "single-state queries look up the all-state results" $ do
-            let exact = entries (returnTimeProbabilitiesAt cafe 3)
-                bounded = entries (returnTimeProbabilitiesBefore cafe 4)
+            let exact = entries (returnTimeProbabilitiesAt oscillator 3)
+                bounded = entries (returnTimeProbabilitiesBefore oscillator 4)
             sequence_
-                [ returnTimeProbabilityAt cafe i 3
+                [ returnTimeProbabilityAt oscillator i 3
                     `shouldSatisfy` closeTo exactAt
-                | (i, exactAt) <- zip (finites :: [Finite 7]) exact
+                | (i, exactAt) <- zip (finites :: [Finite 4]) exact
                 ]
             sequence_
-                [ returnTimeProbabilityBefore cafe i 4
+                [ returnTimeProbabilityBefore oscillator i 4
                     `shouldSatisfy` closeTo boundedAt
-                | (i, boundedAt) <- zip (finites :: [Finite 7]) bounded
+                | (i, boundedAt) <- zip (finites :: [Finite 4]) bounded
                 ]
 
         prop "bounded increments equal exact-time mass (random @4)" $

@@ -10,19 +10,19 @@ import Data.Finite (
  )
 import Dtmc.Distribution qualified as Distribution
 import Dtmc.Distribution.Map qualified as DistributionMap
+import Dtmc.Probability (
+    transitionProbability,
+ )
 import Dtmc.TestSupport (
     genTransitionMatrix,
  )
 import Dtmc.Transition qualified as Transition
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
+    TransitionMatrix,
     mkTransitionMatrix,
  )
-import Dtmc.Transition.TestSupport (
-    asTransitionKernel,
-    checked,
-    finiteChain,
- )
+import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -38,6 +38,38 @@ import Test.QuickCheck (
     forAll,
     (===),
  )
+
+checked :: (Show error) => Either error value -> value
+checked = either (error . show) id
+
+finiteChain :: TransitionMatrix (Finite 3)
+finiteChain =
+    checked $
+        mkTransitionMatrix
+            ( S.matrix
+                [ 0.5
+                , 0.5
+                , 0
+                , 0
+                , 0.2
+                , 0.8
+                , 1
+                , 0
+                , 0
+                ] ::
+                S.Sq 3
+            )
+
+asTransitionKernel ::
+    TransitionMatrix (Finite 3) ->
+    Kernel.TransitionKernel (Finite 3)
+asTransitionKernel matrix =
+    Kernel.transitionKernel $ \source ->
+        checked $
+            DistributionMap.mkDistributionMap
+                [ (destination, transitionProbability matrix source destination)
+                | destination <- finites
+                ]
 
 spec :: Spec
 spec =

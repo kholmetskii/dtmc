@@ -92,7 +92,6 @@ test-suite spec
       Dtmc.HittingSpec
       Dtmc.Transition.KernelSpec
       Dtmc.Transition.InterfaceSpec
-      Dtmc.Transition.TestSupport
       Dtmc.FacadeSpec
       Dtmc.TestSupport
 

@@ -4,14 +4,14 @@ module Dtmc.FacadeSpec (
     spec,
 ) where
 
-import Data.Finite (
-    Finite,
- )
 import Dtmc
 import GHC.Generics (
     Generic,
  )
 import Numeric.LinearAlgebra.Static qualified as S
+import Numeric.Natural (
+    Natural,
+ )
 import Test.Hspec (
     Spec,
     describe,
@@ -34,29 +34,84 @@ data CafeState
 
 instance FiniteState CafeState
 
-finiteInitial :: DistributionVector (Finite 2)
-finiteInitial =
-    checked (mkDistributionVector (S.vector [1, 0] :: S.R 2))
+data FruitState
+    = Apple
+    | Pear
+    | Banana
+    | Mango
+    | Kiwi
+    | Watermelon
+    | Grapefruit
+    deriving (Eq, Ord, Show, Generic)
 
-finiteTransition :: TransitionMatrix (Finite 2)
-finiteTransition =
+instance FiniteState FruitState
+
+fruitTransition :: TransitionMatrix FruitState
+fruitTransition =
     checked
         ( mkTransitionMatrix
             ( S.matrix
                 [ 0
-                , 1
+                , 0
+                , 1 / 2
+                , 1 / 2
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
                 , 1
                 , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1 / 3
+                , 1 / 3
+                , 1 / 3
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 2 / 3
+                , 1 / 3
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
                 ] ::
-                S.Sq 2
+                S.Sq 7
             )
         )
 
-integerInitial :: DistributionMap Integer
-integerInitial = pointMass 0
+appleToMangoProbability :: Int -> Double
+appleToMangoProbability n =
+    5 / 7 - 3 / 14 * ((-(1 / 6)) ^ n)
 
-integerTransition :: TransitionKernel Integer
-integerTransition = deterministicKernel (+ 1)
+mangoToPearProbability :: Int -> Double
+mangoToPearProbability n =
+    3 / 7 - 2 / 21 * ((-(1 / 6)) ^ n)
 
 cafeInitial :: DistributionVector CafeState
 cafeInitial =
@@ -127,17 +182,53 @@ cafeTransition =
 spec :: Spec
 spec =
     describe "Dtmc facade" $ do
-        it "runs a finite vector and matrix through the shared probability API" $
-            probabilityAtTime 1 finiteInitial finiteTransition 1
-                `shouldBe` 1
 
-        it "runs a map and infinite-state kernel through the same API" $
-            probabilityAtTime 3 integerInitial integerTransition 3
-                `shouldBe` 1
+        it "matches the apple-to-mango transition closed form" $
+            mapM_
+                ( \n ->
+                    abs
+                        ( transitionProbabilityN
+                            (3 * n + 1)
+                            fruitTransition
+                            Apple
+                            Mango
+                            - appleToMangoProbability (fromIntegral n)
+                        )
+                        < 1e-12
+                        `shouldBe` True
+                )
+                ([0, 1, 2, 3, 675] :: [Natural])
+
+        it "matches the mango-to-pear transition closed form" $
+            mapM_
+                ( \n ->
+                    abs
+                        ( transitionProbabilityN
+                            (3 * n + 2)
+                            fruitTransition
+                            Mango
+                            Pear
+                            - mangoToPearProbability (fromIntegral n)
+                        )
+                        < 1e-12
+                        `shouldBe` True
+                )
+                ([0, 1, 2, 3, 4] :: [Natural])
 
         it "runs the seven-state cafe analysis entirely with named states" $ do
             probabilityAt cafeInitial Thinking `shouldBe` 1
             absorbingStates (classify cafeTransition) `shouldBe` [Leave]
+            abs
+                (checked (hittingProbability cafeTransition [Leave] Thinking) - 1)
+                < 1e-12
+                `shouldBe` True
+            abs
+                ( checked
+                    (hittingProbability cafeTransition [Drink] Thinking)
+                    - 4 / 43
+                )
+                < 1e-12
+                `shouldBe` True
             abs
                 ( checked
                     ( hittingBeforeProbability

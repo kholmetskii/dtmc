@@ -16,6 +16,7 @@ import Data.List.NonEmpty (
 import Dtmc.Distribution (
     probabilityAt,
  )
+import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.Distribution.Vector (
     DistributionVector,
     mkDistributionVector,
@@ -37,8 +38,6 @@ import Dtmc.Probability (
 import Dtmc.State qualified
 import Dtmc.TestSupport (
     approxEq,
-    assignment1Lambda,
-    assignment1Matrix,
     genSimplexPoint,
     genTransitionMatrix,
     testTolerance,
@@ -50,15 +49,7 @@ import Dtmc.Transition.Matrix (
     rowAt,
     unTransitionMatrix,
  )
-import Dtmc.Transition.TestSupport (
-    asTransitionKernel,
-    closeTo,
-    finiteChain,
-    finiteInitial,
-    kernelChain,
-    mapInitial,
-    simpleRandomWalk,
- )
+import Dtmc.Transition.Kernel qualified as Kernel
 import GHC.Generics (
     Generic,
  )
@@ -110,6 +101,41 @@ initial =
     either (error . show) id $
         mkDistributionVector (S.vector [0.6, 0.3, 0.1] :: S.R 3)
 
+checked :: (Show error) => Either error value -> value
+checked = either (error . show) id
+
+asTransitionKernel ::
+    (Dtmc.State.FiniteState state) =>
+    TransitionMatrix state ->
+    Kernel.TransitionKernel state
+asTransitionKernel matrix =
+    Kernel.transitionKernel $ \source ->
+        checked $
+            DistributionMap.mkDistributionMap
+                [ (destination, transitionProbability matrix source destination)
+                | destination <- Dtmc.State.finiteStates
+                ]
+
+kernelChain :: Kernel.TransitionKernel (Finite 3)
+kernelChain = asTransitionKernel chain
+
+mapInitial :: DistributionMap.DistributionMap (Finite 3)
+mapInitial =
+    checked $
+        DistributionMap.mkDistributionMap
+            [ (state, probabilityAt initial state)
+            | state <- Dtmc.State.finiteStates
+            ]
+
+simpleRandomWalk :: Kernel.TransitionKernel Integer
+simpleRandomWalk =
+    Kernel.transitionKernel $ \state ->
+        checked
+            (DistributionMap.mkDistributionMap [(state - 1, 0.5), (state + 1, 0.5)])
+
+closeTo :: Double -> Double -> Bool
+closeTo = approxEq testTolerance
+
 {- | Hold for a @Right@ whose 'Double' is within 'testTolerance' of the
 expected value; fail for any @Left@ or out-of-tolerance value.
 -}
@@ -145,8 +171,8 @@ twoStateSquared =
         mkTransitionMatrix
             (S.matrix [0.85, 0.15, 0.6, 0.4] :: S.Sq 2)
 
-assignment2 :: TransitionMatrix (Finite 3)
-assignment2 =
+closedFormTransition :: TransitionMatrix (Finite 3)
+closedFormTransition =
     either (error . show) id $
         mkTransitionMatrix
             ( S.matrix
@@ -163,75 +189,53 @@ assignment2 =
                 S.Sq 3
             )
 
-assignment3 :: TransitionMatrix (Finite 7)
-assignment3 =
+closedFormProbability :: Int -> Double
+closedFormProbability n =
+    5 / 63 + 5 / 18 * (0.1 ^ n) - 5 / 14 * (0.3 ^ n)
+
+{- | Five-state transition matrix over states @[A, B, C, D, E]@ used by the
+probability examples.
+-}
+observationMatrix :: TransitionMatrix (Finite 5)
+observationMatrix =
     either (error . show) id $
         mkTransitionMatrix
             ( S.matrix
                 [ 0
                 , 0
-                , 1 / 2
-                , 1 / 2
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
                 , 0
                 , 1
                 , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
                 , 1 / 3
-                , 1 / 3
-                , 1 / 3
-                , 0
-                , 0
                 , 0
                 , 0
                 , 0
                 , 2 / 3
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
                 , 1 / 3
+                , 2 / 3
                 , 0
-                , 1
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 1
+                , 1 / 4
+                , 1 / 4
                 , 0
                 , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
-                , 1
-                , 0
-                , 0
-                , 0
-                , 0
-                , 0
+                , 1 / 2
                 ] ::
-                S.Sq 7
+                S.Sq 5
             )
 
-formula2 :: Int -> Double
-formula2 n =
-    5 / 63 + 5 / 18 * (0.1 ^ n) - 5 / 14 * (0.3 ^ n)
+-- | Initial law @lambda = [1/4, 1/2, 0, 1/4, 0]@ for the probability examples.
+observationInitial :: DistributionVector (Finite 5)
+observationInitial =
+    either (error . show) id $
+        mkDistributionVector (S.vector [1 / 4, 1 / 2, 0, 1 / 4, 0] :: S.R 5)
 
-formulaA :: Int -> Double
-formulaA n =
-    5 / 7 - 3 / 14 * ((-(1 / 6)) ^ n)
-
-formulaB :: Int -> Double
-formulaB n =
-    3 / 7 - 2 / 21 * ((-(1 / 6)) ^ n)
 
 spec :: Spec
 spec = do
@@ -320,34 +324,19 @@ spec = do
             transitionProbabilityN 2 namedCycle PhaseA PhaseC
                 `shouldBe` 1
 
-    describe "transitionProbabilityN assignment regressions" $ do
-        it "assignment 1: P^3(E, D) = 3/8" $
-            transitionProbabilityN 3 assignment1Matrix 4 3
+    describe "transitionProbabilityN hand-computed regressions" $ do
+        it "gives P^3(E, D) = 3/8 for the five-state chain" $
+            transitionProbabilityN 3 observationMatrix 4 3
                 `shouldSatisfy` closeTo (3 / 8)
 
-        it "assignment 2: P^n(2, 0) closed form" $
+        it "matches the three-state P^n(2, 0) closed form" $
             mapM_
                 ( \n ->
-                    transitionProbabilityN n assignment2 2 0
-                        `shouldSatisfy` closeTo (formula2 (fromIntegral n))
+                    transitionProbabilityN n closedFormTransition 2 0
+                        `shouldSatisfy` closeTo
+                            (closedFormProbability (fromIntegral n))
                 )
                 ([0, 1, 2, 3, 5, 10, 20] :: [Natural])
-
-        it "assignment 3: apple -> mango closed form" $
-            mapM_
-                ( \n ->
-                    transitionProbabilityN (3 * n + 1) assignment3 0 3
-                        `shouldSatisfy` closeTo (formulaA (fromIntegral n))
-                )
-                ([0, 1, 2, 3, 675] :: [Natural])
-
-        it "assignment 3: mango -> pear closed form" $
-            mapM_
-                ( \n ->
-                    transitionProbabilityN (3 * n + 2) assignment3 3 1
-                        `shouldSatisfy` closeTo (formulaB (fromIntegral n))
-                )
-                ([0, 1, 2, 3, 4] :: [Natural])
 
     describe "probabilityAtTime" $ do
         it "returns the initial probability at time zero" $
@@ -434,18 +423,18 @@ spec = do
         it "matches finite trajectory and observation queries" $ do
             pathProbability mapInitial kernelChain (0 :| [1, 2])
                 `shouldSatisfy` closeTo
-                    (pathProbability finiteInitial finiteChain (0 :| [1, 2]))
+                    (pathProbability initial chain (0 :| [1, 2]))
             probability
                 mapInitial
                 kernelChain
                 [At 3 2, At 0 0, At 1 1]
                 `shouldSatisfy` closeTo
-                    (probability finiteInitial finiteChain [At 3 2, At 0 0, At 1 1])
+                    (probability initial chain [At 3 2, At 0 0, At 1 1])
 
         it "matches finite conditional probability queries" $
             rightResultsClose
                 (conditionalProbability mapInitial kernelChain [At 2 2] [At 0 0])
-                (conditionalProbability finiteInitial finiteChain [At 2 2] [At 0 0])
+                (conditionalProbability initial chain [At 2 2] [At 0 0])
                 `shouldBe` True
 
     describe "pathProbability" $ do
@@ -564,8 +553,8 @@ spec = do
             approxEq
                 testTolerance
                 ( probability
-                    assignment1Lambda
-                    assignment1Matrix
+                    observationInitial
+                    observationMatrix
                     [At 2 2, At 3 4, At 6 3]
                 )
                 (5 / 96)
@@ -645,45 +634,43 @@ spec = do
             conditionalProbability initial chain [At 1 1, At 2 2] [At 0 0]
                 `shouldSatisfy` rightCloseTo 0.4
 
-    describe "conditionalProbability assignment 1 regressions" $ do
-        -- 1(b): P(X_10 = D, X_11 = D | X_3 = A, X_7 = E) = 1/4.
-        it "1(b): P(X10=D, X11=D | X3=A, X7=E) = 1/4" $
+    describe "conditionalProbability hand-computed regressions" $ do
+        it "gives P(X10=D, X11=D | X3=A, X7=E) = 1/4" $
             conditionalProbability
-                assignment1Lambda
-                assignment1Matrix
+                observationInitial
+                observationMatrix
                 [At 10 3, At 11 3]
                 [At 3 0, At 7 4]
                 `shouldSatisfy` rightCloseTo (1 / 4)
 
-        -- 1(e): P(X_6 = D, X_2 = C | X_3 = E) = 15/92, event out of order.
-        it "1(e): P(X6=D, X2=C | X3=E) = 15/92" $
+        it "accepts an out-of-order event and gives 15/92" $
             conditionalProbability
-                assignment1Lambda
-                assignment1Matrix
+                observationInitial
+                observationMatrix
                 [At 6 3, At 2 2]
                 [At 3 4]
                 `shouldSatisfy` rightCloseTo (15 / 92)
 
-        it "1(e) supporting: P(X2=C) = 5/36" $
+        it "gives P(X2=C) = 5/36" $
             approxEq
                 testTolerance
-                (probabilityAtTime 2 assignment1Lambda assignment1Matrix 2)
+                (probabilityAtTime 2 observationInitial observationMatrix 2)
                 (5 / 36)
                 `shouldBe` True
 
-        it "1(e) supporting: P(X3=E) = 23/72" $
+        it "gives P(X3=E) = 23/72" $
             approxEq
                 testTolerance
-                (probabilityAtTime 3 assignment1Lambda assignment1Matrix 4)
+                (probabilityAtTime 3 observationInitial observationMatrix 4)
                 (23 / 72)
                 `shouldBe` True
 
-        it "1(e) supporting: P(X2=C, X3=E, X6=D) = 5/96" $
+        it "gives P(X2=C, X3=E, X6=D) = 5/96" $
             approxEq
                 testTolerance
                 ( probability
-                    assignment1Lambda
-                    assignment1Matrix
+                    observationInitial
+                    observationMatrix
                     [At 2 2, At 3 4, At 6 3]
                 )
                 (5 / 96)

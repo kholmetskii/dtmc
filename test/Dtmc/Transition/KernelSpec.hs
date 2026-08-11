@@ -6,16 +6,21 @@ import Dtmc.Distribution qualified as Distribution
 import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.Transition qualified as Transition
 import Dtmc.Transition.Kernel qualified as Kernel
-import Dtmc.Transition.TestSupport (
-    checked,
-    simpleRandomWalk,
- )
 import Test.Hspec (
     Spec,
     describe,
     it,
     shouldBe,
  )
+
+checked :: (Show error) => Either error value -> value
+checked = either (error . show) id
+
+simpleRandomWalk :: Kernel.TransitionKernel Integer
+simpleRandomWalk =
+    Kernel.transitionKernel $ \state ->
+        checked
+            (DistributionMap.mkDistributionMap [(state - 1, 0.5), (state + 1, 0.5)])
 
 spec :: Spec
 spec =

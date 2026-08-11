@@ -28,25 +28,23 @@ import Dtmc.Dynamics (
     evolveVector,
     evolveVectorN,
  )
+import Dtmc.Probability (
+    transitionProbability,
+ )
 import Dtmc.State (
     FiniteState,
  )
 import Dtmc.TestSupport (
     approxDistributionEq,
+    approxEq,
     genSimplexPoint,
     genTransitionMatrix,
+    testTolerance,
  )
+import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
- )
-import Dtmc.Transition.TestSupport (
-    closeTo,
-    finiteChain,
-    finiteInitial,
-    kernelChain,
-    mapInitial,
-    simpleRandomWalk,
  )
 import GHC.Generics (
     Generic,
@@ -79,6 +77,55 @@ data NamedPosition = LowerPosition | UpperPosition
     deriving (Eq, Ord, Show, Generic)
 
 instance FiniteState NamedPosition
+
+checked :: (Show error) => Either error value -> value
+checked = either (error . show) id
+
+finiteChain :: TransitionMatrix (Finite 3)
+finiteChain =
+    checked $
+        mkTransitionMatrix
+            ( S.matrix
+                [ 0.5
+                , 0.5
+                , 0
+                , 0
+                , 0.2
+                , 0.8
+                , 1
+                , 0
+                , 0
+                ] ::
+                S.Sq 3
+            )
+
+finiteInitial :: DistributionVector (Finite 3)
+finiteInitial =
+    checked (mkDistributionVector (S.vector [0.6, 0.3, 0.1] :: S.R 3))
+
+kernelChain :: Kernel.TransitionKernel (Finite 3)
+kernelChain =
+    Kernel.transitionKernel $ \source ->
+        checked $
+            DistributionMap.mkDistributionMap
+                [ (destination, transitionProbability finiteChain source destination)
+                | destination <- finites
+                ]
+
+mapInitial :: DistributionMap.DistributionMap (Finite 3)
+mapInitial =
+    checked $
+        DistributionMap.mkDistributionMap
+            [(state, probabilityAt finiteInitial state) | state <- finites]
+
+simpleRandomWalk :: Kernel.TransitionKernel Integer
+simpleRandomWalk =
+    Kernel.transitionKernel $ \state ->
+        checked
+            (DistributionMap.mkDistributionMap [(state - 1, 0.5), (state + 1, 0.5)])
+
+closeTo :: Double -> Double -> Bool
+closeTo = approxEq testTolerance
 
 genDistribution :: forall n. (KnownNat n) => Gen (S.R n)
 genDistribution = do
