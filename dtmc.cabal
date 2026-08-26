@@ -61,8 +61,6 @@ library
       Dtmc.Simplex.Internal
       Dtmc.Analysis.FixedTime.Internal
       Dtmc.Analysis.Classification.Internal
-      Dtmc.Analysis.HittingTime.Internal
-      Dtmc.Analysis.ReturnTime.Internal
       Dtmc.Analysis.Internal.LinearSystem
       Dtmc.Analysis.Internal.MeanTime
       Dtmc.Transition.Matrix.Internal.Graph

@@ -119,7 +119,7 @@ randomWalk = Kernel.transitionKernel $ \i ->
 -- P_0(H_{2} < 3) = 1/4
 hitTwoBeforeThree :: Double
 hitTwoBeforeThree =
-  HittingTime.hittingTimeProbabilityBefore randomWalk (== 2) 0 3
+  HittingTime.hittingTimeBeforeProbability 3 randomWalk (== 2) 0
 ```
 
 ## Numerical contract
