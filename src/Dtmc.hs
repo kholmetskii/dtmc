@@ -15,7 +15,7 @@ constructors and error types, and the forward dynamics ('evolve' and
 'conditionalProbability' over 'Observation' values), the qualitative structure
 theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
 bounded, eventual, and expected hitting and first-return queries in
-"Dtmc.Hitting", and the
+"Dtmc.Hitting", finite irreducible stationary distributions, and the
 random simulation primitives -- while hiding internal modules. Import this
 module to build, analyse, and run chains. Focused imports are available through
 "Dtmc.State", "Dtmc.Distribution", "Dtmc.Distribution.Vector",
@@ -108,6 +108,7 @@ module Dtmc (
     returnProbability,
     expectedReturnTimes,
     expectedReturnTime,
+    stationaryDistribution,
     Transition (..),
     TransitionKernel,
     transitionKernel,
@@ -154,6 +155,9 @@ import Dtmc.State (
     finiteStates,
     stateAt,
     stateIndex,
+ )
+import Dtmc.Stationary (
+    stationaryDistribution,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,

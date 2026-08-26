@@ -46,6 +46,28 @@ data FruitState
 
 instance FiniteState FruitState
 
+data Weather = Dry | Wet
+    deriving (Eq, Ord, Show, Generic)
+
+instance FiniteState Weather
+
+weatherTransition :: TransitionMatrix Weather
+weatherTransition =
+    checked
+        ( mkTransitionMatrix
+            (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+        )
+
+weatherStationary :: DistributionVector Weather
+weatherStationary =
+    checked
+        ( stationaryDistribution
+            ( case witnessIrreducible weatherTransition of
+                Nothing -> error "weather transition is not irreducible"
+                Just witness -> witness
+            )
+        )
+
 fruitTransition :: TransitionMatrix FruitState
 fruitTransition =
     checked
@@ -182,6 +204,11 @@ cafeTransition =
 spec :: Spec
 spec =
     describe "Dtmc facade" $ do
+        it "computes a stationary distribution" $ do
+            abs (probabilityAt weatherStationary Dry - 0.8) < 1e-12
+                `shouldBe` True
+            abs (probabilityAt weatherStationary Wet - 0.2) < 1e-12
+                `shouldBe` True
 
         it "matches the apple-to-mango transition closed form" $
             mapM_

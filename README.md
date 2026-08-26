@@ -21,6 +21,7 @@ algorithms.
   an `Irreducible` witness type
 - Exact-time, bounded, eventual, competing, and expected hitting and
   first-return quantities
+- Unique stationary distributions for finite irreducible chains
 - Validated finite-support laws and locally finite kernels over countable state
   types
 - Exact sparse countable-state evolution, timed probability queries, bounded
@@ -123,7 +124,8 @@ renormalised. Support-graph algorithms treat a stored entry as an edge exactly
 when it is strictly positive.
 
 Construction and mathematically undefined query results use explicit error
-values. Eventual and expected hitting/return analyses return
+values. Eventual and expected hitting/return analyses and finite stationary
+distribution calculations return
 `Either LinearSystemError result`. The shared solver rejects non-finite systems or
 solutions, reciprocal condition estimates below `1e-12`, and scaled residuals
 above `1e-9`; no numerical failure is converted into a runtime exception.
@@ -190,7 +192,8 @@ On macOS, `hmatrix` can use Apple Accelerate.
 
 The library is in early development. The finite API covers type-safe objects,
 single- and multi-step dynamics, support-graph classification, and exact-time,
-bounded, eventual, and expected hitting and return quantities. The shared
-kernel abstractions cover finite-time queries without tying algorithms to a
-finite or infinite representation. Specialised infinite-chain solvers,
-absorbing-chain summaries, and stationary/limiting behaviour are planned.
+bounded, eventual, and expected hitting and return quantities, plus stationary
+distributions of finite irreducible chains. The shared kernel abstractions cover
+finite-time queries without tying algorithms to a finite or infinite
+representation. Specialised infinite-chain solvers, absorbing-chain summaries,
+and limiting behaviour are planned.

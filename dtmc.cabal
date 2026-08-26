@@ -50,6 +50,7 @@ library
       Dtmc.Probability
       Dtmc.Classification
       Dtmc.Hitting
+      Dtmc.Stationary
 
   other-modules:
       Dtmc.Distribution.Vector.Internal
@@ -90,6 +91,7 @@ test-suite spec
       Dtmc.ProbabilitySpec
       Dtmc.ClassificationSpec
       Dtmc.HittingSpec
+      Dtmc.StationarySpec
       Dtmc.Transition.KernelSpec
       Dtmc.Transition.InterfaceSpec
       Dtmc.FacadeSpec

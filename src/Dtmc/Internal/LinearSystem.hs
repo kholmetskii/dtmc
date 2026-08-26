@@ -15,6 +15,7 @@ module Dtmc.Internal.LinearSystem (
     LinearSystemError (..),
     subMatrix,
     rowSums,
+    solveLinearSystem,
     solveIminusQ,
     solveIminusQVector,
     fundamental,
@@ -74,6 +75,45 @@ relativeSystemResidual coefficient solution rightHandSide =
                 + infinityNorm rightHandSide
             )
 
+{- | Solve @A X = B@ by LU decomposition. @A@ must be a non-empty square
+matrix, @B@ must have the same number of rows, and all entries must be finite;
+incompatible dimensions raise a backend error.
+
+Returns a 'LinearSystemError' when the input or result is non-finite, the
+backend reports singularity, the reciprocal condition estimate is below
+@1e-12@, or the scaled infinity-norm residual exceeds @1e-9@.
+
+Time: @O(n^3 + n^2 r)@. Space: @O(n^2 + nr)@.
+-}
+solveLinearSystem ::
+    LA.Matrix Double ->
+    LA.Matrix Double ->
+    Either LinearSystemError (LA.Matrix Double)
+solveLinearSystem coefficient rightHandSide
+    | not (allFinite coefficient && allFinite rightHandSide) =
+        Left NonFiniteSystem
+    | otherwise =
+        case LA.linearSolve coefficient rightHandSide of
+            Nothing -> Left SingularSystem
+            Just solution
+                | not (allFinite solution) -> Left NonFiniteSolution
+                | not (isFinite reciprocalCondition) -> Left NonFiniteSystem
+                | reciprocalCondition < conditionLimit ->
+                    Left (IllConditionedSystem reciprocalCondition)
+                | residual > residualLimitValue ->
+                    Left
+                        ( ResidualTooLarge
+                            { relativeResidual = residual
+                            , residualLimit = residualLimitValue
+                            }
+                        )
+                | otherwise -> Right solution
+              where
+                residual =
+                    relativeSystemResidual coefficient solution rightHandSide
+  where
+    reciprocalCondition = LA.rcond coefficient
+
 {- | The block of @m@ selected by the row and column indices. Their order and
 multiplicity are preserved; an empty list produces a zero-sized dimension.
 
@@ -113,29 +153,10 @@ solveIminusQ ::
     LA.Matrix Double ->
     Either LinearSystemError (LA.Matrix Double)
 solveIminusQ q rightHandSide
-    | not (allFinite q && allFinite rightHandSide) = Left NonFiniteSystem
-    | otherwise =
-        case LA.linearSolve coefficient rightHandSide of
-            Nothing -> Left SingularSystem
-            Just solution
-                | not (allFinite solution) -> Left NonFiniteSolution
-                | not (isFinite reciprocalCondition) -> Left NonFiniteSystem
-                | reciprocalCondition < conditionLimit ->
-                    Left (IllConditionedSystem reciprocalCondition)
-                | residual > residualLimitValue ->
-                    Left
-                        ( ResidualTooLarge
-                            { relativeResidual = residual
-                            , residualLimit = residualLimitValue
-                            }
-                        )
-                | otherwise -> Right solution
-              where
-                residual =
-                    relativeSystemResidual coefficient solution rightHandSide
+    | not (allFinite q) = Left NonFiniteSystem
+    | otherwise = solveLinearSystem coefficient rightHandSide
   where
     coefficient = LA.ident (LA.rows q) - q
-    reciprocalCondition = LA.rcond coefficient
 
 {- | 'solveIminusQ' for a vector of length @n@. It has the same shape,
 singularity, and floating-point behaviour.
