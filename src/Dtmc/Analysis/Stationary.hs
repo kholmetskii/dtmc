@@ -18,13 +18,13 @@ module Dtmc.Analysis.Stationary (
     stationaryDistribution,
 ) where
 
-import Dtmc.Analysis.Classification.Internal (Irreducible, unIrreducible)
-import Dtmc.Distribution.Vector.Internal (
-    DistributionVector (DistributionVector),
- )
-import Dtmc.Internal.LinearSystem (
+import Dtmc.Analysis.Classification (Irreducible, unIrreducible)
+import Dtmc.Analysis.Internal.LinearSystem (
     LinearSystemError (..),
     solveLinearSystem,
+ )
+import Dtmc.Distribution.Vector.Internal (
+    DistributionVector (DistributionVector),
  )
 import Dtmc.State (
     FiniteState,

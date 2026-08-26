@@ -70,13 +70,13 @@ import Dtmc.Analysis.Classification.Internal (
     type CommClass (..),
     type Irreducible (Irreducible),
  )
-import Dtmc.Internal.Graph qualified as G
 import Dtmc.State (
     FiniteState,
     stateAt,
     stateIndex,
  )
 import Dtmc.Transition.Matrix.Internal (TransitionMatrix, tmSupport)
+import Dtmc.Transition.Matrix.Internal.Graph qualified as G
 import Numeric.Natural (Natural)
 
 toState :: (FiniteState state) => Int -> state

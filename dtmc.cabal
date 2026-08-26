@@ -63,11 +63,11 @@ library
       Dtmc.Analysis.Classification.Internal
       Dtmc.Analysis.HittingTime.Internal
       Dtmc.Analysis.ReturnTime.Internal
+      Dtmc.Analysis.Internal.LinearSystem
       Dtmc.Analysis.Internal.MeanTime
+      Dtmc.Transition.Matrix.Internal.Graph
       Dtmc.Dynamics.Internal
       Dtmc.Simulation.Internal
-      Dtmc.Internal.Graph
-      Dtmc.Internal.LinearSystem
 
   build-depends:
       base >=4.20 && <5

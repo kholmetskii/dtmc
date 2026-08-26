@@ -1,5 +1,5 @@
 {- |
-Module      : Dtmc.Internal.Graph
+Module      : Dtmc.Transition.Matrix.Internal.Graph
 Description : Support-graph combinatorics: reachability, components, recurrence, period, phase.
 
 A small DTMC-specific layer over "Data.Graph". It knows nothing about
@@ -13,7 +13,7 @@ actually visited instead of requiring matrix row or column scans.
 Unless stated otherwise, every vertex argument must be in @{0 .. V-1}@.
 Passing an out-of-range vertex may raise an array-bounds error.
 -}
-module Dtmc.Internal.Graph (
+module Dtmc.Transition.Matrix.Internal.Graph (
     Graph,
     graphDim,
     fromAdjacency,
@@ -103,7 +103,7 @@ Reading the @V^2@ entries takes @O(V^2)@ time. The resulting graph occupies
 -}
 fromAdjacency :: Int -> [((Int, Int), Bool)] -> Graph
 fromAdjacency dim entries
-    | dim < 0 = error "Dtmc.Internal.Graph.fromAdjacency: negative dimension"
+    | dim < 0 = error "Dtmc.Transition.Matrix.Internal.Graph.fromAdjacency: negative dimension"
     | otherwise =
         Graph
             { graphDim = dim
@@ -309,7 +309,7 @@ Time: @O(1)@ after the one-off SCC and lookup-table construction.
 componentOf :: Graph -> Int -> [Int]
 componentOf graph vertex
     | vertex < 0 || vertex >= graphDim graph =
-        error "Dtmc.Internal.Graph.componentOf: vertex out of bounds"
+        error "Dtmc.Transition.Matrix.Internal.Graph.componentOf: vertex out of bounds"
     | otherwise = graphComponentOf graph Array.! vertex
 
 {- | Whether two vertices lie in the same strongly connected component -- i.e.
@@ -321,7 +321,7 @@ Time: @O(1)@ after the one-off SCC construction.
 sameComponent :: Graph -> Int -> Int -> Bool
 sameComponent graph a b
     | outOfRange a || outOfRange b =
-        error "Dtmc.Internal.Graph.sameComponent: vertex out of bounds"
+        error "Dtmc.Transition.Matrix.Internal.Graph.sameComponent: vertex out of bounds"
     | otherwise =
         graphComponentId graph Unboxed.! a == graphComponentId graph Unboxed.! b
   where
@@ -372,7 +372,7 @@ Time: @O(1)@ after the one-off pass. Space: @O(1)@ per query.
 inClosedComponent :: Graph -> Int -> Bool
 inClosedComponent graph vertex
     | vertex < 0 || vertex >= graphDim graph =
-        error "Dtmc.Internal.Graph.inClosedComponent: vertex out of bounds"
+        error "Dtmc.Transition.Matrix.Internal.Graph.inClosedComponent: vertex out of bounds"
     | otherwise = graphClosedComponentTable graph Unboxed.! vertex
 
 {- | Period of a strongly connected component: the gcd of the lengths of all
@@ -398,7 +398,7 @@ Time: @O(1)@ after the one-off phasing pass. Space: @O(1)@ per query.
 periodOf :: Graph -> Int -> Maybe Natural
 periodOf graph vertex
     | vertex < 0 || vertex >= graphDim graph =
-        error "Dtmc.Internal.Graph.periodOf: vertex out of bounds"
+        error "Dtmc.Transition.Matrix.Internal.Graph.periodOf: vertex out of bounds"
     | otherwise = graphPeriodOf graph Array.! vertex
 
 {- | Phase of the vertex within its strongly connected component: its BFS level
@@ -415,7 +415,7 @@ Time: @O(1)@ after the one-off phasing pass. Space: @O(1)@ per query.
 phaseOf :: Graph -> Int -> Int
 phaseOf graph vertex
     | vertex < 0 || vertex >= graphDim graph =
-        error "Dtmc.Internal.Graph.phaseOf: vertex out of bounds"
+        error "Dtmc.Transition.Matrix.Internal.Graph.phaseOf: vertex out of bounds"
     | otherwise = graphPhaseOf graph Unboxed.! vertex
 
 -- The sole caller supplies strongly connected components, but retain a

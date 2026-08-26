@@ -26,10 +26,6 @@ import Dtmc.Distribution.Map (
 import Dtmc.Distribution.Vector.Internal (
     DistributionVector (DistributionVector),
  )
-import Dtmc.Internal.Graph (
-    Graph,
-    fromAdjacency,
- )
 import Dtmc.State (
     Cardinality,
     FiniteState,
@@ -37,6 +33,10 @@ import Dtmc.State (
  )
 import Dtmc.Transition (
     Transition (..),
+ )
+import Dtmc.Transition.Matrix.Internal.Graph (
+    Graph,
+    fromAdjacency,
  )
 import GHC.TypeNats (
     KnownNat,

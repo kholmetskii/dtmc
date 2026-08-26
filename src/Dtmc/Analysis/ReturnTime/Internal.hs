@@ -36,8 +36,13 @@ import Dtmc.Analysis.Classification (
     recurrentState,
     transientStates,
  )
-import Dtmc.Analysis.HittingTime.Internal (
+import Dtmc.Analysis.HittingTime (
     expectedHittingTime,
+ )
+import Dtmc.Analysis.Internal.LinearSystem (
+    LinearSystemError (..),
+    fundamental,
+    subMatrix,
  )
 import Dtmc.Analysis.Internal.MeanTime (
     MeanTime (..),
@@ -47,11 +52,6 @@ import Dtmc.Distribution.Vector.Internal (
  )
 import Dtmc.Dynamics.Internal (
     pushSparseWeights,
- )
-import Dtmc.Internal.LinearSystem (
-    LinearSystemError (..),
-    fundamental,
-    subMatrix,
  )
 import Dtmc.State (
     Cardinality,

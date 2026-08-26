@@ -1,5 +1,5 @@
 {- |
-Module      : Dtmc.Internal.LinearSystem
+Module      : Dtmc.Analysis.Internal.LinearSystem
 Description : @(I - Q)@ linear solves and sub-block extraction.
 
 Dynamic linear algebra for DTMC hitting and return calculations: extract
@@ -11,7 +11,7 @@ All arithmetic uses 'Double'. Every solve validates finiteness, rejects a
 reciprocal condition estimate below @1e-12@, and verifies a scaled residual
 against @1e-9@.
 -}
-module Dtmc.Internal.LinearSystem (
+module Dtmc.Analysis.Internal.LinearSystem (
     LinearSystemError (..),
     subMatrix,
     rowSums,

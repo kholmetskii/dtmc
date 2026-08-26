@@ -36,17 +36,17 @@ import Data.Proxy (
 import Dtmc.Analysis.Classification (
     backwardReachable,
  )
+import Dtmc.Analysis.Internal.LinearSystem (
+    LinearSystemError (..),
+    rowSums,
+    solveIminusQVector,
+    subMatrix,
+ )
 import Dtmc.Analysis.Internal.MeanTime (
     MeanTime (..),
  )
 import Dtmc.Dynamics.Internal (
     pushSparseWeights,
- )
-import Dtmc.Internal.LinearSystem (
-    LinearSystemError (..),
-    rowSums,
-    solveIminusQVector,
-    subMatrix,
  )
 import Dtmc.State (
     Cardinality,
