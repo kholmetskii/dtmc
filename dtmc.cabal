@@ -51,6 +51,7 @@ library
       Dtmc.Analysis.FixedTime
       Dtmc.Analysis.HittingTime
       Dtmc.Analysis.ReturnTime
+      Dtmc.Analysis.VisitCount
       Dtmc.Analysis.Classification
       Dtmc.Analysis.Stationary
 
@@ -94,6 +95,7 @@ test-suite spec
       Dtmc.Analysis.ClassificationSpec
       Dtmc.Analysis.HittingTimeSpec
       Dtmc.Analysis.ReturnTimeSpec
+      Dtmc.Analysis.VisitCountSpec
       Dtmc.Analysis.StationarySpec
       Dtmc.Analysis.TimeSpecSupport
       Dtmc.Transition.KernelSpec

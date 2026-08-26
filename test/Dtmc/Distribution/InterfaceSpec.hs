@@ -34,7 +34,9 @@ spec =
                 either (error . show) id $
                     mkDistributionVector @(Finite 3) (S.vector [0.2, 0, 0.8] :: S.R 3)
             mapDistribution =
-                either (error . show) id
+                either
+                    (error . show)
+                    id
                     ( mkDistributionMap [(0, 0.2), (2, 0.8)] ::
                         Either DistributionError (DistributionMap (Finite 3))
                     )

@@ -109,6 +109,9 @@ module Dtmc (
     returnProbability,
     returnTimeExpectations,
     returnTimeExpectation,
+    visitCountDistributionBefore,
+    visitCountProbabilityBefore,
+    visitCountExpectationBefore,
     stationaryDistribution,
     Transition (..),
     TransitionKernel,
@@ -128,6 +131,11 @@ import Dtmc.Analysis.FixedTime (
  )
 import Dtmc.Analysis.Stationary (
     stationaryDistribution,
+ )
+import Dtmc.Analysis.VisitCount (
+    visitCountDistributionBefore,
+    visitCountExpectationBefore,
+    visitCountProbabilityBefore,
  )
 import Dtmc.Distribution (
     Distribution (..),

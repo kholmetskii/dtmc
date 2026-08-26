@@ -268,3 +268,7 @@ spec =
                 )
                 < 1e-12
                 `shouldBe` True
+
+        it "exposes finite-horizon visit-count analysis" $
+            visitCountExpectationBefore 1 cafeInitial cafeTransition (== Thinking)
+                `shouldBe` 1

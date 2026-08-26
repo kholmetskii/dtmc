@@ -326,7 +326,7 @@ greater than zero; zero and tolerated negative entries contribute nothing.
 
 A recurrent query takes @O(n^3)@ time and @O(n^2)@ temporary space. After
 classification is cached, a transient query takes @O(1)@. Recurrent queries
-inherit the numerical behavior and errors of 'hittingTimeExpectations'.
+inherit the numerical behavior and errors of 'hittingTimeExpectation'.
 -}
 returnTimeExpectation ::
     forall state.
