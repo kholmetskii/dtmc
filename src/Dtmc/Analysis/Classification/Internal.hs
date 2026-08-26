@@ -1,23 +1,23 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 
 {- |
-Module      : Dtmc.Classification.Internal
+Module      : Dtmc.Analysis.Classification.Internal
 Description : Raw carrier types for chain classification (unsafe underbelly).
 
-Raw carrier types behind "Dtmc.Classification": the per-class summary
+Raw carrier types behind "Dtmc.Analysis.Classification": the per-class summary
 'type CommClass', the whole-chain structural report 'type Classification', and
 the 'type Irreducible' certificate. This module exposes their constructors so trusted
 internal code can build and pattern-match on them directly.
 
-The public "Dtmc.Classification" module re-exports 'type Classification' and
+The public "Dtmc.Analysis.Classification" module re-exports 'type Classification' and
 'type Irreducible' /abstractly/ (constructors hidden) and provides the only
 validating way to build an 'type Irreducible' witness,
-'Dtmc.Classification.witnessIrreducible'. Constructing these values here
+'Dtmc.Analysis.Classification.witnessIrreducible'. Constructing these values here
 bypasses those guarantees, so an 'type Irreducible' built directly is not
 certified to wrap an irreducible matrix, and a 'type Classification' built
 directly may hold summary fields inconsistent with its communicating classes.
 -}
-module Dtmc.Classification.Internal (
+module Dtmc.Analysis.Classification.Internal (
     type CommClass (..),
     type Classification (..),
     type Irreducible (Irreducible),
@@ -50,8 +50,8 @@ deriving instance (Eq state) => Eq (CommClass state)
 
 deriving instance (Show state) => Show (CommClass state)
 
-{- | A consistent structural report built by 'Dtmc.Classification.classify'.
-The constructor is exposed here for trusted internal use; "Dtmc.Classification"
+{- | A consistent structural report built by 'Dtmc.Analysis.Classification.classify'.
+The constructor is exposed here for trusted internal use; "Dtmc.Analysis.Classification"
 keeps it hidden so its summary fields stay aligned with its communicating
 classes.
 -}
@@ -89,8 +89,8 @@ deriving instance (Eq state) => Eq (Classification state)
 deriving instance (Show state) => Show (Classification state)
 
 {- | A transition matrix certified as irreducible by
-'Dtmc.Classification.witnessIrreducible'. The constructor is exposed here for
-trusted internal use but hidden by "Dtmc.Classification", so user code cannot
+'Dtmc.Analysis.Classification.witnessIrreducible'. The constructor is exposed here for
+trusted internal use but hidden by "Dtmc.Analysis.Classification", so user code cannot
 forge the witness through the public API.
 -}
 newtype Irreducible state = Irreducible (TransitionMatrix state)

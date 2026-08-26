@@ -15,12 +15,13 @@ constructors and error types, and the forward dynamics ('evolve' and
 'conditionalProbability' over 'Observation' values), the qualitative structure
 theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
 bounded, eventual, and expected hitting and first-return queries in
-"Dtmc.Hitting", finite irreducible stationary distributions, and the
+"Dtmc.Analysis.HittingTime" and "Dtmc.Analysis.ReturnTime", finite irreducible
+stationary distributions, and the
 random simulation primitives -- while hiding internal modules. Import this
 module to build, analyse, and run chains. Focused imports are available through
 "Dtmc.State", "Dtmc.Distribution", "Dtmc.Distribution.Vector",
-"Dtmc.Distribution.Map", "Dtmc.Transition", "Dtmc.Transition.Matrix", and
-"Dtmc.Transition.Kernel".
+"Dtmc.Distribution.Map", "Dtmc.Transition", "Dtmc.Transition.Matrix",
+"Dtmc.Transition.Kernel", and the focused modules below "Dtmc.Analysis".
 -}
 module Dtmc (
     type Cardinality,
@@ -115,6 +116,19 @@ module Dtmc (
     deterministicKernel,
 ) where
 
+import Dtmc.Analysis.FixedTime (
+    Observation (..),
+    ProbabilityError (..),
+    conditionalProbability,
+    pathProbability,
+    probability,
+    probabilityAtTime,
+    transitionProbability,
+    transitionProbabilityN,
+ )
+import Dtmc.Analysis.Stationary (
+    stationaryDistribution,
+ )
 import Dtmc.Distribution (
     Distribution (..),
     DistributionError (..),
@@ -131,16 +145,6 @@ import Dtmc.Distribution.Vector (
     mkDistributionVector,
     unDistributionVector,
  )
-import Dtmc.Probability (
-    Observation (..),
-    ProbabilityError (..),
-    conditionalProbability,
-    pathProbability,
-    probability,
-    probabilityAtTime,
-    transitionProbability,
-    transitionProbabilityN,
- )
 import Dtmc.Simplex (
     SimplexError (..),
  )
@@ -155,9 +159,6 @@ import Dtmc.State (
     finiteStates,
     stateAt,
     stateIndex,
- )
-import Dtmc.Stationary (
-    stationaryDistribution,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -186,7 +187,7 @@ import Dtmc.Transition.Kernel (
     transitionKernel,
  )
 
-import Dtmc.Classification (
+import Dtmc.Analysis.Classification (
     absorbingStates,
     accessible,
     aperiodic,
@@ -215,13 +216,11 @@ import Dtmc.Classification (
     type Irreducible,
  )
 
-import Dtmc.Hitting (
+import Dtmc.Analysis.HittingTime (
     LinearSystemError (..),
     MeanTime (..),
     expectedHittingTime,
     expectedHittingTimes,
-    expectedReturnTime,
-    expectedReturnTimes,
     hittingBeforeProbabilities,
     hittingBeforeProbability,
     hittingProbabilities,
@@ -230,6 +229,10 @@ import Dtmc.Hitting (
     hittingTimeProbabilitiesBefore,
     hittingTimeProbabilityAt,
     hittingTimeProbabilityBefore,
+ )
+import Dtmc.Analysis.ReturnTime (
+    expectedReturnTime,
+    expectedReturnTimes,
     returnProbabilities,
     returnProbability,
     returnTimeProbabilitiesAt,

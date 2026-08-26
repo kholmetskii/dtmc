@@ -1,7 +1,7 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 
 {- |
-Module      : Dtmc.Classification
+Module      : Dtmc.Analysis.Classification
 Description : Communicating classes, irreducibility, periodicity, and recurrence.
 
 Qualitative DTMC properties derived from the support graph of @P@: there is an
@@ -17,7 +17,7 @@ entries and may spend @O(n log n + E)@ building the requested cached graph
 facts. Queries on the same matrix share those lazy caches. A @0 x 0@ matrix
 has no communicating classes and is neither irreducible nor aperiodic here.
 -}
-module Dtmc.Classification (
+module Dtmc.Analysis.Classification (
     -- * Reachability
     supportEdge,
     accessible,
@@ -64,7 +64,7 @@ import Data.Finite (
     finite,
     getFinite,
  )
-import Dtmc.Classification.Internal (
+import Dtmc.Analysis.Classification.Internal (
     unIrreducible,
     type Classification (..),
     type CommClass (..),

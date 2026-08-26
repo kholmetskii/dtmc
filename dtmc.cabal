@@ -47,20 +47,24 @@ library
       Dtmc.Transition.Kernel
       Dtmc.Simulation
       Dtmc.Dynamics
-      Dtmc.Probability
-      Dtmc.Classification
-      Dtmc.Hitting
-      Dtmc.Stationary
+      Dtmc.Analysis
+      Dtmc.Analysis.FixedTime
+      Dtmc.Analysis.HittingTime
+      Dtmc.Analysis.ReturnTime
+      Dtmc.Analysis.Classification
+      Dtmc.Analysis.Stationary
 
   other-modules:
       Dtmc.Distribution.Vector.Internal
       Dtmc.Distribution.Map.Internal
       Dtmc.Transition.Matrix.Internal
       Dtmc.Simplex.Internal
-      Dtmc.Probability.Internal
-      Dtmc.Classification.Internal
+      Dtmc.Analysis.FixedTime.Internal
+      Dtmc.Analysis.Classification.Internal
+      Dtmc.Analysis.HittingTime.Internal
+      Dtmc.Analysis.ReturnTime.Internal
+      Dtmc.Analysis.Internal.MeanTime
       Dtmc.Dynamics.Internal
-      Dtmc.Hitting.Internal
       Dtmc.Simulation.Internal
       Dtmc.Internal.Graph
       Dtmc.Internal.LinearSystem
@@ -88,10 +92,12 @@ test-suite spec
       Dtmc.Transition.MatrixSpec
       Dtmc.SimulationSpec
       Dtmc.DynamicsSpec
-      Dtmc.ProbabilitySpec
-      Dtmc.ClassificationSpec
-      Dtmc.HittingSpec
-      Dtmc.StationarySpec
+      Dtmc.Analysis.FixedTimeSpec
+      Dtmc.Analysis.ClassificationSpec
+      Dtmc.Analysis.HittingTimeSpec
+      Dtmc.Analysis.ReturnTimeSpec
+      Dtmc.Analysis.StationarySpec
+      Dtmc.Analysis.TimeSpecSupport
       Dtmc.Transition.KernelSpec
       Dtmc.Transition.InterfaceSpec
       Dtmc.FacadeSpec

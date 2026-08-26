@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Dtmc.ClassificationSpec (
+module Dtmc.Analysis.ClassificationSpec (
     spec,
 ) where
 
@@ -14,7 +14,7 @@ import Data.Finite (
 import Data.List (
     sort,
  )
-import Dtmc.Classification (
+import Dtmc.Analysis.Classification (
     CommClass (..),
     absorbingStates,
     accessible,

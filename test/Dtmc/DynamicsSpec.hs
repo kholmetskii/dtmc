@@ -13,6 +13,9 @@ import Data.Finite (
 import Data.Proxy (
     Proxy (..),
  )
+import Dtmc.Analysis.FixedTime (
+    transitionProbability,
+ )
 import Dtmc.Distribution (
     distributionWeights,
     probabilityAt,
@@ -27,9 +30,6 @@ import Dtmc.Dynamics (
     evolveN,
     evolveVector,
     evolveVectorN,
- )
-import Dtmc.Probability (
-    transitionProbability,
  )
 import Dtmc.State (
     FiniteState,

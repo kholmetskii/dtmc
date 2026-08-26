@@ -53,6 +53,13 @@ Dtmc.Distribution
 Dtmc.Transition
 ├── Dtmc.Transition.Matrix
 └── Dtmc.Transition.Kernel
+
+Dtmc.Analysis
+├── Dtmc.Analysis.FixedTime
+├── Dtmc.Analysis.HittingTime
+├── Dtmc.Analysis.ReturnTime
+├── Dtmc.Analysis.Classification
+└── Dtmc.Analysis.Stationary
 ```
 
 Import `Dtmc` for the curated complete API. Use the focused modules when a
@@ -62,14 +69,14 @@ Functions live in their mathematical subject modules and use `Transition`
 where the finite and infinite signatures genuinely agree:
 
 ```haskell
-import qualified Dtmc.Probability as Probability
+import qualified Dtmc.Analysis.FixedTime as FixedTime
 
 -- matrix  :: TransitionMatrix Weather
 -- initial :: DistributionVector Weather
 -- state   :: Weather
 
 result =
-  Probability.probabilityAtTime
+  FixedTime.probabilityAtTime
     10
     initial
     matrix
@@ -101,7 +108,7 @@ For example, a simple random walk on all integers is locally finite:
 
 ```haskell
 import qualified Dtmc.Distribution.Map as DistributionMap
-import qualified Dtmc.Hitting as Hitting
+import qualified Dtmc.Analysis.HittingTime as HittingTime
 import qualified Dtmc.Transition.Kernel as Kernel
 
 randomWalk :: Kernel.TransitionKernel Integer
@@ -112,7 +119,7 @@ randomWalk = Kernel.transitionKernel $ \i ->
 -- P_0(H_{2} < 3) = 1/4
 hitTwoBeforeThree :: Double
 hitTwoBeforeThree =
-  Hitting.hittingTimeProbabilityBefore randomWalk (== 2) 0 3
+  HittingTime.hittingTimeProbabilityBefore randomWalk (== 2) 0 3
 ```
 
 ## Numerical contract

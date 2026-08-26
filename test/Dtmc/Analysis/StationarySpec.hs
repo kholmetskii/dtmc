@@ -1,16 +1,20 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Dtmc.StationarySpec (
+module Dtmc.Analysis.StationarySpec (
     spec,
 ) where
 
 import Data.Finite (
     Finite,
  )
-import Dtmc.Classification (
+import Dtmc.Analysis.Classification (
     Irreducible,
     witnessIrreducible,
+ )
+import Dtmc.Analysis.Stationary (
+    LinearSystemError (IllConditionedSystem),
+    stationaryDistribution,
  )
 import Dtmc.Distribution (
     probabilityAt,
@@ -24,10 +28,6 @@ import Dtmc.Dynamics (
  )
 import Dtmc.State (
     FiniteState,
- )
-import Dtmc.Stationary (
-    LinearSystemError (IllConditionedSystem),
-    stationaryDistribution,
  )
 import Dtmc.TestSupport (
     approxDistributionEq,

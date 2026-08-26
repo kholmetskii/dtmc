@@ -8,11 +8,11 @@ import Data.Finite (
     Finite,
     finites,
  )
-import Dtmc.Distribution qualified as Distribution
-import Dtmc.Distribution.Map qualified as DistributionMap
-import Dtmc.Probability (
+import Dtmc.Analysis.FixedTime (
     transitionProbability,
  )
+import Dtmc.Distribution qualified as Distribution
+import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.TestSupport (
     genTransitionMatrix,
  )

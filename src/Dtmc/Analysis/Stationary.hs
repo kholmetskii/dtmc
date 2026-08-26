@@ -1,5 +1,5 @@
 {- |
-Module      : Dtmc.Stationary
+Module      : Dtmc.Analysis.Stationary
 Description : Stationary distributions of finite irreducible chains.
 
 Stationary analysis for a finite transition matrix certified by an
@@ -13,12 +13,12 @@ solve. The result is not clamped or renormalised. Non-finite, singular,
 ill-conditioned, and high-residual systems return an explicit
 'LinearSystemError'.
 -}
-module Dtmc.Stationary (
+module Dtmc.Analysis.Stationary (
     LinearSystemError (..),
     stationaryDistribution,
 ) where
 
-import Dtmc.Classification.Internal ( Irreducible, unIrreducible )
+import Dtmc.Analysis.Classification.Internal (Irreducible, unIrreducible)
 import Dtmc.Distribution.Vector.Internal (
     DistributionVector (DistributionVector),
  )

@@ -3,26 +3,27 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Dtmc.HittingSpec (
-    spec,
+module Dtmc.Analysis.TimeSpecSupport (
+    hittingTimeSpec,
+    returnTimeSpec,
 ) where
 
 import Data.Finite (
     Finite,
     finites,
  )
-import Dtmc.Classification (
+import Dtmc.Analysis.Classification (
     accessible,
     recurrentState,
  )
-import Dtmc.Distribution.Map qualified as DistributionMap
-import Dtmc.Hitting (
+import Dtmc.Analysis.FixedTime (
+    transitionProbability,
+ )
+import Dtmc.Analysis.HittingTime (
     LinearSystemError (..),
     MeanTime (..),
     expectedHittingTime,
     expectedHittingTimes,
-    expectedReturnTime,
-    expectedReturnTimes,
     hittingBeforeProbabilities,
     hittingBeforeProbability,
     hittingProbabilities,
@@ -31,6 +32,10 @@ import Dtmc.Hitting (
     hittingTimeProbabilitiesBefore,
     hittingTimeProbabilityAt,
     hittingTimeProbabilityBefore,
+ )
+import Dtmc.Analysis.ReturnTime (
+    expectedReturnTime,
+    expectedReturnTimes,
     returnProbabilities,
     returnProbability,
     returnTimeProbabilitiesAt,
@@ -38,9 +43,7 @@ import Dtmc.Hitting (
     returnTimeProbabilityAt,
     returnTimeProbabilityBefore,
  )
-import Dtmc.Probability (
-    transitionProbability,
- )
+import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.State (
     FiniteState,
     finiteStates,
@@ -309,8 +312,8 @@ checkedChain matrix check =
         Left err ->
             counterexample ("generated matrix was rejected: " <> show err) False
 
-spec :: Spec
-spec = do
+hittingTimeSpec :: Spec
+hittingTimeSpec = do
     describe "numerical analysis errors" $
         it "rejects an ill-conditioned eventual-hitting system explicitly" $
             hittingProbabilities illConditionedChain [2]
@@ -492,13 +495,12 @@ spec = do
                 `shouldBe` Right (replicate 4 0)
 
         it "agrees with hittingProbabilities for an empty competing set" $ do
-            case
-                ( hittingBeforeProbabilities
+            case ( hittingBeforeProbabilities
                     oscillator
                     [2, 3]
                     []
-                , hittingProbabilities oscillator [2, 3]
-                ) of
+                 , hittingProbabilities oscillator [2, 3]
+                 ) of
                 (Left err, _) -> expectationFailure (show err)
                 (_, Left err) -> expectationFailure (show err)
                 (Right before, Right plain) ->
@@ -517,16 +519,15 @@ spec = do
             hittingBeforeProbability pathChain [2] [1] 0 `shouldBe` Right 0
 
         it "ignores duplicate targets" $ do
-            case
-                ( hittingBeforeProbabilities
+            case ( hittingBeforeProbabilities
                     oscillator
                     [2, 2]
                     [3, 3]
-                , hittingBeforeProbabilities
+                 , hittingBeforeProbabilities
                     oscillator
                     [2]
                     [3]
-                ) of
+                 ) of
                 (Left err, _) -> expectationFailure (show err)
                 (_, Left err) -> expectationFailure (show err)
                 (Right withDuplicates, Right once) ->
@@ -536,16 +537,15 @@ spec = do
                         ]
 
         it "ignores target order" $ do
-            case
-                ( hittingBeforeProbabilities
+            case ( hittingBeforeProbabilities
                     oscillator
                     [2, 0]
                     [3, 1]
-                , hittingBeforeProbabilities
+                 , hittingBeforeProbabilities
                     oscillator
                     [0, 2]
                     [1, 3]
-                ) of
+                 ) of
                 (Left err, _) -> expectationFailure (show err)
                 (_, Left err) -> expectationFailure (show err)
                 (Right reordered, Right ordered) ->
@@ -555,11 +555,10 @@ spec = do
                         ]
 
         it "single-state lookups match the all-state vector" $
-            case
-                hittingBeforeProbabilities
-                    oscillator
-                    [2]
-                    [3] of
+            case hittingBeforeProbabilities
+                oscillator
+                [2]
+                [3] of
                 Left err -> expectationFailure (show err)
                 Right result ->
                     sequence_
@@ -593,10 +592,9 @@ spec = do
 
         it "disjoint races sum to one when the union is hit almost surely" $
             sequence_
-                [ case
-                    ( hittingBeforeProbabilities g [4] [0]
-                    , hittingBeforeProbabilities g [0] [4]
-                    ) of
+                [ case ( hittingBeforeProbabilities g [4] [0]
+                       , hittingBeforeProbabilities g [0] [4]
+                       ) of
                     (Left err, _) -> expectationFailure (show err)
                     (_, Left err) -> expectationFailure (show err)
                     (Right wins, Right losses) ->
@@ -693,6 +691,8 @@ spec = do
                                     , i /= 0
                                     ]
 
+returnTimeSpec :: Spec
+returnTimeSpec = do
     describe "bounded first-return times" $ do
         it "returns an empty result for the empty chain" $
             entries (returnTimeProbabilitiesBefore (identityMatrix @(Finite 0)) 3)
@@ -960,10 +960,12 @@ spec = do
                 `shouldSatisfy` either (const False) (meanCloseTo 4)
             expectedReturnTime namedGambler Ruined
                 `shouldBe` Right (FiniteMean 1)
-  where
-    isFinite (FiniteMean _) = True
-    isFinite InfiniteMean = False
 
-    isIllConditioned (Left (IllConditionedSystem estimate)) =
-        estimate < 1e-12
-    isIllConditioned _ = False
+isFinite :: MeanTime -> Bool
+isFinite (FiniteMean _) = True
+isFinite InfiniteMean = False
+
+isIllConditioned :: Either LinearSystemError value -> Bool
+isIllConditioned (Left (IllConditionedSystem estimate)) =
+    estimate < 1e-12
+isIllConditioned _ = False

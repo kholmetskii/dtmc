@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Dtmc.ProbabilitySpec (
+module Dtmc.Analysis.FixedTimeSpec (
     spec,
 ) where
 
@@ -12,6 +12,16 @@ import Data.Finite (
  )
 import Data.List.NonEmpty (
     NonEmpty ((:|)),
+ )
+import Dtmc.Analysis.FixedTime (
+    Observation (..),
+    ProbabilityError (..),
+    conditionalProbability,
+    pathProbability,
+    probability,
+    probabilityAtTime,
+    transitionProbability,
+    transitionProbabilityN,
  )
 import Dtmc.Distribution (
     probabilityAt,
@@ -25,16 +35,6 @@ import Dtmc.Dynamics (
     evolveVector,
     evolveVectorN,
  )
-import Dtmc.Probability (
-    Observation (..),
-    ProbabilityError (..),
-    conditionalProbability,
-    pathProbability,
-    probability,
-    probabilityAtTime,
-    transitionProbability,
-    transitionProbabilityN,
- )
 import Dtmc.State qualified
 import Dtmc.TestSupport (
     approxEq,
@@ -42,6 +42,7 @@ import Dtmc.TestSupport (
     genTransitionMatrix,
     testTolerance,
  )
+import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     matrixPower,
@@ -49,7 +50,6 @@ import Dtmc.Transition.Matrix (
     rowAt,
     unTransitionMatrix,
  )
-import Dtmc.Transition.Kernel qualified as Kernel
 import GHC.Generics (
     Generic,
  )
@@ -236,7 +236,6 @@ observationInitial =
     either (error . show) id $
         mkDistributionVector (S.vector [1 / 4, 1 / 2, 0, 1 / 4, 0] :: S.R 5)
 
-
 spec :: Spec
 spec = do
     describe "Observation" $ do
@@ -346,56 +345,56 @@ spec = do
                 | state <- finites
                 ]
 
-        prop "agrees with probabilityAt of evolveVectorN" $
-            forAll
+        prop "agrees with probabilityAt of evolveVectorN"
+            $ forAll
                 ( (,,)
                     <$> choose (0, 6 :: Int)
                     <*> genSimplexPoint 3
                     <*> genTransitionMatrix @3
-                ) $
-                \(k, entries, matrix) ->
-                    case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
-                         , mkTransitionMatrix matrix
-                         ) of
-                        (Right mu, Right p) ->
-                            conjoin
+                )
+            $ \(k, entries, matrix) ->
+                case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
+                     , mkTransitionMatrix matrix
+                     ) of
+                    (Right mu, Right p) ->
+                        conjoin
+                            [ property $
+                                approxEq
+                                    testTolerance
+                                    (probabilityAtTime (fromIntegral k) mu p state)
+                                    (probabilityAt (evolveVectorN (fromIntegral k) mu p) state)
+                            | state <- finites
+                            ]
+                    result ->
+                        counterexample
+                            ("generated input was rejected: " <> show result)
+                            False
+
+        prop "agrees with repeated evolveVector for small exponents"
+            $ forAll
+                ( (,,)
+                    <$> choose (0, 6 :: Int)
+                    <*> genSimplexPoint 3
+                    <*> genTransitionMatrix @3
+                )
+            $ \(k, entries, matrix) ->
+                case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
+                     , mkTransitionMatrix matrix
+                     ) of
+                    (Right mu, Right p) ->
+                        let iterated = iterate (`evolveVector` p) mu !! k
+                         in conjoin
                                 [ property $
                                     approxEq
                                         testTolerance
                                         (probabilityAtTime (fromIntegral k) mu p state)
-                                        (probabilityAt (evolveVectorN (fromIntegral k) mu p) state)
+                                        (probabilityAt iterated state)
                                 | state <- finites
                                 ]
-                        result ->
-                            counterexample
-                                ("generated input was rejected: " <> show result)
-                                False
-
-        prop "agrees with repeated evolveVector for small exponents" $
-            forAll
-                ( (,,)
-                    <$> choose (0, 6 :: Int)
-                    <*> genSimplexPoint 3
-                    <*> genTransitionMatrix @3
-                ) $
-                \(k, entries, matrix) ->
-                    case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
-                         , mkTransitionMatrix matrix
-                         ) of
-                        (Right mu, Right p) ->
-                            let iterated = iterate (`evolveVector` p) mu !! k
-                             in conjoin
-                                    [ property $
-                                        approxEq
-                                            testTolerance
-                                            (probabilityAtTime (fromIntegral k) mu p state)
-                                            (probabilityAt iterated state)
-                                    | state <- finites
-                                    ]
-                        result ->
-                            counterexample
-                                ("generated input was rejected: " <> show result)
-                                False
+                    result ->
+                        counterexample
+                            ("generated input was rejected: " <> show result)
+                            False
 
     describe "Transition realization independence" $ do
         it "computes transition probabilities on an infinite state type" $ do

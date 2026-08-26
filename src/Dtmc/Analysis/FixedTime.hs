@@ -1,5 +1,5 @@
 {- |
-Module      : Dtmc.Probability
+Module      : Dtmc.Analysis.FixedTime
 Description : Scalar, trajectory, event, and conditional probabilities.
 
 Finite-time probability queries shared by dense finite matrices and locally
@@ -8,7 +8,7 @@ dense finite @DistributionVector@ or a @DistributionMap@ through the
 'Distribution' abstraction. All calculations use finite reachable support
 and perform no truncation, clamping, or renormalisation.
 -}
-module Dtmc.Probability (
+module Dtmc.Analysis.FixedTime (
     transitionProbability,
     transitionProbabilityN,
     probabilityAtTime,
@@ -22,6 +22,10 @@ module Dtmc.Probability (
 import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
+import Dtmc.Analysis.FixedTime.Internal (
+    NormalisedObservations (..),
+    normalise,
+ )
 import Dtmc.Distribution (
     Distribution (..),
  )
@@ -31,10 +35,6 @@ import Dtmc.Distribution.Map (
  )
 import Dtmc.Dynamics (
     evolveN,
- )
-import Dtmc.Probability.Internal (
-    NormalisedObservations (..),
-    normalise,
  )
 import Dtmc.Transition (
     Transition (..),
