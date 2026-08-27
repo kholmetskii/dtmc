@@ -30,6 +30,7 @@ import Dtmc.Analysis.Classification (
     isErgodic,
     isIrreducible,
     period,
+    reachesAny,
     recurrentState,
     recurrentStates,
     recurrentStatesOf,
@@ -323,6 +324,16 @@ spec = do
                             ]
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False
+
+    describe "reachesAny" $ do
+        it "finds a reachable target" $
+            reachesAny threeCycle 0 [2] `shouldBe` True
+
+        it "returns false for an empty target set" $
+            reachesAny threeCycle 0 [] `shouldBe` False
+
+        it "uses zero-step reachability" $
+            reachesAny identityThree 1 [1] `shouldBe` True
 
     describe "period" $ do
         it "is 3 for every state of the three-cycle" $

@@ -21,7 +21,8 @@ random simulation primitives -- while hiding internal modules. Import this
 module to build, analyse, and run chains. Focused imports are available through
 "Dtmc.State", "Dtmc.Distribution", "Dtmc.Distribution.Vector",
 "Dtmc.Distribution.Map", "Dtmc.Transition", "Dtmc.Transition.Matrix",
-"Dtmc.Transition.Kernel", and the focused modules below "Dtmc.Analysis".
+"Dtmc.Transition.Kernel", and focused analysis modules such as
+"Dtmc.Analysis.FixedTime" and "Dtmc.Analysis.HittingTime".
 -}
 module Dtmc (
     type Cardinality,
@@ -61,11 +62,12 @@ module Dtmc (
     probability,
     conditionalProbability,
     Observation (..),
-    ProbabilityError (..),
+    ConditionalProbabilityError (..),
     identityMatrix,
     matrixPower,
     supportEdge,
     accessible,
+    reachesAny,
     communicates,
     communicatingClasses,
     irreducible,
@@ -120,8 +122,8 @@ module Dtmc (
 ) where
 
 import Dtmc.Analysis.FixedTime (
+    ConditionalProbabilityError (..),
     Observation (..),
-    ProbabilityError (..),
     conditionalProbability,
     pathProbability,
     probability,
@@ -210,6 +212,7 @@ import Dtmc.Analysis.Classification (
     isErgodic,
     isIrreducible,
     period,
+    reachesAny,
     recurrentState,
     recurrentStates,
     recurrentStatesOf,

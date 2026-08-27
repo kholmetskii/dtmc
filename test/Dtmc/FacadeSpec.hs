@@ -244,6 +244,7 @@ spec =
 
         it "runs the seven-state cafe analysis entirely with named states" $ do
             probabilityAt cafeInitial Thinking `shouldBe` 1
+            reachesAny cafeTransition Thinking [Leave] `shouldBe` True
             absorbingStates (classify cafeTransition) `shouldBe` [Leave]
             abs
                 (checked (hittingProbability cafeTransition [Leave] Thinking) - 1)
@@ -272,3 +273,11 @@ spec =
         it "exposes finite-horizon visit-count analysis" $
             visitCountExpectationBefore 1 cafeInitial cafeTransition (== Thinking)
                 `shouldBe` 1
+
+        it "exposes conditional-probability errors" $
+            conditionalProbability
+                cafeInitial
+                cafeTransition
+                []
+                [At 0 Leave]
+                `shouldBe` Left ZeroProbabilityCondition

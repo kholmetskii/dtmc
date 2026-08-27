@@ -13,7 +13,7 @@ module Dtmc.Analysis.FixedTime (
     transitionProbabilityN,
     probabilityAtTime,
     Observation (..),
-    ProbabilityError (..),
+    ConditionalProbabilityError (..),
     pathProbability,
     probability,
     conditionalProbability,
@@ -51,7 +51,7 @@ data Observation state
     deriving (Eq, Show)
 
 -- | Why a conditional probability query has no defined value.
-data ProbabilityError
+data ConditionalProbabilityError
     = -- | The condition has probability exactly zero.
       ZeroProbabilityCondition
     deriving (Eq, Show)
@@ -168,7 +168,7 @@ conditionalProbability ::
     kernel ->
     [Observation (TransitionState kernel)] ->
     [Observation (TransitionState kernel)] ->
-    Either ProbabilityError Double
+    Either ConditionalProbabilityError Double
 conditionalProbability initial kernel event condition =
     if denominator == 0
         then Left ZeroProbabilityCondition

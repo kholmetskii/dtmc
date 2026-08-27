@@ -47,7 +47,6 @@ library
       Dtmc.Transition.Kernel
       Dtmc.Simulation
       Dtmc.Dynamics
-      Dtmc.Analysis
       Dtmc.Analysis.FixedTime
       Dtmc.Analysis.HittingTime
       Dtmc.Analysis.ReturnTime

@@ -6,14 +6,13 @@ algorithms.
 
 ## Current features
 
-- Validated finite probability distributions
+- Validated dense and finite-support probability distributions
 - Validated stochastic transition matrices
 - Compile-time vector and matrix dimensions derived from finite state types
 - Transition-matrix multiplication
 - Access to the transition distribution from a given state
 - Random sampling from a distribution
 - Single-step Markov-chain simulation
-- Approximate equality helpers for numerical comparisons
 - Distribution evolution, matrix powers, and the Chapman–Kolmogorov law
 - Scalar, path, timed-event, and conditional probability queries
 - Support-graph classification: accessibility, communication, communicating
@@ -21,6 +20,8 @@ algorithms.
   an `Irreducible` witness type
 - Exact-time, bounded, eventual, competing, and expected hitting and
   first-return quantities
+- Exact finite-horizon visit-count distributions, probabilities, and
+  expectations
 - Unique stationary distributions for finite irreducible chains
 - Validated finite-support laws and locally finite kernels over countable state
   types
@@ -44,7 +45,10 @@ Likewise, `Distribution` is the common initial-law abstraction implemented by
 The abstract capabilities and concrete representations are separated:
 
 ```text
+Dtmc                              complete public facade
+
 Dtmc.State
+Dtmc.Simplex
 
 Dtmc.Distribution
 ├── Dtmc.Distribution.Vector
@@ -54,16 +58,23 @@ Dtmc.Transition
 ├── Dtmc.Transition.Matrix
 └── Dtmc.Transition.Kernel
 
-Dtmc.Analysis
+Dtmc.Dynamics
+Dtmc.Simulation
+
+Dtmc.Analysis.*                    focused analysis namespace
 ├── Dtmc.Analysis.FixedTime
 ├── Dtmc.Analysis.HittingTime
 ├── Dtmc.Analysis.ReturnTime
+├── Dtmc.Analysis.VisitCount
 ├── Dtmc.Analysis.Classification
 └── Dtmc.Analysis.Stationary
 ```
 
 Import `Dtmc` for the curated complete API. Use the focused modules when a
 library component should depend only on an abstraction or one representation.
+There is intentionally no second `Dtmc.Analysis` facade: the
+`Dtmc.Analysis.*` names group focused mathematical subjects without duplicating
+the top-level export surface.
 
 Functions live in their mathematical subject modules and use `Transition`
 where the finite and infinite signatures genuinely agree:
@@ -89,6 +100,39 @@ preserve `DistributionVector` when both inputs use the dense finite
 representation. `sample` accepts either distribution representation directly.
 Probability, scalar bounded hitting/return, and simulation functions use the
 shared abstractions directly.
+
+## Analysis API
+
+Singular function names return the result for one initial state. Plural names
+return results for every finite state in canonical state order.
+
+| Quantity | All states | One state |
+| --- | --- | --- |
+| First hit at exactly time `n` | `hittingTimeProbabilities` | `hittingTimeProbability` |
+| First hit strictly before time `n` | `hittingTimeBeforeProbabilities` | `hittingTimeBeforeProbability` |
+| Eventual hit | `hittingProbabilities` | `hittingProbability` |
+| Hit one set before another | `hittingBeforeProbabilities` | `hittingBeforeProbability` |
+| Expected hitting time | `hittingTimeExpectations` | `hittingTimeExpectation` |
+| First return at exactly time `n` | `returnTimeProbabilities` | `returnTimeProbability` |
+| First return strictly before time `n` | `returnTimeBeforeProbabilities` | `returnTimeBeforeProbability` |
+| Eventual return | `returnProbabilities` | `returnProbability` |
+| Expected return time | `returnTimeExpectations` | `returnTimeExpectation` |
+
+`hittingTimeBeforeProbability n` is a finite-time query for
+`P(H_A < n)`. In contrast, `hittingBeforeProbability` is the competing-event
+query `P(H_A < H_B)` and has no time-bound argument.
+
+Visit-count analysis starts from an initial distribution and uses a predicate
+to identify the visited set:
+
+| Function | Result before time `n` |
+| --- | --- |
+| `visitCountDistributionBefore` | Complete distribution of the visit count |
+| `visitCountProbabilityBefore` | Probability of exactly a supplied number of visits |
+| `visitCountExpectationBefore` | Expected number of visits |
+
+Every `Before` bound is strict. Visit counts before `n` inspect times
+`0, ..., n - 1`, so the initial state is counted when `n > 0`.
 
 ## Countable-state boundary
 
@@ -199,8 +243,8 @@ On macOS, `hmatrix` can use Apple Accelerate.
 
 The library is in early development. The finite API covers type-safe objects,
 single- and multi-step dynamics, support-graph classification, and exact-time,
-bounded, eventual, and expected hitting and return quantities, plus stationary
-distributions of finite irreducible chains. The shared kernel abstractions cover
-finite-time queries without tying algorithms to a finite or infinite
-representation. Specialised infinite-chain solvers, absorbing-chain summaries,
-and limiting behaviour are planned.
+bounded, eventual, and expected hitting and return quantities, finite-horizon
+visit counts, and stationary distributions of finite irreducible chains. The
+shared kernel abstractions cover finite-time queries without tying algorithms
+to a finite or infinite representation. Specialised infinite-chain solvers,
+absorbing-chain summaries, and limiting behaviour are planned.

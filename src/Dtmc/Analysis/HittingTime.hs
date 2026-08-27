@@ -40,7 +40,7 @@ import Data.Map.Strict qualified as Map
 import Data.Proxy (
     Proxy (..),
  )
-import Dtmc.Analysis.Classification (
+import Dtmc.Analysis.Classification.Internal (
     backwardReachable,
  )
 import Dtmc.Analysis.Internal.LinearSystem (

@@ -2,9 +2,10 @@
 
 {- |
 Module      : Dtmc.Analysis.Classification.Internal
-Description : Raw carrier types for chain classification (unsafe underbelly).
+Description : Internal carriers and graph operations for chain classification.
 
-Raw carrier types behind "Dtmc.Analysis.Classification": the per-class summary
+Raw carrier types and solver-oriented graph operations behind
+"Dtmc.Analysis.Classification": the per-class summary
 'type CommClass', the whole-chain structural report 'type Classification', and
 the 'type Irreducible' certificate. This module exposes their constructors so trusted
 internal code can build and pattern-match on them directly.
@@ -22,14 +23,23 @@ module Dtmc.Analysis.Classification.Internal (
     type Classification (..),
     type Irreducible (Irreducible),
     unIrreducible,
+    backwardReachable,
 ) where
 
+import Data.Finite (
+    finite,
+    getFinite,
+ )
 import Dtmc.State (
     FiniteState,
+    stateAt,
+    stateIndex,
  )
 import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
+    tmSupport,
  )
+import Dtmc.Transition.Matrix.Internal.Graph qualified as G
 import Numeric.Natural (
     Natural,
  )
@@ -102,3 +112,25 @@ deriving instance (FiniteState state) => Show (Irreducible state)
 -- | Recover the certified transition matrix in @O(1)@ time.
 unIrreducible :: Irreducible state -> TransitionMatrix state
 unIrreducible (Irreducible p) = p
+
+toState :: (FiniteState state) => Int -> state
+toState = stateAt . finite . fromIntegral
+
+toIndex :: (FiniteState state) => state -> Int
+toIndex = fromIntegral . getFinite . stateIndex
+
+{- | States from which an allowed seed is reachable along a support path
+containing only states accepted by @allowed@. Disallowed seeds are ignored;
+the result is duplicate-free and ordered by state index.
+
+Time: @O(n + E + s)@ plus @n@ predicate evaluations for @s@ seeds. Temporary
+space: @O(n + E)@.
+-}
+backwardReachable ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    (state -> Bool) ->
+    [state] ->
+    [state]
+backwardReachable p allowed seeds =
+    map toState (G.backwardReachable (tmSupport p) (allowed . toState) (map toIndex seeds))

@@ -14,8 +14,8 @@ import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
 import Dtmc.Analysis.FixedTime (
+    ConditionalProbabilityError (..),
     Observation (..),
-    ProbabilityError (..),
     conditionalProbability,
     pathProbability,
     probability,
@@ -139,7 +139,7 @@ closeTo = approxEq testTolerance
 {- | Hold for a @Right@ whose 'Double' is within 'testTolerance' of the
 expected value; fail for any @Left@ or out-of-tolerance value.
 -}
-rightCloseTo :: Double -> Either ProbabilityError Double -> Bool
+rightCloseTo :: Double -> Either ConditionalProbabilityError Double -> Bool
 rightCloseTo expected (Right actual) = approxEq testTolerance actual expected
 rightCloseTo _ (Left _) = False
 

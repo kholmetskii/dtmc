@@ -22,7 +22,6 @@ module Dtmc.Analysis.Classification (
     supportEdge,
     accessible,
     reachesAny,
-    backwardReachable,
     communicates,
 
     -- * Communicating classes
@@ -125,22 +124,6 @@ reachesAny ::
     Bool
 reachesAny p i targets =
     G.reachesAny (tmSupport p) (toIndex i) (map toIndex targets)
-
-{- | States from which an allowed seed is reachable along a support path
-containing only states accepted by @allowed@. Disallowed seeds are ignored;
-the result is duplicate-free and ordered by state index.
-
-Time: @O(n + E + s)@ plus @n@ predicate evaluations for @s@ seeds. Temporary
-space: @O(n + E)@.
--}
-backwardReachable ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    (state -> Bool) ->
-    [state] ->
-    [state]
-backwardReachable p allowed seeds =
-    map toState (G.backwardReachable (tmSupport p) (allowed . toState) (map toIndex seeds))
 
 {- | Whether @i@ and @j@ communicate: each state is reachable from the other.
 This is an equivalence relation on the state space.

@@ -11,7 +11,7 @@ module Dtmc.Transition (
     Transition (..),
 ) where
 
-import Dtmc.Distribution.Map.Internal ( DistributionMap )
+import Dtmc.Distribution.Map.Internal (DistributionMap)
 
 {- | A time-homogeneous transition rule whose law from any supplied state has
 finite support. The complete state space may be finite or infinite.
