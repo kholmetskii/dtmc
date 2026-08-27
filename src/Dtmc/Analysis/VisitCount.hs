@@ -20,10 +20,11 @@ not simulate, truncate an infinite series, clamp, or renormalise results.
 -}
 module Dtmc.Analysis.VisitCount (
     LinearSystemError (..),
-    VisitCountOutcome (..),
     MeanCount (..),
     visitCountProbabilities,
     visitCountProbability,
+    infiniteVisitProbabilities,
+    infiniteVisitProbability,
     visitCountExpectations,
     visitCountExpectation,
     visitCountDistributionBefore,
@@ -76,18 +77,6 @@ import Numeric.Natural (
     Natural,
  )
 
-{- | A possible value of the infinite-horizon visit count @V_i@.
-
-'FiniteVisits' includes zero. 'InfiniteVisits' is a separate atom rather than
-a large finite count or a truncation marker.
--}
-data VisitCountOutcome
-    = -- | Exactly the supplied finite number of visits.
-      FiniteVisits Natural
-    | -- | Infinitely many visits.
-      InfiniteVisits
-    deriving (Eq, Ord, Show)
-
 {- | An expected visit count, including a structural infinite case.
 
 'FiniteMeanCount' performs no validation: callers can construct negative,
@@ -105,20 +94,19 @@ data MeanCount
 toIndex :: (FiniteState state) => state -> Int
 toIndex = fromIntegral . getFinite . stateIndex
 
-{- | Probabilities of a total visit-count outcome in canonical state order.
-The target is the second argument; coordinate @j@ is
-@P(V_i = outcome | X_0 = j)@.
+{- | Probabilities of exactly @n@ total visits in canonical state order.
+The count is the first argument and the target is the third; coordinate @j@ is
+@P(V_i = n | X_0 = j)@.
 
 Writing @h_ji = P_j(H_i < infinity)@ and
 @f_i = P_i(T_i^+ < infinity)@, a transient target has
 
 * @P_j(V_i = 0) = 1 - h_ji@;
 * @P_j(V_i = n) = h_ji f_i^(n - 1) (1 - f_i)@ for @n >= 1@;
-* @P_j(V_i = infinity) = 0@.
 
-For a recurrent target, positive finite counts have probability zero and
-@P_j(V_i = infinity) = h_ji@. Recurrence is decided from the support graph,
-not by comparing a computed return probability with one.
+For a recurrent target, every positive finite count has probability zero.
+Recurrence is decided from the support graph, not by comparing a computed
+return probability with one.
 
 Structural zero cases avoid a linear solve. Other cases inherit the numerical
 behavior and errors of 'hittingProbabilities' and 'returnProbability'.
@@ -126,46 +114,73 @@ behavior and errors of 'hittingProbabilities' and 'returnProbability'.
 visitCountProbabilities ::
     forall state.
     (FiniteState state) =>
+    Natural ->
     TransitionMatrix state ->
     state ->
-    VisitCountOutcome ->
     Either LinearSystemError (S.R (Cardinality state))
-visitCountProbabilities matrix target = probabilityFor
+visitCountProbabilities count matrix target
+    | count == 0 = mapProbabilities (1 -) <$> hitting
+    | recurrentState matrix target = Right zeroProbabilities
+    | otherwise = do
+        hits <- hitting
+        returning <- returnProbability matrix target
+        let finiteMass = returning ^ (count - 1) * (1 - returning)
+        pure (mapProbabilities (* finiteMass) hits)
   where
-    probabilityFor (FiniteVisits 0) =
-        mapProbabilities (1 -) <$> hitting
-    probabilityFor (FiniteVisits count)
-        | recurrent = Right zeroProbabilities
-        | otherwise = do
-            hits <- hitting
-            returning <- returnProbability matrix target
-            let finiteMass = returning ^ (count - 1) * (1 - returning)
-            pure (mapProbabilities (* finiteMass) hits)
-    probabilityFor InfiniteVisits
-        | recurrent = hitting
-        | otherwise = Right zeroProbabilities
-
-    recurrent = recurrentState matrix target
     hitting = hittingProbabilities matrix [target]
     zeroProbabilities = S.vector [0 | _ <- finiteStates @state]
     mapProbabilities transform =
         S.vector . map transform . LA.toList . S.extract
 
-{- | Probability of one total visit-count outcome from one initial state.
-Argument order is matrix, target, outcome, then initial state. Partially
-applying the first three arguments shares the all-state computation.
+{- | Probability of exactly @n@ total visits from one initial state. Argument
+order is count, matrix, target, then initial state, matching the exact-time
+hitting and return APIs. Partially applying the first three arguments shares
+the all-state computation.
 -}
 visitCountProbability ::
     (FiniteState state) =>
+    Natural ->
     TransitionMatrix state ->
     state ->
-    VisitCountOutcome ->
     state ->
     Either LinearSystemError Double
-visitCountProbability matrix target outcome =
+visitCountProbability count matrix target =
     \initial -> (`LA.atIndex` toIndex initial) <$> probabilities
   where
-    probabilities = S.extract <$> visitCountProbabilities matrix target outcome
+    probabilities = S.extract <$> visitCountProbabilities count matrix target
+
+{- | Probabilities of infinitely many visits in canonical initial-state order.
+For target @i@, coordinate @j@ is @P(V_i = infinity | X_0 = j)@. A recurrent
+target returns its hitting probabilities; a transient target returns an exact
+zero vector without a linear solve.
+
+Recurrence is decided from the support graph. The recurrent case inherits the
+numerical behavior and errors of 'hittingProbabilities'.
+-}
+infiniteVisitProbabilities ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError (S.R (Cardinality state))
+infiniteVisitProbabilities matrix target
+    | recurrentState matrix target = hittingProbabilities matrix [target]
+    | otherwise = Right (S.vector [0 | _ <- finiteStates @state])
+
+{- | Probability of infinitely many visits from one initial state. Argument
+order is matrix, target, then initial state. Partially applying the matrix and
+target shares the all-state computation.
+-}
+infiniteVisitProbability ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    state ->
+    Either LinearSystemError Double
+infiniteVisitProbability matrix target =
+    \initial -> (`LA.atIndex` toIndex initial) <$> probabilities
+  where
+    probabilities = S.extract <$> infiniteVisitProbabilities matrix target
 
 {- | Expected total visits to the target in canonical initial-state order.
 

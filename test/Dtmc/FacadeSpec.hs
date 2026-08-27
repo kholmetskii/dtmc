@@ -275,9 +275,9 @@ spec =
                 `shouldBe` 1
 
         it "exposes infinite-horizon total visit-count analysis" $ do
-            checked (visitCountProbability weatherTransition Dry InfiniteVisits Wet)
+            checked (infiniteVisitProbability weatherTransition Dry Wet)
                 `shouldBe` 1
-            checked (visitCountProbability weatherTransition Dry (FiniteVisits 1) Wet)
+            checked (visitCountProbability 1 weatherTransition Dry Wet)
                 `shouldBe` 0
             checked (visitCountExpectation weatherTransition Dry Wet)
                 `shouldBe` InfiniteMeanCount

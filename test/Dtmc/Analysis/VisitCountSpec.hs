@@ -24,7 +24,8 @@ import Dtmc.Analysis.ReturnTime (
  )
 import Dtmc.Analysis.VisitCount (
     MeanCount (..),
-    VisitCountOutcome (..),
+    infiniteVisitProbabilities,
+    infiniteVisitProbability,
     visitCountDistributionBefore,
     visitCountExpectation,
     visitCountExpectationBefore,
@@ -168,48 +169,49 @@ spec :: Spec
 spec = do
     describe "visitCountProbabilities" $ do
         it "matches the geometric law for a transient target" $ do
-            let probabilities outcome =
-                    entries (checked (visitCountProbabilities transientVisitChain 0 outcome))
+            let probabilities count =
+                    entries (checked (visitCountProbabilities count transientVisitChain 0))
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
-                    zip (probabilities (FiniteVisits 0)) [0, 1 / 2, 1]
+                    zip (probabilities 0) [0, 1 / 2, 1]
                 ]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
-                    zip (probabilities (FiniteVisits 1)) [3 / 4, 3 / 8, 0]
+                    zip (probabilities 1) [3 / 4, 3 / 8, 0]
                 ]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
-                    zip (probabilities (FiniteVisits 3)) [3 / 64, 3 / 128, 0]
+                    zip (probabilities 3) [3 / 64, 3 / 128, 0]
                 ]
-            probabilities InfiniteVisits `shouldBe` [0, 0, 0]
+            entries (checked (infiniteVisitProbabilities transientVisitChain 0))
+                `shouldBe` [0, 0, 0]
 
         it "puts all positive recurrent-target mass at infinity" $ do
             entries
-                (checked (visitCountProbabilities recurrentVisitChain 2 (FiniteVisits 1)))
+                (checked (visitCountProbabilities 1 recurrentVisitChain 2))
                 `shouldBe` [0, 0, 0, 0]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
                     zip
-                        (entries (checked (visitCountProbabilities recurrentVisitChain 2 InfiniteVisits)))
+                        (entries (checked (infiniteVisitProbabilities recurrentVisitChain 2)))
                         [2 / 3, 1 / 3, 1, 0]
                 ]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
                     zip
-                        (entries (checked (visitCountProbabilities recurrentVisitChain 2 (FiniteVisits 0))))
+                        (entries (checked (visitCountProbabilities 0 recurrentVisitChain 2)))
                         [1 / 3, 2 / 3, 0, 1]
                 ]
 
         it "counts the target at time zero" $ do
-            checked (visitCountProbability transientVisitChain 0 (FiniteVisits 0) 0)
+            checked (visitCountProbability 0 transientVisitChain 0 0)
                 `shouldBe` 0
-            checked (visitCountProbability transientVisitChain 0 (FiniteVisits 1) 0)
+            checked (visitCountProbability 1 transientVisitChain 0 0)
                 `shouldSatisfy` closeTo (3 / 4)
 
         prop "scalar queries look up the all-state result (random @3)" $
@@ -218,21 +220,27 @@ spec = do
                     Left err -> counterexample (show err) False
                     Right matrix ->
                         conjoin
-                            [ case visitCountProbabilities matrix 0 outcome of
+                            [ conjoin
+                                [ case visitCountProbabilities count matrix 0 of
+                                    Left err -> counterexample (show err) False
+                                    Right probabilities ->
+                                        conjoin
+                                            [ visitCountProbability count matrix 0 initial
+                                                === Right probability
+                                            | (initial, probability) <-
+                                                zip (finites :: [Finite 3]) (entries probabilities)
+                                            ]
+                                | count <- [0, 1, 3]
+                                ]
+                            , case infiniteVisitProbabilities matrix 0 of
                                 Left err -> counterexample (show err) False
                                 Right probabilities ->
                                     conjoin
-                                        [ visitCountProbability matrix 0 outcome initial
+                                        [ infiniteVisitProbability matrix 0 initial
                                             === Right probability
                                         | (initial, probability) <-
                                             zip (finites :: [Finite 3]) (entries probabilities)
                                         ]
-                            | outcome <-
-                                [ FiniteVisits 0
-                                , FiniteVisits 1
-                                , FiniteVisits 3
-                                , InfiniteVisits
-                                ]
                             ]
 
     describe "visitCountExpectations" $ do
@@ -259,10 +267,10 @@ spec = do
                         case do
                             hits <- hittingProbabilities matrix [0]
                             returning <- returnProbability matrix 0
-                            zeroVisits <- visitCountProbabilities matrix 0 (FiniteVisits 0)
-                            oneVisit <- visitCountProbabilities matrix 0 (FiniteVisits 1)
-                            twoVisits <- visitCountProbabilities matrix 0 (FiniteVisits 2)
-                            infiniteVisits <- visitCountProbabilities matrix 0 InfiniteVisits
+                            zeroVisits <- visitCountProbabilities 0 matrix 0
+                            oneVisit <- visitCountProbabilities 1 matrix 0
+                            twoVisits <- visitCountProbabilities 2 matrix 0
+                            infiniteVisits <- infiniteVisitProbabilities matrix 0
                             means <- visitCountExpectations matrix 0
                             pure
                                 ( hits

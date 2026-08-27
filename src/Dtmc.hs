@@ -111,10 +111,11 @@ module Dtmc (
     returnProbability,
     returnTimeExpectations,
     returnTimeExpectation,
-    VisitCountOutcome (..),
     MeanCount (..),
     visitCountProbabilities,
     visitCountProbability,
+    infiniteVisitProbabilities,
+    infiniteVisitProbability,
     visitCountExpectations,
     visitCountExpectation,
     visitCountDistributionBefore,
@@ -142,7 +143,8 @@ import Dtmc.Analysis.Stationary (
  )
 import Dtmc.Analysis.VisitCount (
     MeanCount (..),
-    VisitCountOutcome (..),
+    infiniteVisitProbabilities,
+    infiniteVisitProbability,
     visitCountDistributionBefore,
     visitCountExpectation,
     visitCountExpectationBefore,
