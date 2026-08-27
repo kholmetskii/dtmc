@@ -43,15 +43,15 @@ import Dtmc.Analysis.Classification (
     transientStates,
  )
 import Dtmc.Analysis.HittingTime (
+    MeanTime (..),
     hittingTimeExpectation,
  )
 import Dtmc.Analysis.Internal.LinearSystem (
-    LinearSystemError (..),
     fundamental,
     subMatrix,
  )
-import Dtmc.Analysis.Internal.MeanTime (
-    MeanTime (..),
+import Dtmc.Analysis.LinearSystem (
+    LinearSystemError (..),
  )
 import Dtmc.Distribution.Vector.Internal (
     unDistributionVector,

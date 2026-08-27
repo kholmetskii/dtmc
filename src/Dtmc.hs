@@ -228,7 +228,6 @@ import Dtmc.Analysis.Classification (
  )
 
 import Dtmc.Analysis.HittingTime (
-    LinearSystemError (..),
     MeanTime (..),
     hittingBeforeProbabilities,
     hittingBeforeProbability,
@@ -240,6 +239,9 @@ import Dtmc.Analysis.HittingTime (
     hittingTimeExpectations,
     hittingTimeProbabilities,
     hittingTimeProbability,
+ )
+import Dtmc.Analysis.LinearSystem (
+    LinearSystemError (..),
  )
 import Dtmc.Analysis.ReturnTime (
     returnProbabilities,

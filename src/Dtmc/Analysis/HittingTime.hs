@@ -44,13 +44,12 @@ import Dtmc.Analysis.Classification.Internal (
     backwardReachable,
  )
 import Dtmc.Analysis.Internal.LinearSystem (
-    LinearSystemError (..),
     rowSums,
     solveIminusQVector,
     subMatrix,
  )
-import Dtmc.Analysis.Internal.MeanTime (
-    MeanTime (..),
+import Dtmc.Analysis.LinearSystem (
+    LinearSystemError (..),
  )
 import Dtmc.Dynamics.Internal (
     pushSparseWeights,
@@ -76,6 +75,22 @@ import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
+
+{- | An expected number of transitions, represented either by a 'Double' or an
+exact infinite case. Library results use 'InfiniteMean' based on support-graph
+reachability rather than floating-point overflow.
+
+'FiniteMean' performs no validation: callers can construct negative,
+non-finite, or @NaN@ values. Derived ordering places every 'FiniteMean'
+constructor before 'InfiniteMean'; comparisons between finite constructors
+inherit the behavior of 'Double', including @NaN@.
+-}
+data MeanTime
+    = -- | A mathematically non-negative finite mean, subject to solver rounding.
+      FiniteMean Double
+    | -- | The target or return is not reached with probability one.
+      InfiniteMean
+    deriving (Eq, Ord, Show)
 
 toIndex :: (FiniteState state) => state -> Int
 toIndex = fromIntegral . getFinite . stateIndex

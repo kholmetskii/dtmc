@@ -48,6 +48,7 @@ library
       Dtmc.Simulation
       Dtmc.Dynamics
       Dtmc.Analysis.FiniteTime
+      Dtmc.Analysis.LinearSystem
       Dtmc.Analysis.HittingTime
       Dtmc.Analysis.ReturnTime
       Dtmc.Analysis.VisitCount
@@ -62,10 +63,8 @@ library
       Dtmc.Analysis.FiniteTime.Internal
       Dtmc.Analysis.Classification.Internal
       Dtmc.Analysis.Internal.LinearSystem
-      Dtmc.Analysis.Internal.MeanTime
       Dtmc.Transition.Matrix.Internal.Graph
       Dtmc.Dynamics.Internal
-      Dtmc.Simulation.Internal
 
   build-depends:
       base >=4.20 && <5

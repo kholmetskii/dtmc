@@ -116,10 +116,9 @@ visitCountProbabilityBefore ::
     (TransitionState transition -> Bool) ->
     Natural ->
     Double
-visitCountProbabilityBefore bound initial transition isVisited count =
+visitCountProbabilityBefore bound initial transition isVisited =
     probabilityAt
         (visitCountDistributionBefore bound initial transition isVisited)
-        count
 
 {- | Expected number of visits before the strict time bound. Using
 @E(N_A(c)) = sum_(t = 0)^(c - 1) P(X_t in A)@, this evolves only the state

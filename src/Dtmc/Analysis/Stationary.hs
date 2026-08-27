@@ -20,8 +20,10 @@ module Dtmc.Analysis.Stationary (
 
 import Dtmc.Analysis.Classification (Irreducible, unIrreducible)
 import Dtmc.Analysis.Internal.LinearSystem (
-    LinearSystemError (..),
     solveLinearSystem,
+ )
+import Dtmc.Analysis.LinearSystem (
+    LinearSystemError (..),
  )
 import Dtmc.Distribution.Vector.Internal (
     DistributionVector (DistributionVector),

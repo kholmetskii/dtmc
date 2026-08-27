@@ -63,6 +63,7 @@ Dtmc.Simulation
 
 Dtmc.Analysis.*                    focused analysis namespace
 ├── Dtmc.Analysis.FiniteTime
+├── Dtmc.Analysis.LinearSystem
 ├── Dtmc.Analysis.HittingTime
 ├── Dtmc.Analysis.ReturnTime
 ├── Dtmc.Analysis.VisitCount
@@ -145,6 +146,10 @@ to identify the visited set:
 
 Every `Before` bound is strict. Visit counts before `n` inspect times
 `0, ..., n - 1`, so the initial state is counted when `n > 0`.
+
+`Dtmc.Analysis.LinearSystem` owns the `LinearSystemError` contract shared by
+eventual hitting, return-time expectation, and stationary-distribution
+calculations. Numerical solver functions remain internal.
 
 ## Countable-state boundary
 

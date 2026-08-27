@@ -12,7 +12,6 @@ reciprocal condition estimate below @1e-12@, and verifies a scaled residual
 against @1e-9@.
 -}
 module Dtmc.Analysis.Internal.LinearSystem (
-    LinearSystemError (..),
     subMatrix,
     rowSums,
     solveLinearSystem,
@@ -21,31 +20,10 @@ module Dtmc.Analysis.Internal.LinearSystem (
     fundamental,
 ) where
 
+import Dtmc.Analysis.LinearSystem (
+    LinearSystemError (..),
+ )
 import Numeric.LinearAlgebra qualified as LA
-
-{- | A numerical linear system could not be accepted safely.
-
-The reciprocal condition estimate and relative residual are dimensionless.
-Smaller reciprocal condition estimates indicate greater sensitivity; smaller
-relative residuals indicate a better computed solution.
--}
-data LinearSystemError
-    = -- | A solver reported that the coefficient matrix is singular.
-      SingularSystem
-    | -- | The coefficient matrix is too sensitive for the numerical contract.
-      IllConditionedSystem
-        { reciprocalConditionEstimate :: Double
-        }
-    | -- | A coefficient or right-hand-side entry was @NaN@ or infinite.
-      NonFiniteSystem
-    | -- | The solver produced a @NaN@ or infinite result.
-      NonFiniteSolution
-    | -- | The computed solution did not satisfy the equations closely enough.
-      ResidualTooLarge
-        { relativeResidual :: Double
-        , residualLimit :: Double
-        }
-    deriving (Eq, Show)
 
 conditionLimit :: Double
 conditionLimit = 1e-12
