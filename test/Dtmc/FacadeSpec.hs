@@ -274,6 +274,14 @@ spec =
             visitCountExpectationBefore 1 cafeInitial cafeTransition (== Thinking)
                 `shouldBe` 1
 
+        it "exposes infinite-horizon total visit-count analysis" $ do
+            checked (visitCountProbability weatherTransition Dry InfiniteVisits Wet)
+                `shouldBe` 1
+            checked (visitCountProbability weatherTransition Dry (FiniteVisits 1) Wet)
+                `shouldBe` 0
+            checked (visitCountExpectation weatherTransition Dry Wet)
+                `shouldBe` InfiniteMeanCount
+
         it "exposes conditional-probability errors" $
             conditionalProbability
                 cafeInitial

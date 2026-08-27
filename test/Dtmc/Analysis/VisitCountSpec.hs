@@ -8,13 +8,29 @@ import Data.Finite (
     Finite,
     finites,
  )
+import Dtmc.Analysis.Classification (
+    accessible,
+    recurrentState,
+ )
 import Dtmc.Analysis.FiniteTime (
     probabilityAtTime,
     transitionProbability,
  )
+import Dtmc.Analysis.HittingTime (
+    hittingProbabilities,
+ )
+import Dtmc.Analysis.ReturnTime (
+    returnProbability,
+ )
 import Dtmc.Analysis.VisitCount (
+    MeanCount (..),
+    VisitCountOutcome (..),
     visitCountDistributionBefore,
+    visitCountExpectation,
     visitCountExpectationBefore,
+    visitCountExpectations,
+    visitCountProbabilities,
+    visitCountProbability,
     visitCountProbabilityBefore,
  )
 import Dtmc.Distribution (
@@ -30,6 +46,10 @@ import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
  )
+import GHC.TypeNats (
+    KnownNat,
+ )
+import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
@@ -47,6 +67,7 @@ import Test.QuickCheck (
     counterexample,
     forAll,
     property,
+    (===),
  )
 
 checked :: (Show error) => Either error value -> value
@@ -63,6 +84,52 @@ twoCycle =
                 , 0
                 ] ::
                 S.Sq 2
+            )
+
+-- Target 0 returns with probability 1/4. State 1 first reaches it with
+-- probability 1/2, while absorbing state 2 cannot reach it.
+transientVisitChain :: TransitionMatrix (Finite 3)
+transientVisitChain =
+    checked $
+        mkTransitionMatrix
+            ( S.matrix
+                [ 1 / 4
+                , 0
+                , 3 / 4
+                , 1 / 2
+                , 0
+                , 1 / 2
+                , 0
+                , 0
+                , 1
+                ] ::
+                S.Sq 3
+            )
+
+-- States 0 and 1 may enter absorbing target 2; absorbing state 3 cannot.
+recurrentVisitChain :: TransitionMatrix (Finite 4)
+recurrentVisitChain =
+    checked $
+        mkTransitionMatrix
+            ( S.matrix
+                [ 0
+                , 1 / 2
+                , 1 / 2
+                , 0
+                , 1 / 2
+                , 0
+                , 0
+                , 1 / 2
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                ] ::
+                S.Sq 4
             )
 
 mixedInitial :: DistributionMap.DistributionMap (Finite 2)
@@ -90,8 +157,179 @@ simpleRandomWalk =
 closeTo :: Double -> Double -> Bool
 closeTo expected actual = abs (actual - expected) <= testTolerance
 
+entries :: (KnownNat n) => S.R n -> [Double]
+entries = LA.toList . S.extract
+
+meanCloseTo :: Double -> MeanCount -> Bool
+meanCloseTo expected (FiniteMeanCount actual) = closeTo expected actual
+meanCloseTo _ InfiniteMeanCount = False
+
 spec :: Spec
 spec = do
+    describe "visitCountProbabilities" $ do
+        it "matches the geometric law for a transient target" $ do
+            let probabilities outcome =
+                    entries (checked (visitCountProbabilities transientVisitChain 0 outcome))
+            sequence_
+                [ actual `shouldSatisfy` closeTo expected
+                | (actual, expected) <-
+                    zip (probabilities (FiniteVisits 0)) [0, 1 / 2, 1]
+                ]
+            sequence_
+                [ actual `shouldSatisfy` closeTo expected
+                | (actual, expected) <-
+                    zip (probabilities (FiniteVisits 1)) [3 / 4, 3 / 8, 0]
+                ]
+            sequence_
+                [ actual `shouldSatisfy` closeTo expected
+                | (actual, expected) <-
+                    zip (probabilities (FiniteVisits 3)) [3 / 64, 3 / 128, 0]
+                ]
+            probabilities InfiniteVisits `shouldBe` [0, 0, 0]
+
+        it "puts all positive recurrent-target mass at infinity" $ do
+            entries
+                (checked (visitCountProbabilities recurrentVisitChain 2 (FiniteVisits 1)))
+                `shouldBe` [0, 0, 0, 0]
+            sequence_
+                [ actual `shouldSatisfy` closeTo expected
+                | (actual, expected) <-
+                    zip
+                        (entries (checked (visitCountProbabilities recurrentVisitChain 2 InfiniteVisits)))
+                        [2 / 3, 1 / 3, 1, 0]
+                ]
+            sequence_
+                [ actual `shouldSatisfy` closeTo expected
+                | (actual, expected) <-
+                    zip
+                        (entries (checked (visitCountProbabilities recurrentVisitChain 2 (FiniteVisits 0))))
+                        [1 / 3, 2 / 3, 0, 1]
+                ]
+
+        it "counts the target at time zero" $ do
+            checked (visitCountProbability transientVisitChain 0 (FiniteVisits 0) 0)
+                `shouldBe` 0
+            checked (visitCountProbability transientVisitChain 0 (FiniteVisits 1) 0)
+                `shouldSatisfy` closeTo (3 / 4)
+
+        prop "scalar queries look up the all-state result (random @3)" $
+            forAll (genTransitionMatrix @3) $ \rawMatrix ->
+                case mkTransitionMatrix rawMatrix of
+                    Left err -> counterexample (show err) False
+                    Right matrix ->
+                        conjoin
+                            [ case visitCountProbabilities matrix 0 outcome of
+                                Left err -> counterexample (show err) False
+                                Right probabilities ->
+                                    conjoin
+                                        [ visitCountProbability matrix 0 outcome initial
+                                            === Right probability
+                                        | (initial, probability) <-
+                                            zip (finites :: [Finite 3]) (entries probabilities)
+                                        ]
+                            | outcome <-
+                                [ FiniteVisits 0
+                                , FiniteVisits 1
+                                , FiniteVisits 3
+                                , InfiniteVisits
+                                ]
+                            ]
+
+    describe "visitCountExpectations" $ do
+        it "matches h / (1 - f) for a transient target" $ do
+            let means = checked (visitCountExpectations transientVisitChain 0)
+            sequence_
+                [ mean `shouldSatisfy` meanCloseTo expected
+                | (mean, expected) <- zip means [4 / 3, 2 / 3, 0]
+                ]
+            checked (visitCountExpectation transientVisitChain 0 1)
+                `shouldSatisfy` meanCloseTo (2 / 3)
+
+        it "is infinite exactly where a recurrent target is reachable" $ do
+            checked (visitCountExpectations recurrentVisitChain 2)
+                `shouldBe` [InfiniteMeanCount, InfiniteMeanCount, InfiniteMeanCount, FiniteMeanCount 0]
+            checked (visitCountExpectation recurrentVisitChain 2 3)
+                `shouldBe` FiniteMeanCount 0
+
+        prop "agrees with hitting, return, recurrence, and reachability (random @3)" $
+            forAll (genTransitionMatrix @3) $ \rawMatrix ->
+                case mkTransitionMatrix rawMatrix of
+                    Left err -> counterexample (show err) False
+                    Right matrix ->
+                        case do
+                            hits <- hittingProbabilities matrix [0]
+                            returning <- returnProbability matrix 0
+                            zeroVisits <- visitCountProbabilities matrix 0 (FiniteVisits 0)
+                            oneVisit <- visitCountProbabilities matrix 0 (FiniteVisits 1)
+                            twoVisits <- visitCountProbabilities matrix 0 (FiniteVisits 2)
+                            infiniteVisits <- visitCountProbabilities matrix 0 InfiniteVisits
+                            means <- visitCountExpectations matrix 0
+                            pure
+                                ( hits
+                                , returning
+                                , zeroVisits
+                                , oneVisit
+                                , twoVisits
+                                , infiniteVisits
+                                , means
+                                ) of
+                            Left err -> counterexample (show err) False
+                            Right
+                                ( hits
+                                    , returning
+                                    , zeroVisits
+                                    , oneVisit
+                                    , twoVisits
+                                    , infiniteVisits
+                                    , means
+                                    ) ->
+                                    let hitValues = entries hits
+                                        zeroValues = entries zeroVisits
+                                        oneValues = entries oneVisit
+                                        twoValues = entries twoVisits
+                                        infiniteValues = entries infiniteVisits
+                                        states = finites :: [Finite 3]
+                                        structuralMeans =
+                                            [ if accessible matrix initial 0
+                                                then InfiniteMeanCount
+                                                else FiniteMeanCount 0
+                                            | initial <- states
+                                            ]
+                                     in conjoin
+                                            [ conjoin
+                                                [ property (closeTo (1 - hit) zero)
+                                                | (hit, zero) <- zip hitValues zeroValues
+                                                ]
+                                            , if recurrentState matrix 0
+                                                then
+                                                    conjoin
+                                                        [ oneValues === [0, 0, 0]
+                                                        , twoValues === [0, 0, 0]
+                                                        , infiniteValues === hitValues
+                                                        , means === structuralMeans
+                                                        ]
+                                                else
+                                                    conjoin
+                                                        [ infiniteValues === [0, 0, 0]
+                                                        , conjoin
+                                                            [ property (closeTo (hit * (1 - returning)) one)
+                                                            | (hit, one) <- zip hitValues oneValues
+                                                            ]
+                                                        , conjoin
+                                                            [ property (closeTo (one * returning) two)
+                                                            | (one, two) <- zip oneValues twoValues
+                                                            ]
+                                                        , conjoin
+                                                            [ case mean of
+                                                                FiniteMeanCount value ->
+                                                                    property
+                                                                        (closeTo (hit / (1 - returning)) value)
+                                                                InfiniteMeanCount -> property False
+                                                            | (hit, mean) <- zip hitValues means
+                                                            ]
+                                                        ]
+                                            ]
+
     describe "visitCountDistributionBefore" $ do
         it "is a point mass at zero for bound zero" $
             distributionWeights

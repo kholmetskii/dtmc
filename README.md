@@ -20,8 +20,8 @@ algorithms.
   an `Irreducible` witness type
 - Exact-time, bounded, eventual, competing, and expected hitting and
   first-return quantities
-- Exact finite-horizon visit-count distributions, probabilities, and
-  expectations
+- Exact finite-horizon visit-count distributions and infinite-horizon total
+  visit-count probabilities and expectations
 - Unique stationary distributions for finite irreducible chains
 - Validated finite-support laws and locally finite kernels over countable state
   types
@@ -130,13 +130,15 @@ return results for every finite state in canonical state order.
 | First return strictly before time `n` | `returnTimeBeforeProbabilities` | `returnTimeBeforeProbability` |
 | Eventual return | `returnProbabilities` | `returnProbability` |
 | Expected return time | `returnTimeExpectations` | `returnTimeExpectation` |
+| Total visit-count outcome | `visitCountProbabilities` | `visitCountProbability` |
+| Expected total visits | `visitCountExpectations` | `visitCountExpectation` |
 
 `hittingTimeBeforeProbability n` is a finite-time query for
 `P(H_A < n)`. In contrast, `hittingBeforeProbability` is the competing-event
 query `P(H_A < H_B)` and has no time-bound argument.
 
-Visit-count analysis starts from an initial distribution and uses a predicate
-to identify the visited set:
+Finite-horizon visit-count analysis starts from an initial distribution and
+uses a predicate to identify the visited set:
 
 | Function | Result before time `n` |
 | --- | --- |
@@ -147,8 +149,28 @@ to identify the visited set:
 Every `Before` bound is strict. Visit counts before `n` inspect times
 `0, ..., n - 1`, so the initial state is counted when `n > 0`.
 
+Infinite-horizon analysis instead fixes one target state `i` and studies the
+total count
+`V_i = sum (t = 0 .. infinity) 1_{X_t = i}` for each possible initial state.
+It also includes time zero. Query an individual outcome with:
+
+```haskell
+visitCountProbability matrix target (FiniteVisits 3) initial
+visitCountProbability matrix target InfiniteVisits initial
+visitCountExpectation matrix target initial
+```
+
+`VisitCountOutcome` distinguishes `FiniteVisits n` from `InfiniteVisits`, and
+`MeanCount` distinguishes `FiniteMeanCount x` from `InfiniteMeanCount`. The
+library intentionally exposes outcome probabilities rather than a finite map
+called a “distribution”: a transient target can have infinitely many positive
+finite-count probabilities, while a recurrent target can carry mass at
+infinity. These finite-matrix calculations use hitting probabilities, return
+probabilities, and exact support-graph classification; they do not simulate or
+truncate the path.
+
 `Dtmc.Analysis.LinearSystem` owns the `LinearSystemError` contract shared by
-eventual hitting, return-time expectation, and stationary-distribution
+eventual hitting and return, total visit-count, and stationary-distribution
 calculations. Numerical solver functions remain internal.
 
 ## Countable-state boundary
@@ -158,12 +180,13 @@ finite support. This guarantees that every finite-time calculation terminates,
 although reachable support can still grow quickly. Shared functions perform no
 state-space enumeration, truncation, clamping, or hidden approximation.
 
-The shared API intentionally stops at finite horizons. It does not
-offer eventual hitting probabilities, expected hitting/return times,
-classification, or stationary distributions for an arbitrary infinite chain:
-those questions need additional structure and will live in specialised
-modules. This keeps the library a collection of DTMC algorithms rather than a
-general probabilistic query interpreter.
+For arbitrary infinite kernels, the shared API intentionally stops at finite
+horizons. It does not offer eventual hitting probabilities, expected
+hitting/return times, infinite-horizon total visits, classification, or
+stationary distributions without additional structure. Those calculations
+currently require a finite `TransitionMatrix`. This keeps the library a
+collection of DTMC algorithms rather than a general probabilistic query
+interpreter.
 
 For example, a simple random walk on all integers is locally finite:
 
@@ -261,7 +284,8 @@ On macOS, `hmatrix` can use Apple Accelerate.
 The library is in early development. The finite API covers type-safe objects,
 single- and multi-step dynamics, support-graph classification, and exact-time,
 bounded, eventual, and expected hitting and return quantities, finite-horizon
-visit counts, and stationary distributions of finite irreducible chains. The
+visit counts, infinite-horizon total visit-count probabilities and
+expectations, and stationary distributions of finite irreducible chains. The
 shared kernel abstractions cover finite-time queries without tying algorithms
 to a finite or infinite representation. Specialised infinite-chain solvers,
 absorbing-chain summaries, and limiting behaviour are planned.

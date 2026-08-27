@@ -1,20 +1,53 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+
 {- |
 Module      : Dtmc.Analysis.VisitCount
-Description : Finite-horizon visit-count distributions, probabilities, and expectations.
+Description : Finite- and infinite-horizon visit-count analysis.
 
-Exact analysis of the number of visits to a state predicate before a strict
-time bound. The implementation tracks the finite-support joint law of the
-current state and accumulated count, so it works with finite matrices and
-locally finite kernels without simulation, truncation, or global state-space
-enumeration.
+Exact analysis of visit counts. The bounded functions count visits to a state
+predicate before a strict time bound and work through any locally finite
+'Transition'. The total-count functions analyze visits to one state over the
+entire path of a finite 'TransitionMatrix'. Both notions include the initial
+state at time zero.
+
+For a target state @i@, the total visit count is
+@V_i = sum_(t = 0)^infinity 1_{X_t = i}@. Its law is determined by the
+probability of ever hitting @i@ and the probability of returning to @i@. The
+implementation uses exact graph classification for zero and infinite cases,
+and checked 'Double' linear solves for the remaining probabilities. It does
+not simulate, truncate an infinite series, clamp, or renormalise results.
 -}
 module Dtmc.Analysis.VisitCount (
+    LinearSystemError (..),
+    VisitCountOutcome (..),
+    MeanCount (..),
+    visitCountProbabilities,
+    visitCountProbability,
+    visitCountExpectations,
+    visitCountExpectation,
     visitCountDistributionBefore,
     visitCountProbabilityBefore,
     visitCountExpectationBefore,
 ) where
 
+import Data.Finite (
+    getFinite,
+ )
 import Data.Map.Strict qualified as Map
+import Dtmc.Analysis.Classification (
+    accessible,
+    recurrentState,
+ )
+import Dtmc.Analysis.HittingTime (
+    hittingProbabilities,
+ )
+import Dtmc.Analysis.LinearSystem (
+    LinearSystemError (..),
+ )
+import Dtmc.Analysis.ReturnTime (
+    returnProbability,
+ )
 import Dtmc.Distribution (
     Distribution (..),
  )
@@ -25,12 +58,160 @@ import Dtmc.Distribution.Map.Internal (
 import Dtmc.Dynamics.Internal (
     pushSparseWeights,
  )
+import Dtmc.State (
+    Cardinality,
+    FiniteState,
+    finiteStates,
+    stateIndex,
+ )
 import Dtmc.Transition (
     Transition (..),
  )
+import Dtmc.Transition.Matrix (
+    TransitionMatrix,
+ )
+import Numeric.LinearAlgebra qualified as LA
+import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
+
+{- | A possible value of the infinite-horizon visit count @V_i@.
+
+'FiniteVisits' includes zero. 'InfiniteVisits' is a separate atom rather than
+a large finite count or a truncation marker.
+-}
+data VisitCountOutcome
+    = -- | Exactly the supplied finite number of visits.
+      FiniteVisits Natural
+    | -- | Infinitely many visits.
+      InfiniteVisits
+    deriving (Eq, Ord, Show)
+
+{- | An expected visit count, including a structural infinite case.
+
+'FiniteMeanCount' performs no validation: callers can construct negative,
+non-finite, or @NaN@ values. Library results are mathematically non-negative.
+The derived ordering places every 'FiniteMeanCount' before
+'InfiniteMeanCount'; finite comparisons inherit the behavior of 'Double'.
+-}
+data MeanCount
+    = -- | A finite expected number of visits.
+      FiniteMeanCount Double
+    | -- | An infinite expected number of visits.
+      InfiniteMeanCount
+    deriving (Eq, Ord, Show)
+
+toIndex :: (FiniteState state) => state -> Int
+toIndex = fromIntegral . getFinite . stateIndex
+
+{- | Probabilities of a total visit-count outcome in canonical state order.
+The target is the second argument; coordinate @j@ is
+@P(V_i = outcome | X_0 = j)@.
+
+Writing @h_ji = P_j(H_i < infinity)@ and
+@f_i = P_i(T_i^+ < infinity)@, a transient target has
+
+* @P_j(V_i = 0) = 1 - h_ji@;
+* @P_j(V_i = n) = h_ji f_i^(n - 1) (1 - f_i)@ for @n >= 1@;
+* @P_j(V_i = infinity) = 0@.
+
+For a recurrent target, positive finite counts have probability zero and
+@P_j(V_i = infinity) = h_ji@. Recurrence is decided from the support graph,
+not by comparing a computed return probability with one.
+
+Structural zero cases avoid a linear solve. Other cases inherit the numerical
+behavior and errors of 'hittingProbabilities' and 'returnProbability'.
+-}
+visitCountProbabilities ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    VisitCountOutcome ->
+    Either LinearSystemError (S.R (Cardinality state))
+visitCountProbabilities matrix target = probabilityFor
+  where
+    probabilityFor (FiniteVisits 0) =
+        mapProbabilities (1 -) <$> hitting
+    probabilityFor (FiniteVisits count)
+        | recurrent = Right zeroProbabilities
+        | otherwise = do
+            hits <- hitting
+            returning <- returnProbability matrix target
+            let finiteMass = returning ^ (count - 1) * (1 - returning)
+            pure (mapProbabilities (* finiteMass) hits)
+    probabilityFor InfiniteVisits
+        | recurrent = hitting
+        | otherwise = Right zeroProbabilities
+
+    recurrent = recurrentState matrix target
+    hitting = hittingProbabilities matrix [target]
+    zeroProbabilities = S.vector [0 | _ <- finiteStates @state]
+    mapProbabilities transform =
+        S.vector . map transform . LA.toList . S.extract
+
+{- | Probability of one total visit-count outcome from one initial state.
+Argument order is matrix, target, outcome, then initial state. Partially
+applying the first three arguments shares the all-state computation.
+-}
+visitCountProbability ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    VisitCountOutcome ->
+    state ->
+    Either LinearSystemError Double
+visitCountProbability matrix target outcome =
+    \initial -> (`LA.atIndex` toIndex initial) <$> probabilities
+  where
+    probabilities = S.extract <$> visitCountProbabilities matrix target outcome
+
+{- | Expected total visits to the target in canonical initial-state order.
+
+For a transient target @i@, coordinate @j@ is
+@h_ji / (1 - f_i)@. For a recurrent target it is zero when @i@ is
+unreachable from @j@ and 'InfiniteMeanCount' otherwise. The recurrent case is
+decided entirely from the support graph and requires no linear solve.
+
+Transient results inherit the numerical behavior and errors of
+'hittingProbabilities' and 'returnProbability'.
+-}
+visitCountExpectations ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError [MeanCount]
+visitCountExpectations matrix target
+    | recurrentState matrix target =
+        Right
+            [ if accessible matrix initial target
+                then InfiniteMeanCount
+                else FiniteMeanCount 0
+            | initial <- finiteStates
+            ]
+    | otherwise = do
+        hits <- hittingProbabilities matrix [target]
+        returning <- returnProbability matrix target
+        pure
+            [ FiniteMeanCount (hit / (1 - returning))
+            | hit <- LA.toList (S.extract hits)
+            ]
+
+{- | Expected total visits to the target from one initial state. Argument
+order is matrix, target, then initial state. Partially applying the matrix and
+target shares the all-state computation.
+-}
+visitCountExpectation ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    state ->
+    Either LinearSystemError MeanCount
+visitCountExpectation matrix target =
+    \initial -> (!! toIndex initial) <$> expectations
+  where
+    expectations = visitCountExpectations matrix target
 
 iterateNatural :: Natural -> (value -> value) -> value -> value
 iterateNatural steps advance = go steps
