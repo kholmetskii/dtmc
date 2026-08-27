@@ -1,15 +1,15 @@
 {- |
-Module      : Dtmc.Analysis.FixedTime.Internal
+Module      : Dtmc.Analysis.FiniteTime.Internal
 Description : Normalised timed observations (unsafe underbelly).
 
 The private normal form behind the event and conditional probability queries in
-"Dtmc.Analysis.FixedTime". 'normalise' is the intended way to build a
+"Dtmc.Analysis.FiniteTime". 'normalise' is the intended way to build a
 'NormalisedObservations': it establishes the invariant that a 'Consistent' list
 holds exactly one @(time, state)@ entry per distinct time, in ascending time
 order. Building 'Consistent' directly can break that invariant and give the
-scoring in "Dtmc.Analysis.FixedTime" a wrong answer.
+scoring in "Dtmc.Analysis.FiniteTime" a wrong answer.
 -}
-module Dtmc.Analysis.FixedTime.Internal (
+module Dtmc.Analysis.FiniteTime.Internal (
     NormalisedObservations (..),
     normalise,
 ) where

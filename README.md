@@ -62,7 +62,7 @@ Dtmc.Dynamics
 Dtmc.Simulation
 
 Dtmc.Analysis.*                    focused analysis namespace
-├── Dtmc.Analysis.FixedTime
+├── Dtmc.Analysis.FiniteTime
 ├── Dtmc.Analysis.HittingTime
 ├── Dtmc.Analysis.ReturnTime
 ├── Dtmc.Analysis.VisitCount
@@ -80,14 +80,14 @@ Functions live in their mathematical subject modules and use `Transition`
 where the finite and infinite signatures genuinely agree:
 
 ```haskell
-import qualified Dtmc.Analysis.FixedTime as FixedTime
+import qualified Dtmc.Analysis.FiniteTime as FiniteTime
 
 -- matrix  :: TransitionMatrix Weather
 -- initial :: DistributionVector Weather
 -- state   :: Weather
 
 result =
-  FixedTime.probabilityAtTime
+  FiniteTime.probabilityAtTime
     10
     initial
     matrix
@@ -102,6 +102,18 @@ Probability, scalar bounded hitting/return, and simulation functions use the
 shared abstractions directly.
 
 ## Analysis API
+
+Finite-time functions work with any `Distribution` and `Transition`, including
+locally finite kernels over countably infinite state types:
+
+| Function | Quantity |
+| --- | --- |
+| `transitionProbability` | One-step transition probability |
+| `transitionProbabilityN` | Transition probability after exactly `n` steps |
+| `probabilityAtTime` | Marginal state probability at time `n` |
+| `pathProbability` | Probability of a consecutive non-empty path |
+| `jointProbability` | Joint probability of timed observations |
+| `conditionalProbability` | Conditional probability of timed observations |
 
 Singular function names return the result for one initial state. Plural names
 return results for every finite state in canonical state order.

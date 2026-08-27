@@ -13,7 +13,7 @@ import Data.Finite (
 import Data.Proxy (
     Proxy (..),
  )
-import Dtmc.Analysis.FixedTime (
+import Dtmc.Analysis.FiniteTime (
     transitionProbability,
  )
 import Dtmc.Distribution (

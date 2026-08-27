@@ -16,7 +16,7 @@ import Dtmc.Analysis.Classification (
     accessible,
     recurrentState,
  )
-import Dtmc.Analysis.FixedTime (
+import Dtmc.Analysis.FiniteTime (
     transitionProbability,
  )
 import Dtmc.Analysis.HittingTime (

@@ -281,3 +281,7 @@ spec =
                 []
                 [At 0 Leave]
                 `shouldBe` Left ZeroProbabilityCondition
+
+        it "exposes joint probabilities of timed observations" $
+            jointProbability cafeInitial cafeTransition [At 0 Thinking]
+                `shouldBe` 1

@@ -8,7 +8,7 @@ import Data.Finite (
     Finite,
     finites,
  )
-import Dtmc.Analysis.FixedTime (
+import Dtmc.Analysis.FiniteTime (
     probabilityAtTime,
     transitionProbability,
  )

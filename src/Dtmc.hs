@@ -11,7 +11,7 @@ surface -- the 'Distribution' abstraction, its 'DistributionVector' and
 constructors and error types, and the forward dynamics ('evolve' and
 'matrixPower'), the scalar probability queries ('probabilityAt',
 'transitionProbability', 'transitionProbabilityN', 'probabilityAtTime', and
-'pathProbability'), the timed event queries ('probability' and
+'pathProbability'), the timed event queries ('jointProbability' and
 'conditionalProbability' over 'Observation' values), the qualitative structure
 theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
 bounded, eventual, and expected hitting and first-return queries in
@@ -22,7 +22,7 @@ module to build, analyse, and run chains. Focused imports are available through
 "Dtmc.State", "Dtmc.Distribution", "Dtmc.Distribution.Vector",
 "Dtmc.Distribution.Map", "Dtmc.Transition", "Dtmc.Transition.Matrix",
 "Dtmc.Transition.Kernel", and focused analysis modules such as
-"Dtmc.Analysis.FixedTime" and "Dtmc.Analysis.HittingTime".
+"Dtmc.Analysis.FiniteTime" and "Dtmc.Analysis.HittingTime".
 -}
 module Dtmc (
     type Cardinality,
@@ -59,7 +59,7 @@ module Dtmc (
     evolveVectorN,
     probabilityAtTime,
     pathProbability,
-    probability,
+    jointProbability,
     conditionalProbability,
     Observation (..),
     ConditionalProbabilityError (..),
@@ -121,12 +121,12 @@ module Dtmc (
     deterministicKernel,
 ) where
 
-import Dtmc.Analysis.FixedTime (
+import Dtmc.Analysis.FiniteTime (
     ConditionalProbabilityError (..),
     Observation (..),
     conditionalProbability,
+    jointProbability,
     pathProbability,
-    probability,
     probabilityAtTime,
     transitionProbability,
     transitionProbabilityN,

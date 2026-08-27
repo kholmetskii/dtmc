@@ -1,5 +1,5 @@
 {- |
-Module      : Dtmc.Analysis.FixedTime
+Module      : Dtmc.Analysis.FiniteTime
 Description : Scalar, trajectory, event, and conditional probabilities.
 
 Finite-time probability queries shared by dense finite matrices and locally
@@ -8,21 +8,21 @@ dense finite @DistributionVector@ or a @DistributionMap@ through the
 'Distribution' abstraction. All calculations use finite reachable support
 and perform no truncation, clamping, or renormalisation.
 -}
-module Dtmc.Analysis.FixedTime (
+module Dtmc.Analysis.FiniteTime (
     transitionProbability,
     transitionProbabilityN,
     probabilityAtTime,
     Observation (..),
     ConditionalProbabilityError (..),
     pathProbability,
-    probability,
+    jointProbability,
     conditionalProbability,
 ) where
 
 import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
-import Dtmc.Analysis.FixedTime.Internal (
+import Dtmc.Analysis.FiniteTime.Internal (
     NormalisedObservations (..),
     normalise,
  )
@@ -122,11 +122,11 @@ pathProbability initial kernel (initialState :| rest) =
     go previous (next : more) =
         transitionProbability kernel previous next * go next more
 
-{- | Probability of a conjunction of timed state observations. Observations
-are sorted by time, duplicates collapse, conflicting states at one time return
-exactly zero, and the empty conjunction returns exactly one.
+{- | Joint probability of a conjunction of timed state observations.
+Observations are sorted by time, duplicates collapse, conflicting states at
+one time return exactly zero, and the empty conjunction returns exactly one.
 -}
-probability ::
+jointProbability ::
     ( Distribution distribution
     , Transition kernel
     , DistributionState distribution ~ TransitionState kernel
@@ -136,7 +136,7 @@ probability ::
     kernel ->
     [Observation (TransitionState kernel)] ->
     Double
-probability initial kernel observations =
+jointProbability initial kernel observations =
     case normalise [(time, state) | At time state <- observations] of
         Impossible -> 0
         Consistent [] -> 1
@@ -174,5 +174,5 @@ conditionalProbability initial kernel event condition =
         then Left ZeroProbabilityCondition
         else Right (numerator / denominator)
   where
-    denominator = probability initial kernel condition
-    numerator = probability initial kernel (event <> condition)
+    denominator = jointProbability initial kernel condition
+    numerator = jointProbability initial kernel (event <> condition)
