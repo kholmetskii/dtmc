@@ -23,7 +23,7 @@ import Dtmc.Analysis.ReturnTime (
     returnProbability,
  )
 import Dtmc.Analysis.VisitCount (
-    MeanCount (..),
+    Expectation (..),
     infiniteVisitProbabilities,
     infiniteVisitProbability,
     visitCountDistributionBefore,
@@ -161,9 +161,9 @@ closeTo expected actual = abs (actual - expected) <= testTolerance
 entries :: (KnownNat n) => S.R n -> [Double]
 entries = LA.toList . S.extract
 
-meanCloseTo :: Double -> MeanCount -> Bool
-meanCloseTo expected (FiniteMeanCount actual) = closeTo expected actual
-meanCloseTo _ InfiniteMeanCount = False
+expectationCloseTo :: Double -> Expectation -> Bool
+expectationCloseTo expected (FiniteExpectation actual) = closeTo expected actual
+expectationCloseTo _ InfiniteExpectation = False
 
 spec :: Spec
 spec = do
@@ -245,19 +245,19 @@ spec = do
 
     describe "visitCountExpectations" $ do
         it "matches h / (1 - f) for a transient target" $ do
-            let means = checked (visitCountExpectations transientVisitChain 0)
+            let expectations = checked (visitCountExpectations transientVisitChain 0)
             sequence_
-                [ mean `shouldSatisfy` meanCloseTo expected
-                | (mean, expected) <- zip means [4 / 3, 2 / 3, 0]
+                [ expectation `shouldSatisfy` expectationCloseTo expected
+                | (expectation, expected) <- zip expectations [4 / 3, 2 / 3, 0]
                 ]
             checked (visitCountExpectation transientVisitChain 0 1)
-                `shouldSatisfy` meanCloseTo (2 / 3)
+                `shouldSatisfy` expectationCloseTo (2 / 3)
 
         it "is infinite exactly where a recurrent target is reachable" $ do
             checked (visitCountExpectations recurrentVisitChain 2)
-                `shouldBe` [InfiniteMeanCount, InfiniteMeanCount, InfiniteMeanCount, FiniteMeanCount 0]
+                `shouldBe` [InfiniteExpectation, InfiniteExpectation, InfiniteExpectation, FiniteExpectation 0]
             checked (visitCountExpectation recurrentVisitChain 2 3)
-                `shouldBe` FiniteMeanCount 0
+                `shouldBe` FiniteExpectation 0
 
         prop "agrees with hitting, return, recurrence, and reachability (random @3)" $
             forAll (genTransitionMatrix @3) $ \rawMatrix ->
@@ -271,7 +271,7 @@ spec = do
                             oneVisit <- visitCountProbabilities 1 matrix 0
                             twoVisits <- visitCountProbabilities 2 matrix 0
                             infiniteVisits <- infiniteVisitProbabilities matrix 0
-                            means <- visitCountExpectations matrix 0
+                            expectations <- visitCountExpectations matrix 0
                             pure
                                 ( hits
                                 , returning
@@ -279,7 +279,7 @@ spec = do
                                 , oneVisit
                                 , twoVisits
                                 , infiniteVisits
-                                , means
+                                , expectations
                                 ) of
                             Left err -> counterexample (show err) False
                             Right
@@ -289,7 +289,7 @@ spec = do
                                     , oneVisit
                                     , twoVisits
                                     , infiniteVisits
-                                    , means
+                                    , expectations
                                     ) ->
                                     let hitValues = entries hits
                                         zeroValues = entries zeroVisits
@@ -297,10 +297,10 @@ spec = do
                                         twoValues = entries twoVisits
                                         infiniteValues = entries infiniteVisits
                                         states = finites :: [Finite 3]
-                                        structuralMeans =
+                                        structuralExpectations =
                                             [ if accessible matrix initial 0
-                                                then InfiniteMeanCount
-                                                else FiniteMeanCount 0
+                                                then InfiniteExpectation
+                                                else FiniteExpectation 0
                                             | initial <- states
                                             ]
                                      in conjoin
@@ -314,7 +314,7 @@ spec = do
                                                         [ oneValues === [0, 0, 0]
                                                         , twoValues === [0, 0, 0]
                                                         , infiniteValues === hitValues
-                                                        , means === structuralMeans
+                                                        , expectations === structuralExpectations
                                                         ]
                                                 else
                                                     conjoin
@@ -328,12 +328,12 @@ spec = do
                                                             | (one, two) <- zip oneValues twoValues
                                                             ]
                                                         , conjoin
-                                                            [ case mean of
-                                                                FiniteMeanCount value ->
+                                                            [ case expectation of
+                                                                FiniteExpectation value ->
                                                                     property
                                                                         (closeTo (hit / (1 - returning)) value)
-                                                                InfiniteMeanCount -> property False
-                                                            | (hit, mean) <- zip hitValues means
+                                                                InfiniteExpectation -> property False
+                                                            | (hit, expectation) <- zip hitValues expectations
                                                             ]
                                                         ]
                                             ]

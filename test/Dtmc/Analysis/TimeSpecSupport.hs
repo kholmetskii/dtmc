@@ -20,8 +20,8 @@ import Dtmc.Analysis.FiniteTime (
     transitionProbability,
  )
 import Dtmc.Analysis.HittingTime (
+    Expectation (..),
     LinearSystemError (..),
-    MeanTime (..),
     hittingBeforeProbabilities,
     hittingBeforeProbability,
     hittingProbabilities,
@@ -297,9 +297,9 @@ entries = LA.toList . S.extract
 closeTo :: Double -> Double -> Bool
 closeTo expected x = abs (x - expected) <= testTolerance
 
-meanCloseTo :: Double -> MeanTime -> Bool
-meanCloseTo expected (FiniteMean v) = closeTo expected v
-meanCloseTo _ InfiniteMean = False
+expectationCloseTo :: Double -> Expectation -> Bool
+expectationCloseTo expected (FiniteExpectation v) = closeTo expected v
+expectationCloseTo _ InfiniteExpectation = False
 
 checkedChain ::
     (KnownNat n) =>
@@ -615,10 +615,10 @@ hittingTimeSpec = do
                 Left err -> expectationFailure (show err)
                 Right eta -> do
                     sequence_
-                        [ e `shouldSatisfy` meanCloseTo 2
+                        [ e `shouldSatisfy` expectationCloseTo 2
                         | e <- take 2 eta
                         ]
-                    drop 2 eta `shouldBe` [FiniteMean 0, FiniteMean 0]
+                    drop 2 eta `shouldBe` [FiniteExpectation 0, FiniteExpectation 0]
 
         it "matches the gambler duration closed form (p = 0.4)" $ do
             let eta = hittingTimeExpectation (gambler 0.4) [0, 4]
@@ -626,7 +626,7 @@ hittingTimeSpec = do
                 [ eta i
                     `shouldSatisfy` either
                         (const False)
-                        (meanCloseTo (ruinDuration 0.4 (fromIntegral i)))
+                        (expectationCloseTo (ruinDuration 0.4 (fromIntegral i)))
                 | i <- finites :: [Finite 5]
                 ]
 
@@ -636,23 +636,23 @@ hittingTimeSpec = do
                 [ eta i
                     `shouldSatisfy` either
                         (const False)
-                        (meanCloseTo (fromIntegral i * (4 - fromIntegral i)))
+                        (expectationCloseTo (fromIntegral i * (4 - fromIntegral i)))
                 | i <- finites :: [Finite 5]
                 ]
 
         it "expects two steps to absorption from either oscillator state" $ do
             let eta = hittingTimeExpectation oscillator [2, 3]
-            eta 0 `shouldSatisfy` either (const False) (meanCloseTo 2)
-            eta 1 `shouldSatisfy` either (const False) (meanCloseTo 2)
-            eta 2 `shouldBe` Right (FiniteMean 0)
-            eta 3 `shouldBe` Right (FiniteMean 0)
+            eta 0 `shouldSatisfy` either (const False) (expectationCloseTo 2)
+            eta 1 `shouldSatisfy` either (const False) (expectationCloseTo 2)
+            eta 2 `shouldBe` Right (FiniteExpectation 0)
+            eta 3 `shouldBe` Right (FiniteExpectation 0)
 
         it "is infinite when a competing absorbing state is reachable" $ do
             let eta = hittingTimeExpectation oscillator [2]
-            eta 0 `shouldBe` Right InfiniteMean
-            eta 1 `shouldBe` Right InfiniteMean
-            eta 2 `shouldBe` Right (FiniteMean 0)
-            eta 3 `shouldBe` Right InfiniteMean
+            eta 0 `shouldBe` Right InfiniteExpectation
+            eta 1 `shouldBe` Right InfiniteExpectation
+            eta 2 `shouldBe` Right (FiniteExpectation 0)
+            eta 3 `shouldBe` Right InfiniteExpectation
 
         prop "finite entries satisfy the first-step equations (random @4)" $
             forAll (genTransitionMatrix @4) $ \matrix ->
@@ -664,21 +664,21 @@ hittingTimeSpec = do
                                 rows = LA.toLists (S.extract (unTransitionMatrix p))
                                 firstStep i row =
                                     case eta i of
-                                        InfiniteMean -> property True
-                                        FiniteMean e ->
-                                            case successorMeans row of
+                                        InfiniteExpectation -> property True
+                                        FiniteExpectation e ->
+                                            case successorExpectations row of
                                                 Nothing ->
                                                     counterexample
                                                         "finite state with doomed successor"
                                                         False
                                                 Just total ->
                                                     property (closeTo e (1 + total))
-                                successorMeans row =
+                                successorExpectations row =
                                     sum
                                         <$> sequence
                                             [ case eta j of
-                                                FiniteMean e -> Just (pij * e)
-                                                InfiniteMean -> Nothing
+                                                FiniteExpectation e -> Just (pij * e)
+                                                InfiniteExpectation -> Nothing
                                             | (j, pij) <-
                                                 zip (finites :: [Finite 4]) row
                                             , pij > 0
@@ -857,26 +857,26 @@ returnTimeSpec = do
     describe "returnTimeExpectations" $ do
         it "returns all state values in one table" $
             returnTimeExpectations oscillator
-                `shouldBe` Right [InfiniteMean, InfiniteMean, FiniteMean 1, FiniteMean 1]
+                `shouldBe` Right [InfiniteExpectation, InfiniteExpectation, FiniteExpectation 1, FiniteExpectation 1]
 
         it "is one for an absorbing state" $
-            returnTimeExpectation oscillator 2 `shouldBe` Right (FiniteMean 1)
+            returnTimeExpectation oscillator 2 `shouldBe` Right (FiniteExpectation 1)
 
         it "is two for either state of the two-cycle" $ do
             returnTimeExpectation twoCycle 0
-                `shouldSatisfy` either (const False) (meanCloseTo 2)
+                `shouldSatisfy` either (const False) (expectationCloseTo 2)
             returnTimeExpectation twoCycle 1
-                `shouldSatisfy` either (const False) (meanCloseTo 2)
+                `shouldSatisfy` either (const False) (expectationCloseTo 2)
 
         it "handles a non-uniform recurrent class" $ do
             returnTimeExpectation nonUniformRecurrent 0
-                `shouldSatisfy` either (const False) (meanCloseTo 1.25)
+                `shouldSatisfy` either (const False) (expectationCloseTo 1.25)
             returnTimeExpectation nonUniformRecurrent 1
-                `shouldSatisfy` either (const False) (meanCloseTo 5)
+                `shouldSatisfy` either (const False) (expectationCloseTo 5)
 
         it "is infinite for the oscillator's transient states" $ do
-            returnTimeExpectation oscillator 0 `shouldBe` Right InfiniteMean
-            returnTimeExpectation oscillator 1 `shouldBe` Right InfiniteMean
+            returnTimeExpectation oscillator 0 `shouldBe` Right InfiniteExpectation
+            returnTimeExpectation oscillator 1 `shouldBe` Right InfiniteExpectation
 
         prop "is finite exactly on recurrent states (random @4)" $
             forAll (genTransitionMatrix @4) $ \matrix ->
@@ -957,13 +957,13 @@ returnTimeSpec = do
 
         it "solves named expected hitting and return times" $ do
             hittingTimeExpectation namedGambler [Ruined, Won] Two
-                `shouldSatisfy` either (const False) (meanCloseTo 4)
+                `shouldSatisfy` either (const False) (expectationCloseTo 4)
             returnTimeExpectation namedGambler Ruined
-                `shouldBe` Right (FiniteMean 1)
+                `shouldBe` Right (FiniteExpectation 1)
 
-isFinite :: MeanTime -> Bool
-isFinite (FiniteMean _) = True
-isFinite InfiniteMean = False
+isFinite :: Expectation -> Bool
+isFinite (FiniteExpectation _) = True
+isFinite InfiniteExpectation = False
 
 isIllConditioned :: Either LinearSystemError value -> Bool
 isIllConditioned (Left (IllConditionedSystem estimate)) =

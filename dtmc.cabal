@@ -49,6 +49,7 @@ library
       Dtmc.Simulation
       Dtmc.Dynamics
       Dtmc.Analysis.FiniteTime
+      Dtmc.Analysis.Expectation
       Dtmc.Analysis.LinearSystem
       Dtmc.Analysis.HittingTime
       Dtmc.Analysis.ReturnTime

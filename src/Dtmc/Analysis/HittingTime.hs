@@ -14,7 +14,7 @@ linear solves. Results are not clamped or renormalised.
 -}
 module Dtmc.Analysis.HittingTime (
     LinearSystemError (..),
-    MeanTime (..),
+    Expectation (..),
     hittingTimeProbabilities,
     hittingTimeProbability,
     hittingTimeBeforeProbabilities,
@@ -42,6 +42,9 @@ import Data.Proxy (
  )
 import Dtmc.Analysis.Classification.Internal (
     backwardReachable,
+ )
+import Dtmc.Analysis.Expectation (
+    Expectation (..),
  )
 import Dtmc.Analysis.Internal.LinearSystem (
     rowSums,
@@ -75,22 +78,6 @@ import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
-
-{- | An expected number of transitions, represented either by a 'Double' or an
-exact infinite case. Library results use 'InfiniteMean' based on support-graph
-reachability rather than floating-point overflow.
-
-'FiniteMean' performs no validation: callers can construct negative,
-non-finite, or @NaN@ values. Derived ordering places every 'FiniteMean'
-constructor before 'InfiniteMean'; comparisons between finite constructors
-inherit the behavior of 'Double', including @NaN@.
--}
-data MeanTime
-    = -- | A mathematically non-negative finite mean, subject to solver rounding.
-      FiniteMean Double
-    | -- | The target or return is not reached with probability one.
-      InfiniteMean
-    deriving (Eq, Ord, Show)
 
 toIndex :: (FiniteState state) => state -> Int
 toIndex = fromIntegral . getFinite . stateIndex
@@ -414,10 +401,10 @@ hittingBeforeProbability p successful competing =
         S.extract <$> hittingBeforeProbabilities p successful competing
 
 {- | Expected hitting times @E(H_A | X_0 = i)@ in state order. Targets have
-exact mean zero. A non-target state is 'InfiniteMean' exactly when the target
-is not hit with probability one; this is decided from support reachability,
-not a floating-point comparison. An empty target set therefore gives
-'InfiniteMean' for every state.
+exact expectation zero. A non-target state is 'InfiniteExpectation' exactly
+when the target is not hit with probability one; this is decided from support
+reachability, not a floating-point comparison. An empty target set therefore
+gives 'InfiniteExpectation' for every state.
 
 Finite entries are the solution of
 @eta_i = 1 + sum_(j not in A) P(i,j) eta_j@. They inherit solver rounding and
@@ -431,7 +418,7 @@ hittingTimeExpectations ::
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
-    Either LinearSystemError [MeanTime]
+    Either LinearSystemError [Expectation]
 hittingTimeExpectations p targets = do
     solved <-
         if null certainIdx
@@ -449,9 +436,9 @@ hittingTimeExpectations p targets = do
                 (0, dim - 1)
                 (zip certainIdx solved)
         valueAt i
-            | inTarget i = FiniteMean 0
-            | doomedMask Unboxed.! i = InfiniteMean
-            | otherwise = FiniteMean (certainValues Unboxed.! i)
+            | inTarget i = FiniteExpectation 0
+            | doomedMask Unboxed.! i = InfiniteExpectation
+            | otherwise = FiniteExpectation (certainValues Unboxed.! i)
     pure [valueAt i | i <- [0 .. dim - 1]]
   where
     dim = fromIntegral (natVal (Proxy @(Cardinality state)))
@@ -486,7 +473,7 @@ hittingTimeExpectation ::
     TransitionMatrix state ->
     [state] ->
     state ->
-    Either LinearSystemError MeanTime
+    Either LinearSystemError Expectation
 hittingTimeExpectation p targets =
     \i -> (Array.! toIndex i) <$> table
   where

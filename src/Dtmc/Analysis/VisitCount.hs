@@ -20,7 +20,7 @@ not simulate, truncate an infinite series, clamp, or renormalise results.
 -}
 module Dtmc.Analysis.VisitCount (
     LinearSystemError (..),
-    MeanCount (..),
+    Expectation (..),
     visitCountProbabilities,
     visitCountProbability,
     infiniteVisitProbabilities,
@@ -39,6 +39,9 @@ import Data.Map.Strict qualified as Map
 import Dtmc.Analysis.Classification (
     accessible,
     recurrentState,
+ )
+import Dtmc.Analysis.Expectation (
+    Expectation (..),
  )
 import Dtmc.Analysis.HittingTime (
     hittingProbabilities,
@@ -76,20 +79,6 @@ import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
-
-{- | An expected visit count, including a structural infinite case.
-
-'FiniteMeanCount' performs no validation: callers can construct negative,
-non-finite, or @NaN@ values. Library results are mathematically non-negative.
-The derived ordering places every 'FiniteMeanCount' before
-'InfiniteMeanCount'; finite comparisons inherit the behavior of 'Double'.
--}
-data MeanCount
-    = -- | A finite expected number of visits.
-      FiniteMeanCount Double
-    | -- | An infinite expected number of visits.
-      InfiniteMeanCount
-    deriving (Eq, Ord, Show)
 
 toIndex :: (FiniteState state) => state -> Int
 toIndex = fromIntegral . getFinite . stateIndex
@@ -186,8 +175,8 @@ infiniteVisitProbability matrix target =
 
 For a transient target @i@, coordinate @j@ is
 @h_ji / (1 - f_i)@. For a recurrent target it is zero when @i@ is
-unreachable from @j@ and 'InfiniteMeanCount' otherwise. The recurrent case is
-decided entirely from the support graph and requires no linear solve.
+unreachable from @j@ and 'InfiniteExpectation' otherwise. The recurrent case
+is decided entirely from the support graph and requires no linear solve.
 
 Transient results inherit the numerical behavior and errors of
 'hittingProbabilities' and 'returnProbability'.
@@ -196,20 +185,20 @@ visitCountExpectations ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError [MeanCount]
+    Either LinearSystemError [Expectation]
 visitCountExpectations matrix target
     | recurrentState matrix target =
         Right
             [ if accessible matrix initial target
-                then InfiniteMeanCount
-                else FiniteMeanCount 0
+                then InfiniteExpectation
+                else FiniteExpectation 0
             | initial <- finiteStates
             ]
     | otherwise = do
         hits <- hittingProbabilities matrix [target]
         returning <- returnProbability matrix target
         pure
-            [ FiniteMeanCount (hit / (1 - returning))
+            [ FiniteExpectation (hit / (1 - returning))
             | hit <- LA.toList (S.extract hits)
             ]
 
@@ -222,7 +211,7 @@ visitCountExpectation ::
     TransitionMatrix state ->
     state ->
     state ->
-    Either LinearSystemError MeanCount
+    Either LinearSystemError Expectation
 visitCountExpectation matrix target =
     \initial -> (!! toIndex initial) <$> expectations
   where

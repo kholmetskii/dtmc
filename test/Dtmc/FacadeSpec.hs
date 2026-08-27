@@ -280,7 +280,7 @@ spec =
             checked (visitCountProbability 1 weatherTransition Dry Wet)
                 `shouldBe` 0
             checked (visitCountExpectation weatherTransition Dry Wet)
-                `shouldBe` InfiniteMeanCount
+                `shouldBe` InfiniteExpectation
 
         it "exposes conditional-probability errors" $
             conditionalProbability

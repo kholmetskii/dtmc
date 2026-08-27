@@ -92,7 +92,7 @@ module Dtmc (
     type Irreducible,
     witnessIrreducible,
     unIrreducible,
-    MeanTime (..),
+    Expectation (..),
     hittingTimeProbabilities,
     hittingTimeProbability,
     hittingTimeBeforeProbabilities,
@@ -111,7 +111,6 @@ module Dtmc (
     returnProbability,
     returnTimeExpectations,
     returnTimeExpectation,
-    MeanCount (..),
     visitCountProbabilities,
     visitCountProbability,
     infiniteVisitProbabilities,
@@ -128,6 +127,9 @@ module Dtmc (
     deterministicKernel,
 ) where
 
+import Dtmc.Analysis.Expectation (
+    Expectation (..),
+ )
 import Dtmc.Analysis.FiniteTime (
     ConditionalProbabilityError (..),
     Observation (..),
@@ -142,7 +144,6 @@ import Dtmc.Analysis.Stationary (
     stationaryDistribution,
  )
 import Dtmc.Analysis.VisitCount (
-    MeanCount (..),
     infiniteVisitProbabilities,
     infiniteVisitProbability,
     visitCountDistributionBefore,
@@ -242,7 +243,6 @@ import Dtmc.Analysis.Classification (
  )
 
 import Dtmc.Analysis.HittingTime (
-    MeanTime (..),
     hittingBeforeProbabilities,
     hittingBeforeProbability,
     hittingProbabilities,

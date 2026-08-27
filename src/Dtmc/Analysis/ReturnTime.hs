@@ -13,7 +13,7 @@ solves. Results are not clamped or renormalised.
 -}
 module Dtmc.Analysis.ReturnTime (
     LinearSystemError (..),
-    MeanTime (..),
+    Expectation (..),
     returnTimeProbabilities,
     returnTimeProbability,
     returnTimeBeforeProbabilities,
@@ -42,8 +42,10 @@ import Dtmc.Analysis.Classification (
     recurrentState,
     transientStates,
  )
+import Dtmc.Analysis.Expectation (
+    Expectation (..),
+ )
 import Dtmc.Analysis.HittingTime (
-    MeanTime (..),
     hittingTimeExpectation,
  )
 import Dtmc.Analysis.Internal.LinearSystem (
@@ -299,8 +301,8 @@ returnProbability p =
     probabilities = S.extract <$> returnProbabilities p
 
 {- | Expected first-return times @E(T_i | X_0 = i)@ in state order. Transient
-states are exactly 'InfiniteMean'. Each recurrent state uses the first-step
-identity
+states are exactly 'InfiniteExpectation'. Each recurrent state uses the
+first-step identity
 @m_i = 1 + sum_j P(i,j) eta_j({i})@, where @eta_j({i})@ is the expected
 hitting time of the singleton target @{i}@ from @j@.
 
@@ -313,14 +315,14 @@ returnTimeExpectations ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
-    Either LinearSystemError [MeanTime]
+    Either LinearSystemError [Expectation]
 -- Reuse the hitting-time path; an all-state Kac calculation would require
 -- stationary-distribution machinery not otherwise present in this module.
 returnTimeExpectations p =
     traverse (returnTimeExpectation p) finiteStates
 
 {- | The expected first-return time for one state. A transient state returns
-'InfiniteMean' without a linear solve. A recurrent state performs one
+'InfiniteExpectation' without a linear solve. A recurrent state performs one
 singleton hitting-time solve and uses only stored transition probabilities
 greater than zero; zero and tolerated negative entries contribute nothing.
 
@@ -333,19 +335,19 @@ returnTimeExpectation ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError MeanTime
+    Either LinearSystemError Expectation
 returnTimeExpectation p i
     | recurrentState p i = returnTimeExpectationFrom p i
-    | otherwise = Right InfiniteMean
+    | otherwise = Right InfiniteExpectation
 
 returnTimeExpectationFrom ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError MeanTime
+    Either LinearSystemError Expectation
 returnTimeExpectationFrom p i =
-    foldM addTerm (FiniteMean 1) (zip finiteStates row)
+    foldM addTerm (FiniteExpectation 1) (zip finiteStates row)
   where
     eta = hittingTimeExpectation p [i]
     row = LA.toList (S.extract (unDistributionVector (rowAt p i)))
@@ -355,6 +357,6 @@ returnTimeExpectationFrom p i =
             hitting <- eta j
             pure $
                 case (acc, hitting) of
-                    (FiniteMean total, FiniteMean hittingTime) ->
-                        FiniteMean (total + pij * hittingTime)
-                    _ -> InfiniteMean
+                    (FiniteExpectation total, FiniteExpectation hittingTime) ->
+                        FiniteExpectation (total + pij * hittingTime)
+                    _ -> InfiniteExpectation
