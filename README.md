@@ -52,6 +52,7 @@ finite `TransitionMatrix`.
 {-# LANGUAGE DeriveGeneric #-}
 
 import Dtmc
+import Dtmc.Analysis.FiniteTime qualified as FT
 import GHC.Generics (Generic)
 import qualified Numeric.LinearAlgebra.Static as S
 
@@ -65,12 +66,14 @@ weather =
       (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
 
 wetTomorrow :: Double
-wetTomorrow = transitionProbability weather Dry Wet
+wetTomorrow = FT.stepProbability weather Dry Wet
 ```
 
-Import `Dtmc` for the complete public API. Focused modules such as
-`Dtmc.Transition.Matrix`, `Dtmc.Transition.Kernel`, and
-`Dtmc.Analysis.HittingTime` are also available.
+Import `Dtmc` for model construction, evolution, simulation, classification,
+stationary analysis, and shared types. Import probability analysis from
+focused modules and use it qualified: `Dtmc.Analysis.FiniteTime`,
+`Dtmc.Analysis.HittingTime`, `Dtmc.Analysis.ReturnTime`, or
+`Dtmc.Analysis.VisitCount`.
 
 ## Building
 
