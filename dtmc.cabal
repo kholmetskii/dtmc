@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               dtmc
-version:            0.1.0.0
+version:            0.2.0.0
 synopsis:           Type-safe discrete-time Markov chains
 description:
   Finite discrete-time Markov chains with type-level dimensions, plus locally
