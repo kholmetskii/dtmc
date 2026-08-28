@@ -65,7 +65,7 @@ library
       Dtmc.Simplex.Internal
       Dtmc.Analysis.FiniteTime.Internal
       Dtmc.Analysis.Classification.Internal
-      Dtmc.Analysis.Internal.LinearSystem
+      Dtmc.Analysis.LinearSystem.Internal
       Dtmc.Transition.Matrix.Internal.Graph
       Dtmc.Dynamics.Internal
 

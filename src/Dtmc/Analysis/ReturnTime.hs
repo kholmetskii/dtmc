@@ -47,7 +47,7 @@ import Dtmc.Analysis.Event (
     DiscreteEvent (..),
  )
 import Dtmc.Analysis.HittingTime qualified as Hit
-import Dtmc.Analysis.Internal.LinearSystem (
+import Dtmc.Analysis.LinearSystem.Internal (
     fundamental,
     subMatrix,
  )

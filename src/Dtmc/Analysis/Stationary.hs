@@ -19,7 +19,7 @@ module Dtmc.Analysis.Stationary (
 ) where
 
 import Dtmc.Analysis.Classification (Irreducible, unIrreducible)
-import Dtmc.Analysis.Internal.LinearSystem (
+import Dtmc.Analysis.LinearSystem.Internal (
     solveLinearSystem,
  )
 import Dtmc.Analysis.LinearSystem (

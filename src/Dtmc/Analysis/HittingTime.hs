@@ -47,7 +47,7 @@ import Dtmc.Analysis.Expectation (
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
  )
-import Dtmc.Analysis.Internal.LinearSystem (
+import Dtmc.Analysis.LinearSystem.Internal (
     rowSums,
     solveIminusQVector,
     subMatrix,
