@@ -16,12 +16,12 @@ import Data.List.NonEmpty (
 import Dtmc.Analysis.FiniteTime (
     ConditionalProbabilityError (..),
     Observation (..),
-    conditionalProbability,
-    jointProbability,
+    conditionalObservationProbability,
+    nStepProbability,
+    observationProbability,
     pathProbability,
-    probabilityAtTime,
-    transitionProbability,
-    transitionProbabilityN,
+    stateProbability,
+    stepProbability,
  )
 import Dtmc.Distribution (
     probabilityAt,
@@ -112,7 +112,7 @@ asTransitionKernel matrix =
     Kernel.transitionKernel $ \source ->
         checked $
             DistributionMap.mkDistributionMap
-                [ (destination, transitionProbability matrix source destination)
+                [ (destination, stepProbability matrix source destination)
                 | destination <- Dtmc.State.finiteStates
                 ]
 
@@ -242,13 +242,13 @@ spec = do
         it "is polymorphic in the state type" $
             (At 2 "rain" :: Observation String) `shouldBe` At 2 "rain"
 
-    describe "transitionProbability" $ do
+    describe "stepProbability" $ do
         prop "agrees with rowAt then probabilityAt" $
             forAll (genTransitionMatrix @3) $ \matrix ->
                 case mkTransitionMatrix @(Finite 3) matrix of
                     Right p ->
                         conjoin
-                            [ transitionProbability p i j
+                            [ stepProbability p i j
                                 === probabilityAt (rowAt p i) j
                             | i <- finites
                             , j <- finites
@@ -259,18 +259,18 @@ spec = do
                             False
 
         it "uses named state constructors" $
-            transitionProbability namedCycle PhaseB PhaseC
+            stepProbability namedCycle PhaseB PhaseC
                 `shouldBe` 1
 
-    describe "transitionProbabilityN" $ do
+    describe "nStepProbability" $ do
         it "is the Kronecker delta at exponent zero" $
             let ijs =
                     [(i, j) | i <- finites, j <- finites] ::
                         [(Finite 2, Finite 2)]
-             in map (uncurry (transitionProbabilityN 0 twoState)) ijs
+             in map (uncurry (nStepProbability 0 twoState)) ijs
                     `shouldBe` map (\(i, j) -> if i == j then 1 else 0) ijs
 
-        prop "agrees with transitionProbability at exponent one" $
+        prop "agrees with stepProbability at exponent one" $
             forAll (genTransitionMatrix @3) $ \matrix ->
                 case mkTransitionMatrix @(Finite 3) matrix of
                     Right p ->
@@ -278,8 +278,8 @@ spec = do
                             [ property $
                                 approxEq
                                     testTolerance
-                                    (transitionProbabilityN 1 p i j)
-                                    (transitionProbability p i j)
+                                    (nStepProbability 1 p i j)
+                                    (stepProbability p i j)
                             | i <- finites
                             , j <- finites
                             ]
@@ -290,7 +290,7 @@ spec = do
 
         it "matches a hand-computed square at exponent two" $
             sequence_
-                [ transitionProbabilityN 2 twoState i j
+                [ nStepProbability 2 twoState i j
                     `shouldSatisfy` closeTo (probabilityAt (rowAt twoStateSquared i) j)
                 | i <- finites :: [Finite 2]
                 , j <- finites :: [Finite 2]
@@ -305,7 +305,7 @@ spec = do
                                 [ property $
                                     approxEq
                                         testTolerance
-                                        (transitionProbabilityN 4 p i j)
+                                        (nStepProbability 4 p i j)
                                         ( power
                                             `LA.atIndex` ( fromIntegral (getFinite i)
                                                          , fromIntegral (getFinite j)
@@ -320,27 +320,27 @@ spec = do
                             False
 
         it "preserves named state types" $
-            transitionProbabilityN 2 namedCycle PhaseA PhaseC
+            nStepProbability 2 namedCycle PhaseA PhaseC
                 `shouldBe` 1
 
-    describe "transitionProbabilityN hand-computed regressions" $ do
+    describe "nStepProbability hand-computed regressions" $ do
         it "gives P^3(E, D) = 3/8 for the five-state chain" $
-            transitionProbabilityN 3 observationMatrix 4 3
+            nStepProbability 3 observationMatrix 4 3
                 `shouldSatisfy` closeTo (3 / 8)
 
         it "matches the three-state P^n(2, 0) closed form" $
             mapM_
                 ( \n ->
-                    transitionProbabilityN n closedFormTransition 2 0
+                    nStepProbability n closedFormTransition 2 0
                         `shouldSatisfy` closeTo
                             (closedFormProbability (fromIntegral n))
                 )
                 ([0, 1, 2, 3, 5, 10, 20] :: [Natural])
 
-    describe "probabilityAtTime" $ do
+    describe "stateProbability" $ do
         it "returns the initial probability at time zero" $
             conjoin
-                [ probabilityAtTime 0 initial chain state
+                [ stateProbability 0 initial chain state
                     === probabilityAt initial state
                 | state <- finites
                 ]
@@ -361,7 +361,7 @@ spec = do
                             [ property $
                                 approxEq
                                     testTolerance
-                                    (probabilityAtTime (fromIntegral k) mu p state)
+                                    (stateProbability (fromIntegral k) mu p state)
                                     (probabilityAt (evolveVectorN (fromIntegral k) mu p) state)
                             | state <- finites
                             ]
@@ -387,7 +387,7 @@ spec = do
                                 [ property $
                                     approxEq
                                         testTolerance
-                                        (probabilityAtTime (fromIntegral k) mu p state)
+                                        (stateProbability (fromIntegral k) mu p state)
                                         (probabilityAt iterated state)
                                 | state <- finites
                                 ]
@@ -398,9 +398,9 @@ spec = do
 
     describe "Transition realization independence" $ do
         it "computes transition probabilities on an infinite state type" $ do
-            transitionProbabilityN 2 simpleRandomWalk 0 0
+            nStepProbability 2 simpleRandomWalk 0 0
                 `shouldSatisfy` closeTo 0.5
-            transitionProbabilityN 3 simpleRandomWalk 0 0
+            nStepProbability 3 simpleRandomWalk 0 0
                 `shouldBe` 0
 
         prop "gives matrices and equivalent kernels the same transition powers" $
@@ -412,8 +412,8 @@ spec = do
                          in conjoin
                                 [ property $
                                     closeTo
-                                        (transitionProbabilityN time matrix source destination)
-                                        (transitionProbabilityN time kernel source destination)
+                                        (nStepProbability time matrix source destination)
+                                        (nStepProbability time kernel source destination)
                                 | source <- finites :: [Finite 3]
                                 , destination <- finites :: [Finite 3]
                                 , time <- [0 .. 4]
@@ -423,17 +423,17 @@ spec = do
             pathProbability mapInitial kernelChain (0 :| [1, 2])
                 `shouldSatisfy` closeTo
                     (pathProbability initial chain (0 :| [1, 2]))
-            jointProbability
+            observationProbability
                 mapInitial
                 kernelChain
                 [At 3 2, At 0 0, At 1 1]
                 `shouldSatisfy` closeTo
-                    (jointProbability initial chain [At 3 2, At 0 0, At 1 1])
+                    (observationProbability initial chain [At 3 2, At 0 0, At 1 1])
 
         it "matches finite conditional probability queries" $
             rightResultsClose
-                (conditionalProbability mapInitial kernelChain [At 2 2] [At 0 0])
-                (conditionalProbability initial chain [At 2 2] [At 0 0])
+                (conditionalObservationProbability mapInitial kernelChain [At 2 2] [At 0 0])
+                (conditionalObservationProbability initial chain [At 2 2] [At 0 0])
                 `shouldBe` True
 
     describe "pathProbability" $ do
@@ -500,7 +500,7 @@ spec = do
                                         testTolerance
                                         (pathProbability mu p (i :| [j]))
                                         ( probabilityAt mu i
-                                            * transitionProbability p i j
+                                            * stepProbability p i j
                                         )
                                 | i <- [0, 1, 2]
                                 , j <- [0, 1, 2]
@@ -510,48 +510,48 @@ spec = do
                                 ("generated input was rejected: " <> show result)
                                 False
 
-    describe "jointProbability" $ do
+    describe "observationProbability" $ do
         it "returns exactly one for no observations" $
-            jointProbability initial chain [] `shouldBe` 1
+            observationProbability initial chain [] `shouldBe` 1
 
-        it "equals probabilityAtTime for a single observation" $
+        it "equals stateProbability for a single observation" $
             approxEq
                 testTolerance
-                (jointProbability initial chain [At 1 1])
-                (probabilityAtTime 1 initial chain 1)
+                (observationProbability initial chain [At 1 1])
+                (stateProbability 1 initial chain 1)
                 `shouldBe` True
 
         it "is unchanged by observation order" $
             approxEq
                 testTolerance
-                (jointProbability initial chain [At 0 0, At 1 1])
-                (jointProbability initial chain [At 1 1, At 0 0])
+                (observationProbability initial chain [At 0 0, At 1 1])
+                (observationProbability initial chain [At 1 1, At 0 0])
                 `shouldBe` True
 
         it "is unchanged by duplicate observations" $
             approxEq
                 testTolerance
-                (jointProbability initial chain [At 0 0, At 0 0, At 1 1])
-                (jointProbability initial chain [At 0 0, At 1 1])
+                (observationProbability initial chain [At 0 0, At 0 0, At 1 1])
+                (observationProbability initial chain [At 0 0, At 1 1])
                 `shouldBe` True
 
         it "is exactly zero for conflicting states at one time" $
-            jointProbability initial chain [At 0 0, At 0 1] `shouldBe` 0
+            observationProbability initial chain [At 0 0, At 0 1] `shouldBe` 0
 
         it "agrees with pathProbability over times 0, 1, 2" $
             approxEq
                 testTolerance
-                (jointProbability initial chain [At 0 0, At 1 1, At 2 2])
+                (observationProbability initial chain [At 0 0, At 1 1, At 2 2])
                 (pathProbability initial chain (0 :| [1, 2]))
                 `shouldBe` True
 
         it "is exactly zero through an impossible transition" $
-            jointProbability initial chain [At 0 0, At 1 2] `shouldBe` 0
+            observationProbability initial chain [At 0 0, At 1 2] `shouldBe` 0
 
         it "matches a hand-computed multi-gap example" $
             approxEq
                 testTolerance
-                ( jointProbability
+                ( observationProbability
                     observationInitial
                     observationMatrix
                     [At 2 2, At 3 4, At 6 3]
@@ -559,7 +559,7 @@ spec = do
                 (5 / 96)
                 `shouldBe` True
 
-        prop "a single observation equals probabilityAtTime" $
+        prop "a single observation equals stateProbability" $
             forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
                 \(entries, matrix) ->
                     case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
@@ -570,8 +570,8 @@ spec = do
                                 [ property $
                                     approxEq
                                         testTolerance
-                                        (jointProbability mu p [At t i])
-                                        (probabilityAtTime t mu p i)
+                                        (observationProbability mu p [At t i])
+                                        (stateProbability t mu p i)
                                 | t <- [0, 1, 2]
                                 , i <- [0, 1, 2]
                                 ]
@@ -590,52 +590,52 @@ spec = do
                             property $
                                 approxEq
                                     testTolerance
-                                    (jointProbability mu p [At 1 1, At 3 2])
-                                    (jointProbability mu p [At 3 2, At 1 1])
+                                    (observationProbability mu p [At 1 1, At 3 2])
+                                    (observationProbability mu p [At 3 2, At 1 1])
                         result ->
                             counterexample
                                 ("generated input was rejected: " <> show result)
                                 False
 
-    describe "conditionalProbability" $ do
+    describe "conditionalObservationProbability" $ do
         it "returns the event probability for an empty condition" $
-            conditionalProbability initial chain [At 1 1] []
+            conditionalObservationProbability initial chain [At 1 1] []
                 `shouldSatisfy` rightCloseTo
-                    (jointProbability initial chain [At 1 1])
+                    (observationProbability initial chain [At 1 1])
 
         it "returns one for an empty event and a positive condition" $
-            conditionalProbability initial chain [] [At 0 0]
+            conditionalObservationProbability initial chain [] [At 0 0]
                 `shouldSatisfy` rightCloseTo 1
 
         it "returns one when conditioning an observation on itself" $
-            conditionalProbability initial chain [At 1 1] [At 1 1]
+            conditionalObservationProbability initial chain [At 1 1] [At 1 1]
                 `shouldSatisfy` rightCloseTo 1
 
         it "ignores observations shared by event and condition" $
-            conditionalProbability initial chain [At 1 1] [At 1 1, At 2 2]
+            conditionalObservationProbability initial chain [At 1 1] [At 1 1, At 2 2]
                 `shouldSatisfy` rightCloseTo 1
 
         it "returns zero for a conflict against a possible condition" $
-            conditionalProbability initial chain [At 1 0] [At 1 1]
+            conditionalObservationProbability initial chain [At 1 0] [At 1 1]
                 `shouldSatisfy` rightCloseTo 0
 
         it "reports a zero-probability condition" $
-            conditionalProbability initial chain [At 0 0] [At 0 0, At 1 2]
+            conditionalObservationProbability initial chain [At 0 0] [At 0 0, At 1 2]
                 `shouldBe` Left ZeroProbabilityCondition
 
         it "reports a contradictory condition" $
-            conditionalProbability initial chain [At 0 0] [At 1 1, At 1 2]
+            conditionalObservationProbability initial chain [At 0 0] [At 1 1, At 1 2]
                 `shouldBe` Left ZeroProbabilityCondition
 
         it "is unaffected by event and condition ordering" $ do
-            conditionalProbability initial chain [At 2 2, At 1 1] [At 0 0]
+            conditionalObservationProbability initial chain [At 2 2, At 1 1] [At 0 0]
                 `shouldSatisfy` rightCloseTo 0.4
-            conditionalProbability initial chain [At 1 1, At 2 2] [At 0 0]
+            conditionalObservationProbability initial chain [At 1 1, At 2 2] [At 0 0]
                 `shouldSatisfy` rightCloseTo 0.4
 
-    describe "conditionalProbability hand-computed regressions" $ do
+    describe "conditionalObservationProbability hand-computed regressions" $ do
         it "gives P(X10=D, X11=D | X3=A, X7=E) = 1/4" $
-            conditionalProbability
+            conditionalObservationProbability
                 observationInitial
                 observationMatrix
                 [At 10 3, At 11 3]
@@ -643,7 +643,7 @@ spec = do
                 `shouldSatisfy` rightCloseTo (1 / 4)
 
         it "accepts an out-of-order event and gives 15/92" $
-            conditionalProbability
+            conditionalObservationProbability
                 observationInitial
                 observationMatrix
                 [At 6 3, At 2 2]
@@ -653,21 +653,21 @@ spec = do
         it "gives P(X2=C) = 5/36" $
             approxEq
                 testTolerance
-                (probabilityAtTime 2 observationInitial observationMatrix 2)
+                (stateProbability 2 observationInitial observationMatrix 2)
                 (5 / 36)
                 `shouldBe` True
 
         it "gives P(X3=E) = 23/72" $
             approxEq
                 testTolerance
-                (probabilityAtTime 3 observationInitial observationMatrix 4)
+                (stateProbability 3 observationInitial observationMatrix 4)
                 (23 / 72)
                 `shouldBe` True
 
         it "gives P(X2=C, X3=E, X6=D) = 5/96" $
             approxEq
                 testTolerance
-                ( jointProbability
+                ( observationProbability
                     observationInitial
                     observationMatrix
                     [At 2 2, At 3 4, At 6 3]

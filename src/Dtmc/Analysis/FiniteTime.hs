@@ -9,14 +9,14 @@ dense finite @DistributionVector@ or a @DistributionMap@ through the
 and perform no truncation, clamping, or renormalisation.
 -}
 module Dtmc.Analysis.FiniteTime (
-    transitionProbability,
-    transitionProbabilityN,
-    probabilityAtTime,
+    stepProbability,
+    nStepProbability,
+    stateProbability,
+    pathProbability,
+    observationProbability,
+    conditionalObservationProbability,
     Observation (..),
     ConditionalProbabilityError (..),
-    pathProbability,
-    jointProbability,
-    conditionalProbability,
 ) where
 
 import Data.List.NonEmpty (
@@ -176,3 +176,73 @@ conditionalProbability initial kernel event condition =
   where
     denominator = jointProbability initial kernel condition
     numerator = jointProbability initial kernel (event <> condition)
+
+{- | One-step transition probability @P(X_1 = j | X_0 = i)@ through any
+locally finite 'Transition'.
+-}
+stepProbability ::
+    (Transition kernel, Ord (TransitionState kernel)) =>
+    kernel ->
+    TransitionState kernel ->
+    TransitionState kernel ->
+    Double
+stepProbability = transitionProbability
+
+{- | The @k@-step transition probability @P(X_k = j | X_0 = i)@. At @k = 0@
+this is the Kronecker delta.
+-}
+nStepProbability ::
+    (Transition kernel, Ord (TransitionState kernel)) =>
+    Natural ->
+    kernel ->
+    TransitionState kernel ->
+    TransitionState kernel ->
+    Double
+nStepProbability = transitionProbabilityN
+
+{- | State probability @P(X_k = j)@ under an initial distribution.
+-}
+stateProbability ::
+    ( Distribution distribution
+    , Transition kernel
+    , DistributionState distribution ~ TransitionState kernel
+    , Ord (TransitionState kernel)
+    ) =>
+    Natural ->
+    distribution ->
+    kernel ->
+    TransitionState kernel ->
+    Double
+stateProbability = probabilityAtTime
+
+{- | Probability of a conjunction of timed observations. Observation order
+has no meaning, duplicates collapse, and an empty conjunction is exactly one.
+-}
+observationProbability ::
+    ( Distribution distribution
+    , Transition kernel
+    , DistributionState distribution ~ TransitionState kernel
+    , Ord (TransitionState kernel)
+    ) =>
+    distribution ->
+    kernel ->
+    [Observation (TransitionState kernel)] ->
+    Double
+observationProbability = jointProbability
+
+{- | Conditional observation probability @P(E | C)@. An exactly
+zero-probability condition returns 'ZeroProbabilityCondition'; otherwise the
+result is the ordinary 'Double' quotient of joint probabilities.
+-}
+conditionalObservationProbability ::
+    ( Distribution distribution
+    , Transition kernel
+    , DistributionState distribution ~ TransitionState kernel
+    , Ord (TransitionState kernel)
+    ) =>
+    distribution ->
+    kernel ->
+    [Observation (TransitionState kernel)] ->
+    [Observation (TransitionState kernel)] ->
+    Either ConditionalProbabilityError Double
+conditionalObservationProbability = conditionalProbability

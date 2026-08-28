@@ -4,25 +4,16 @@
 Module      : Dtmc
 Description : Public facade re-exporting the library's curated API.
 
-Single entry point for users of the library. It gathers the intended public
-surface -- the 'Distribution' abstraction, its 'DistributionVector' and
-'DistributionMap' representations, the 'Transition' abstraction and its
-'TransitionMatrix' and 'TransitionKernel' representations, their validating
-constructors and error types, and the forward dynamics ('evolve' and
-'matrixPower'), the scalar probability queries ('probabilityAt',
-'transitionProbability', 'transitionProbabilityN', 'probabilityAtTime', and
-'pathProbability'), the timed event queries ('jointProbability' and
-'conditionalProbability' over 'Observation' values), the qualitative structure
-theory ('communicatingClasses', 'irreducible', 'period', 'classify', 'recurrentStates'), the
-bounded, eventual, and expected hitting and first-return queries in
-"Dtmc.Analysis.HittingTime" and "Dtmc.Analysis.ReturnTime", finite irreducible
-stationary distributions, finite-horizon and infinite-horizon total
-visit-count analysis, and the random simulation primitives -- while hiding internal modules. Import this
-module to build, analyse, and run chains. Focused imports are available through
-"Dtmc.State", "Dtmc.Distribution", "Dtmc.Distribution.Vector",
-"Dtmc.Distribution.Map", "Dtmc.Transition", "Dtmc.Transition.Matrix",
-"Dtmc.Transition.Kernel", and focused analysis modules such as
-"Dtmc.Analysis.FiniteTime" and "Dtmc.Analysis.HittingTime".
+Curated entry point for the library's shared model-building API. It gathers
+states, distributions, transitions, forward dynamics, simulation,
+classification, stationary analysis, and common analysis result and error
+types while hiding implementation modules.
+
+Probability queries are intentionally imported from focused modules and used
+qualified: "Dtmc.Analysis.FiniteTime", "Dtmc.Analysis.HittingTime",
+"Dtmc.Analysis.ReturnTime", and "Dtmc.Analysis.VisitCount". This keeps their
+short canonical names unambiguous and makes the analyzed random quantity
+visible at each call site.
 -}
 module Dtmc (
     type Cardinality,
@@ -47,8 +38,6 @@ module Dtmc (
     unTransitionMatrix,
     mulTransitionMatrix,
     rowAt,
-    transitionProbability,
-    transitionProbabilityN,
     SimplexError (..),
     sample,
     step,
@@ -57,10 +46,6 @@ module Dtmc (
     evolveN,
     evolveVector,
     evolveVectorN,
-    probabilityAtTime,
-    pathProbability,
-    jointProbability,
-    conditionalProbability,
     Observation (..),
     ConditionalProbabilityError (..),
     identityMatrix,
@@ -93,33 +78,6 @@ module Dtmc (
     witnessIrreducible,
     unIrreducible,
     Expectation (..),
-    hittingTimeProbabilities,
-    hittingTimeProbability,
-    hittingTimeBeforeProbabilities,
-    hittingTimeBeforeProbability,
-    hittingProbabilities,
-    hittingProbability,
-    hittingBeforeProbabilities,
-    hittingBeforeProbability,
-    hittingTimeExpectations,
-    hittingTimeExpectation,
-    returnTimeProbabilities,
-    returnTimeProbability,
-    returnTimeBeforeProbabilities,
-    returnTimeBeforeProbability,
-    returnProbabilities,
-    returnProbability,
-    returnTimeExpectations,
-    returnTimeExpectation,
-    visitCountProbabilities,
-    visitCountProbability,
-    infiniteVisitProbabilities,
-    infiniteVisitProbability,
-    visitCountExpectations,
-    visitCountExpectation,
-    visitCountDistributionBefore,
-    visitCountProbabilityBefore,
-    visitCountExpectationBefore,
     stationaryDistribution,
     Transition (..),
     TransitionKernel,
@@ -133,26 +91,9 @@ import Dtmc.Analysis.Expectation (
 import Dtmc.Analysis.FiniteTime (
     ConditionalProbabilityError (..),
     Observation (..),
-    conditionalProbability,
-    jointProbability,
-    pathProbability,
-    probabilityAtTime,
-    transitionProbability,
-    transitionProbabilityN,
  )
 import Dtmc.Analysis.Stationary (
     stationaryDistribution,
- )
-import Dtmc.Analysis.VisitCount (
-    infiniteVisitProbabilities,
-    infiniteVisitProbability,
-    visitCountDistributionBefore,
-    visitCountExpectation,
-    visitCountExpectationBefore,
-    visitCountExpectations,
-    visitCountProbabilities,
-    visitCountProbability,
-    visitCountProbabilityBefore,
  )
 import Dtmc.Distribution (
     Distribution (..),
@@ -242,28 +183,6 @@ import Dtmc.Analysis.Classification (
     type Irreducible,
  )
 
-import Dtmc.Analysis.HittingTime (
-    hittingBeforeProbabilities,
-    hittingBeforeProbability,
-    hittingProbabilities,
-    hittingProbability,
-    hittingTimeBeforeProbabilities,
-    hittingTimeBeforeProbability,
-    hittingTimeExpectation,
-    hittingTimeExpectations,
-    hittingTimeProbabilities,
-    hittingTimeProbability,
- )
 import Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
- )
-import Dtmc.Analysis.ReturnTime (
-    returnProbabilities,
-    returnProbability,
-    returnTimeBeforeProbabilities,
-    returnTimeBeforeProbability,
-    returnTimeExpectation,
-    returnTimeExpectations,
-    returnTimeProbabilities,
-    returnTimeProbability,
  )

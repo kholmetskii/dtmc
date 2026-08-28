@@ -14,7 +14,7 @@ import Data.Proxy (
     Proxy (..),
  )
 import Dtmc.Analysis.FiniteTime (
-    transitionProbability,
+    stepProbability,
  )
 import Dtmc.Distribution (
     distributionWeights,
@@ -108,7 +108,7 @@ kernelChain =
     Kernel.transitionKernel $ \source ->
         checked $
             DistributionMap.mkDistributionMap
-                [ (destination, transitionProbability finiteChain source destination)
+                [ (destination, stepProbability finiteChain source destination)
                 | destination <- finites
                 ]
 

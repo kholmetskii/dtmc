@@ -14,14 +14,12 @@ solves. Results are not clamped or renormalised.
 module Dtmc.Analysis.ReturnTime (
     LinearSystemError (..),
     Expectation (..),
-    returnTimeProbabilities,
-    returnTimeProbability,
-    returnTimeBeforeProbabilities,
-    returnTimeBeforeProbability,
-    returnProbabilities,
-    returnProbability,
-    returnTimeExpectations,
-    returnTimeExpectation,
+    probability,
+    probabilityByState,
+    eventualProbability,
+    eventualProbabilityByState,
+    expectation,
+    expectationByState,
 ) where
 
 import Control.Monad (
@@ -45,9 +43,10 @@ import Dtmc.Analysis.Classification (
 import Dtmc.Analysis.Expectation (
     Expectation (..),
  )
-import Dtmc.Analysis.HittingTime (
-    hittingTimeExpectation,
+import Dtmc.Analysis.Event (
+    DiscreteEvent (..),
  )
+import Dtmc.Analysis.HittingTime qualified as Hit
 import Dtmc.Analysis.Internal.LinearSystem (
     fundamental,
     subMatrix,
@@ -328,7 +327,7 @@ greater than zero; zero and tolerated negative entries contribute nothing.
 
 A recurrent query takes @O(n^3)@ time and @O(n^2)@ temporary space. After
 classification is cached, a transient query takes @O(1)@. Recurrent queries
-inherit the numerical behavior and errors of 'hittingTimeExpectation'.
+inherit the numerical behavior and errors of 'Hit.expectation'.
 -}
 returnTimeExpectation ::
     forall state.
@@ -349,7 +348,7 @@ returnTimeExpectationFrom ::
 returnTimeExpectationFrom p i =
     foldM addTerm (FiniteExpectation 1) (zip finiteStates row)
   where
-    eta = hittingTimeExpectation p [i]
+    eta = Hit.expectation p [i]
     row = LA.toList (S.extract (unDistributionVector (rowAt p i)))
     addTerm acc (j, pij)
         | pij <= 0 = Right acc
@@ -360,3 +359,123 @@ returnTimeExpectationFrom p i =
                     (FiniteExpectation total, FiniteExpectation hittingTime) ->
                         FiniteExpectation (total + pij * hittingTime)
                     _ -> InfiniteExpectation
+
+-- Direct survivor mass @P(T_i > t)@ through a locally finite transition.
+-- Unlike hitting time, the initial state is not removed at time zero: a first
+-- return can occur only after at least one transition.
+returnTimeAfterProbability ::
+    (Transition kernel, Ord (TransitionState kernel)) =>
+    Natural ->
+    kernel ->
+    TransitionState kernel ->
+    Double
+returnTimeAfterProbability time kernel initialState =
+    go time (Map.singleton initialState 1)
+  where
+    isInitial state = state == initialState
+    go 0 survivors = sum (Map.elems survivors)
+    go _ survivors | Map.null survivors = 0
+    go remaining survivors =
+        let (next, _) = advanceUntilTarget kernel isInitial survivors
+         in next `seq` go (remaining - 1) next
+
+-- All-state first-return survivor mass. Row @i@ of the survivor matrix tracks
+-- paths started at @i@ that have not revisited @i@ at a positive time.
+returnTimeAfterProbabilities ::
+    forall state.
+    (FiniteState state) =>
+    Natural ->
+    TransitionMatrix state ->
+    S.R (Cardinality state)
+returnTimeAfterProbabilities time p =
+    S.vector (LA.toList (survivors LA.#> LA.konst 1 dim))
+  where
+    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
+    matrix = S.extract (unTransitionMatrix p)
+    advance current = fst (firstReturnStep matrix current)
+    survivors = iterateNatural time advance (LA.ident dim)
+
+{- | Probability of a finite-threshold event in the first-return time
+@T_i = inf { t >= 1 | X_t = i }@.
+
+'EqualTo' and the lower tails reuse the direct exact/bounded recurrences.
+'GreaterThan' and 'AtLeast' use surviving mass directly, include the atom at
+infinity, and avoid complement cancellation. Because time zero is excluded,
+'EqualTo' @0@, 'LessThan' @1@, and 'AtMost' @0@ are exactly zero, while
+'GreaterThan' @0@, 'AtLeast' @0@, and 'AtLeast' @1@ are exactly one.
+
+The scalar query works through any locally finite 'Transition'. Results use
+ordinary 'Double' arithmetic without clamping or renormalisation.
+-}
+probability ::
+    (Transition kernel, Ord (TransitionState kernel)) =>
+    DiscreteEvent ->
+    kernel ->
+    TransitionState kernel ->
+    Double
+probability event kernel initialState =
+    case event of
+        EqualTo time -> returnTimeProbability time kernel initialState
+        LessThan bound -> returnTimeBeforeProbability bound kernel initialState
+        AtMost time -> returnTimeBeforeProbability (time + 1) kernel initialState
+        GreaterThan time -> returnTimeAfterProbability time kernel initialState
+        AtLeast 0 -> 1
+        AtLeast time -> returnTimeAfterProbability (time - 1) kernel initialState
+
+{- | First-return event probabilities in canonical initial-state order.
+Coordinate @i@ is @P_i(T_i in E)@ for the supplied 'DiscreteEvent' @E@.
+Upper tails use the direct survivor matrix and include mass at infinity.
+
+Time is @O(t n^3)@ for threshold @t@; temporary space is @O(n^2)@ and result
+space is @O(n)@.
+-}
+probabilityByState ::
+    forall state.
+    (FiniteState state) =>
+    DiscreteEvent ->
+    TransitionMatrix state ->
+    S.R (Cardinality state)
+probabilityByState event matrix =
+    case event of
+        EqualTo time -> returnTimeProbabilities time matrix
+        LessThan bound -> returnTimeBeforeProbabilities bound matrix
+        AtMost time -> returnTimeBeforeProbabilities (time + 1) matrix
+        GreaterThan time -> returnTimeAfterProbabilities time matrix
+        AtLeast 0 -> S.vector [1 | _ <- finiteStates @state]
+        AtLeast time -> returnTimeAfterProbabilities (time - 1) matrix
+
+{- | Probability of eventually returning to one state after at least one
+transition.
+-}
+eventualProbability ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError Double
+eventualProbability = returnProbability
+
+{- | Eventual first-return probabilities in canonical state order.
+-}
+eventualProbabilityByState ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    Either LinearSystemError (S.R (Cardinality state))
+eventualProbabilityByState = returnProbabilities
+
+{- | Expected first-return time for one state. Transient states have
+'InfiniteExpectation'.
+-}
+expectation ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError Expectation
+expectation = returnTimeExpectation
+
+{- | Expected first-return times in canonical state order.
+-}
+expectationByState ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    Either LinearSystemError [Expectation]
+expectationByState = returnTimeExpectations

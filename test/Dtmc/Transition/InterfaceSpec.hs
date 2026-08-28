@@ -9,7 +9,7 @@ import Data.Finite (
     finites,
  )
 import Dtmc.Analysis.FiniteTime (
-    transitionProbability,
+    stepProbability,
  )
 import Dtmc.Distribution qualified as Distribution
 import Dtmc.Distribution.Map qualified as DistributionMap
@@ -67,7 +67,7 @@ asTransitionKernel matrix =
     Kernel.transitionKernel $ \source ->
         checked $
             DistributionMap.mkDistributionMap
-                [ (destination, transitionProbability matrix source destination)
+                [ (destination, stepProbability matrix source destination)
                 | destination <- finites
                 ]
 

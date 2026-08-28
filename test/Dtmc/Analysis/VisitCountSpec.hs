@@ -12,28 +12,16 @@ import Dtmc.Analysis.Classification (
     accessible,
     recurrentState,
  )
-import Dtmc.Analysis.FiniteTime (
-    probabilityAtTime,
-    transitionProbability,
+import Dtmc.Analysis.Event (
+    DiscreteEvent (..),
  )
-import Dtmc.Analysis.HittingTime (
-    hittingProbabilities,
- )
-import Dtmc.Analysis.ReturnTime (
-    returnProbability,
- )
+import Dtmc.Analysis.FiniteTime qualified as FT
+import Dtmc.Analysis.HittingTime qualified as Hit
+import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.VisitCount (
     Expectation (..),
-    infiniteVisitProbabilities,
-    infiniteVisitProbability,
-    visitCountDistributionBefore,
-    visitCountExpectation,
-    visitCountExpectationBefore,
-    visitCountExpectations,
-    visitCountProbabilities,
-    visitCountProbability,
-    visitCountProbabilityBefore,
  )
+import Dtmc.Analysis.VisitCount qualified as Visit
 import Dtmc.Distribution (
     distributionWeights,
  )
@@ -144,7 +132,7 @@ asKernel matrix =
     Kernel.transitionKernel $ \source ->
         checked $
             DistributionMap.mkDistributionMap
-                [ (destination, transitionProbability matrix source destination)
+                [ (destination, FT.stepProbability matrix source destination)
                 | destination <- finites
                 ]
 
@@ -167,10 +155,10 @@ expectationCloseTo _ InfiniteExpectation = False
 
 spec :: Spec
 spec = do
-    describe "visitCountProbabilities" $ do
+    describe "totalProbabilityByState" $ do
         it "matches the geometric law for a transient target" $ do
             let probabilities count =
-                    entries (checked (visitCountProbabilities count transientVisitChain 0))
+                    entries (checked ((Visit.totalProbabilityByState . EqualTo) count transientVisitChain 0))
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
@@ -186,32 +174,32 @@ spec = do
                 | (actual, expected) <-
                     zip (probabilities 3) [3 / 64, 3 / 128, 0]
                 ]
-            entries (checked (infiniteVisitProbabilities transientVisitChain 0))
+            entries (checked (Visit.infiniteProbabilityByState transientVisitChain 0))
                 `shouldBe` [0, 0, 0]
 
         it "puts all positive recurrent-target mass at infinity" $ do
             entries
-                (checked (visitCountProbabilities 1 recurrentVisitChain 2))
+                (checked ((Visit.totalProbabilityByState . EqualTo) 1 recurrentVisitChain 2))
                 `shouldBe` [0, 0, 0, 0]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
                     zip
-                        (entries (checked (infiniteVisitProbabilities recurrentVisitChain 2)))
+                        (entries (checked (Visit.infiniteProbabilityByState recurrentVisitChain 2)))
                         [2 / 3, 1 / 3, 1, 0]
                 ]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
                     zip
-                        (entries (checked (visitCountProbabilities 0 recurrentVisitChain 2)))
+                        (entries (checked ((Visit.totalProbabilityByState . EqualTo) 0 recurrentVisitChain 2)))
                         [1 / 3, 2 / 3, 0, 1]
                 ]
 
         it "counts the target at time zero" $ do
-            checked (visitCountProbability 0 transientVisitChain 0 0)
+            checked ((Visit.totalProbability . EqualTo) 0 transientVisitChain 0 0)
                 `shouldBe` 0
-            checked (visitCountProbability 1 transientVisitChain 0 0)
+            checked ((Visit.totalProbability . EqualTo) 1 transientVisitChain 0 0)
                 `shouldSatisfy` closeTo (3 / 4)
 
         prop "scalar queries look up the all-state result (random @3)" $
@@ -221,42 +209,42 @@ spec = do
                     Right matrix ->
                         conjoin
                             [ conjoin
-                                [ case visitCountProbabilities count matrix 0 of
+                                [ case (Visit.totalProbabilityByState . EqualTo) count matrix 0 of
                                     Left err -> counterexample (show err) False
                                     Right probabilities ->
                                         conjoin
-                                            [ visitCountProbability count matrix 0 initial
+                                            [ (Visit.totalProbability . EqualTo) count matrix 0 initial
                                                 === Right probability
                                             | (initial, probability) <-
                                                 zip (finites :: [Finite 3]) (entries probabilities)
                                             ]
                                 | count <- [0, 1, 3]
                                 ]
-                            , case infiniteVisitProbabilities matrix 0 of
+                            , case Visit.infiniteProbabilityByState matrix 0 of
                                 Left err -> counterexample (show err) False
                                 Right probabilities ->
                                     conjoin
-                                        [ infiniteVisitProbability matrix 0 initial
+                                        [ Visit.infiniteProbability matrix 0 initial
                                             === Right probability
                                         | (initial, probability) <-
                                             zip (finites :: [Finite 3]) (entries probabilities)
                                         ]
                             ]
 
-    describe "visitCountExpectations" $ do
+    describe "totalExpectationByState" $ do
         it "matches h / (1 - f) for a transient target" $ do
-            let expectations = checked (visitCountExpectations transientVisitChain 0)
+            let expectations = checked (Visit.totalExpectationByState transientVisitChain 0)
             sequence_
                 [ expectation `shouldSatisfy` expectationCloseTo expected
                 | (expectation, expected) <- zip expectations [4 / 3, 2 / 3, 0]
                 ]
-            checked (visitCountExpectation transientVisitChain 0 1)
+            checked (Visit.totalExpectation transientVisitChain 0 1)
                 `shouldSatisfy` expectationCloseTo (2 / 3)
 
         it "is infinite exactly where a recurrent target is reachable" $ do
-            checked (visitCountExpectations recurrentVisitChain 2)
+            checked (Visit.totalExpectationByState recurrentVisitChain 2)
                 `shouldBe` [InfiniteExpectation, InfiniteExpectation, InfiniteExpectation, FiniteExpectation 0]
-            checked (visitCountExpectation recurrentVisitChain 2 3)
+            checked (Visit.totalExpectation recurrentVisitChain 2 3)
                 `shouldBe` FiniteExpectation 0
 
         prop "agrees with hitting, return, recurrence, and reachability (random @3)" $
@@ -265,13 +253,13 @@ spec = do
                     Left err -> counterexample (show err) False
                     Right matrix ->
                         case do
-                            hits <- hittingProbabilities matrix [0]
-                            returning <- returnProbability matrix 0
-                            zeroVisits <- visitCountProbabilities 0 matrix 0
-                            oneVisit <- visitCountProbabilities 1 matrix 0
-                            twoVisits <- visitCountProbabilities 2 matrix 0
-                            infiniteVisits <- infiniteVisitProbabilities matrix 0
-                            expectations <- visitCountExpectations matrix 0
+                            hits <- Hit.eventualProbabilityByState matrix [0]
+                            returning <- Return.eventualProbability matrix 0
+                            zeroVisits <- (Visit.totalProbabilityByState . EqualTo) 0 matrix 0
+                            oneVisit <- (Visit.totalProbabilityByState . EqualTo) 1 matrix 0
+                            twoVisits <- (Visit.totalProbabilityByState . EqualTo) 2 matrix 0
+                            infiniteVisits <- Visit.infiniteProbabilityByState matrix 0
+                            expectations <- Visit.totalExpectationByState matrix 0
                             pure
                                 ( hits
                                 , returning
@@ -338,10 +326,10 @@ spec = do
                                                         ]
                                             ]
 
-    describe "visitCountDistributionBefore" $ do
+    describe "boundedLaw" $ do
         it "is a point mass at zero for bound zero" $
             distributionWeights
-                ( visitCountDistributionBefore
+                ( Visit.boundedLaw
                     0
                     (DistributionMap.pointMass (0 :: Finite 2))
                     twoCycle
@@ -351,21 +339,21 @@ spec = do
 
         it "counts the initial state at a positive bound" $
             distributionWeights
-                (visitCountDistributionBefore 1 mixedInitial twoCycle (== 0))
+                (Visit.boundedLaw 1 mixedInitial twoCycle (== 0))
                 `shouldBe` [(0, 0.75), (1, 0.25)]
 
         it "counts deterministic visits at times zero through bound minus one" $ do
             let initial = DistributionMap.pointMass (0 :: Finite 2)
-            distributionWeights (visitCountDistributionBefore 1 initial twoCycle (== 0))
+            distributionWeights (Visit.boundedLaw 1 initial twoCycle (== 0))
                 `shouldBe` [(1, 1)]
-            distributionWeights (visitCountDistributionBefore 2 initial twoCycle (== 0))
+            distributionWeights (Visit.boundedLaw 2 initial twoCycle (== 0))
                 `shouldBe` [(1, 1)]
-            distributionWeights (visitCountDistributionBefore 3 initial twoCycle (== 0))
+            distributionWeights (Visit.boundedLaw 3 initial twoCycle (== 0))
                 `shouldBe` [(2, 1)]
 
         it "computes an exact law on an infinite random walk" $
             distributionWeights
-                ( visitCountDistributionBefore
+                ( Visit.boundedLaw
                     3
                     (DistributionMap.pointMass (0 :: Integer))
                     simpleRandomWalk
@@ -381,7 +369,7 @@ spec = do
                         Right matrix ->
                             let bound = fromIntegral rawBound
                                 law =
-                                    visitCountDistributionBefore
+                                    Visit.boundedLaw
                                         bound
                                         (DistributionMap.pointMass (0 :: Finite 3))
                                         matrix
@@ -392,29 +380,29 @@ spec = do
                                     , property (all ((<= bound) . fst) weights)
                                     ]
 
-    describe "visitCountProbabilityBefore" $ do
+    describe "boundedProbability" $ do
         it "looks up one coordinate of the count distribution" $ do
             let initial = DistributionMap.pointMass (0 :: Integer)
-            visitCountProbabilityBefore 3 initial simpleRandomWalk (== 0) 1
+            Visit.boundedProbability 3 (EqualTo 1) initial simpleRandomWalk (== 0)
                 `shouldSatisfy` closeTo 0.5
-            visitCountProbabilityBefore 3 initial simpleRandomWalk (== 0) 2
+            Visit.boundedProbability 3 (EqualTo 2) initial simpleRandomWalk (== 0)
                 `shouldSatisfy` closeTo 0.5
-            visitCountProbabilityBefore 3 initial simpleRandomWalk (== 0) 3
+            Visit.boundedProbability 3 (EqualTo 3) initial simpleRandomWalk (== 0)
                 `shouldBe` 0
 
         it "agrees for a matrix and its equivalent kernel" $ do
             let initial = DistributionMap.pointMass (0 :: Finite 2)
                 kernel = asKernel twoCycle
             sequence_
-                [ visitCountProbabilityBefore bound initial twoCycle (== 0) count
-                    `shouldBe` visitCountProbabilityBefore bound initial kernel (== 0) count
+                [ Visit.boundedProbability bound (EqualTo count) initial twoCycle (== 0)
+                    `shouldBe` Visit.boundedProbability bound (EqualTo count) initial kernel (== 0)
                 | bound <- [0 .. 5]
                 , count <- [0 .. bound]
                 ]
 
-    describe "visitCountExpectationBefore" $ do
+    describe "boundedExpectation" $ do
         it "is the expectation of the random-walk count law" $
-            visitCountExpectationBefore
+            Visit.boundedExpectation
                 3
                 (DistributionMap.pointMass (0 :: Integer))
                 simpleRandomWalk
@@ -430,10 +418,10 @@ spec = do
                             let bound = fromIntegral rawBound
                                 initial = DistributionMap.pointMass (0 :: Finite 3)
                                 expectation =
-                                    visitCountExpectationBefore bound initial matrix (== 0)
+                                    Visit.boundedExpectation bound initial matrix (== 0)
                                 marginalSum =
                                     sum
-                                        [ probabilityAtTime (fromIntegral time) initial matrix 0
+                                        [ FT.stateProbability (fromIntegral time) initial matrix 0
                                         | time <- [0 .. rawBound - 1]
                                         ]
                              in property (closeTo marginalSum expectation)

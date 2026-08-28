@@ -21,15 +21,15 @@ not simulate, truncate an infinite series, clamp, or renormalise results.
 module Dtmc.Analysis.VisitCount (
     LinearSystemError (..),
     Expectation (..),
-    visitCountProbabilities,
-    visitCountProbability,
-    infiniteVisitProbabilities,
-    infiniteVisitProbability,
-    visitCountExpectations,
-    visitCountExpectation,
-    visitCountDistributionBefore,
-    visitCountProbabilityBefore,
-    visitCountExpectationBefore,
+    totalProbability,
+    totalProbabilityByState,
+    infiniteProbability,
+    infiniteProbabilityByState,
+    totalExpectation,
+    totalExpectationByState,
+    boundedLaw,
+    boundedProbability,
+    boundedExpectation,
 ) where
 
 import Data.Finite (
@@ -43,14 +43,18 @@ import Dtmc.Analysis.Classification (
 import Dtmc.Analysis.Expectation (
     Expectation (..),
  )
+import Dtmc.Analysis.Event (
+    DiscreteEvent (..),
+    matchesDiscreteEvent,
+ )
 import Dtmc.Analysis.HittingTime (
-    hittingProbabilities,
+    eventualProbabilityByState,
  )
 import Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
  )
 import Dtmc.Analysis.ReturnTime (
-    returnProbability,
+    eventualProbability,
  )
 import Dtmc.Distribution (
     Distribution (..),
@@ -98,7 +102,8 @@ Recurrence is decided from the support graph, not by comparing a computed
 return probability with one.
 
 Structural zero cases avoid a linear solve. Other cases inherit the numerical
-behavior and errors of 'hittingProbabilities' and 'returnProbability'.
+behavior and errors of 'eventualProbabilityByState' and
+'eventualProbability'.
 -}
 visitCountProbabilities ::
     forall state.
@@ -112,31 +117,14 @@ visitCountProbabilities count matrix target
     | recurrentState matrix target = Right zeroProbabilities
     | otherwise = do
         hits <- hitting
-        returning <- returnProbability matrix target
+        returning <- eventualProbability matrix target
         let finiteMass = returning ^ (count - 1) * (1 - returning)
         pure (mapProbabilities (* finiteMass) hits)
   where
-    hitting = hittingProbabilities matrix [target]
+    hitting = eventualProbabilityByState matrix [target]
     zeroProbabilities = S.vector [0 | _ <- finiteStates @state]
     mapProbabilities transform =
         S.vector . map transform . LA.toList . S.extract
-
-{- | Probability of exactly @n@ total visits from one initial state. Argument
-order is count, matrix, target, then initial state, matching the exact-time
-hitting and return APIs. Partially applying the first three arguments shares
-the all-state computation.
--}
-visitCountProbability ::
-    (FiniteState state) =>
-    Natural ->
-    TransitionMatrix state ->
-    state ->
-    state ->
-    Either LinearSystemError Double
-visitCountProbability count matrix target =
-    \initial -> (`LA.atIndex` toIndex initial) <$> probabilities
-  where
-    probabilities = S.extract <$> visitCountProbabilities count matrix target
 
 {- | Probabilities of infinitely many visits in canonical initial-state order.
 For target @i@, coordinate @j@ is @P(V_i = infinity | X_0 = j)@. A recurrent
@@ -144,7 +132,7 @@ target returns its hitting probabilities; a transient target returns an exact
 zero vector without a linear solve.
 
 Recurrence is decided from the support graph. The recurrent case inherits the
-numerical behavior and errors of 'hittingProbabilities'.
+numerical behavior and errors of 'eventualProbabilityByState'.
 -}
 infiniteVisitProbabilities ::
     forall state.
@@ -153,7 +141,7 @@ infiniteVisitProbabilities ::
     state ->
     Either LinearSystemError (S.R (Cardinality state))
 infiniteVisitProbabilities matrix target
-    | recurrentState matrix target = hittingProbabilities matrix [target]
+    | recurrentState matrix target = eventualProbabilityByState matrix [target]
     | otherwise = Right (S.vector [0 | _ <- finiteStates @state])
 
 {- | Probability of infinitely many visits from one initial state. Argument
@@ -179,7 +167,7 @@ unreachable from @j@ and 'InfiniteExpectation' otherwise. The recurrent case
 is decided entirely from the support graph and requires no linear solve.
 
 Transient results inherit the numerical behavior and errors of
-'hittingProbabilities' and 'returnProbability'.
+'eventualProbabilityByState' and 'eventualProbability'.
 -}
 visitCountExpectations ::
     (FiniteState state) =>
@@ -195,8 +183,8 @@ visitCountExpectations matrix target
             | initial <- finiteStates
             ]
     | otherwise = do
-        hits <- hittingProbabilities matrix [target]
-        returning <- returnProbability matrix target
+        hits <- eventualProbabilityByState matrix [target]
+        returning <- eventualProbability matrix target
         pure
             [ FiniteExpectation (hit / (1 - returning))
             | hit <- LA.toList (S.extract hits)
@@ -284,27 +272,6 @@ visitCountDistributionBefore bound initial transition isVisited
                 (\counts (_, count) weight -> Map.insertWith (+) count weight counts)
                 Map.empty
 
-{- | Probability of exactly the requested number of visits before the strict
-time bound. The requested count is the final argument, mirroring a lookup in
-'visitCountDistributionBefore'. Counts outside the distribution's support
-return exactly zero.
--}
-visitCountProbabilityBefore ::
-    ( Distribution distribution
-    , Transition transition
-    , DistributionState distribution ~ TransitionState transition
-    , Ord (TransitionState transition)
-    ) =>
-    Natural ->
-    distribution ->
-    transition ->
-    (TransitionState transition -> Bool) ->
-    Natural ->
-    Double
-visitCountProbabilityBefore bound initial transition isVisited =
-    probabilityAt
-        (visitCountDistributionBefore bound initial transition isVisited)
-
 {- | Expected number of visits before the strict time bound. Using
 @E(N_A(c)) = sum_(t = 0)^(c - 1) P(X_t in A)@, this evolves only the state
 marginal rather than constructing the joint count distribution. The result
@@ -340,3 +307,172 @@ visitCountExpectationBefore bound initial transition isVisited =
                 else
                     let next = pushSparseWeights weights transition
                      in cumulative `seq` next `seq` go (remaining - 1) next cumulative
+
+{- | Probability of a finite-threshold event in the total number of visits
+@V_i = sum_(t = 0)^infinity 1_{X_t = i}@ from one initial state.
+
+The initial state at time zero is included. Upper-tail events include the atom
+at infinity. For @h_ji = P_j(H_i < infinity)@ and transient-target return
+probability @f_i@, the implementation evaluates
+@P_j(V_i > n) = h_ji f_i^n@ directly. Recurrent targets use support
+classification, so their positive mass is placed structurally at infinity.
+
+This scalar query shares the all-state solve performed by
+'totalProbabilityByState'.
+-}
+totalProbability ::
+    (FiniteState state) =>
+    DiscreteEvent ->
+    TransitionMatrix state ->
+    state ->
+    state ->
+    Either LinearSystemError Double
+totalProbability event matrix target =
+    \initial -> (`LA.atIndex` toIndex initial) <$> probabilities
+  where
+    probabilities = S.extract <$> totalProbabilityByState event matrix target
+
+{- | Total-visit event probabilities in canonical initial-state order.
+Coordinate @j@ is @P_j(V_i in E)@ for the supplied target @i@ and
+'DiscreteEvent' @E@. Upper tails are evaluated directly and include infinitely
+many visits; lower tails contain finite counts only.
+
+Graph classification and any required checked linear solves are shared across
+all initial states. Structural zero and one boundaries avoid a solve.
+-}
+totalProbabilityByState ::
+    forall state.
+    (FiniteState state) =>
+    DiscreteEvent ->
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError (S.R (Cardinality state))
+totalProbabilityByState event matrix target =
+    case event of
+        EqualTo count -> visitCountProbabilities count matrix target
+        LessThan 0 -> Right zeros
+        LessThan bound -> atMost (bound - 1)
+        AtMost count -> atMost count
+        GreaterThan count -> after count
+        AtLeast 0 -> Right ones
+        AtLeast count -> after (count - 1)
+  where
+    recurrent = recurrentState matrix target
+    hits = eventualProbabilityByState matrix [target]
+    zeros = S.vector [0 | _ <- finiteStates @state]
+    ones = S.vector [1 | _ <- finiteStates @state]
+    mapValues transform =
+        S.vector . map transform . LA.toList . S.extract
+
+    atMost count
+        | recurrent = mapValues (1 -) <$> hits
+        | otherwise = do
+            hitValues <- hits
+            returning <- eventualProbability matrix target
+            pure
+                ( mapValues
+                    (\hit -> 1 - hit * returning ^ count)
+                    hitValues
+                )
+
+    after count
+        | recurrent = hits
+        | count == 0 = hits
+        | otherwise = do
+            hitValues <- hits
+            returning <- eventualProbability matrix target
+            pure (mapValues (* (returning ^ count)) hitValues)
+
+{- | Probability of infinitely many visits from one initial state.
+-}
+infiniteProbability ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    state ->
+    Either LinearSystemError Double
+infiniteProbability = infiniteVisitProbability
+
+{- | Probabilities of infinitely many visits in canonical initial-state order.
+-}
+infiniteProbabilityByState ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError (S.R (Cardinality state))
+infiniteProbabilityByState = infiniteVisitProbabilities
+
+{- | Expected total visits from one initial state.
+-}
+totalExpectation ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    state ->
+    Either LinearSystemError Expectation
+totalExpectation = visitCountExpectation
+
+{- | Expected total visits in canonical initial-state order.
+-}
+totalExpectationByState ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError [Expectation]
+totalExpectationByState = visitCountExpectations
+
+{- | Exact law of visits strictly before a finite time bound. Visits at time zero are
+included when the bound is positive.
+-}
+boundedLaw ::
+    ( Distribution distribution
+    , Transition transition
+    , DistributionState distribution ~ TransitionState transition
+    , Ord (TransitionState transition)
+    ) =>
+    Natural ->
+    distribution ->
+    transition ->
+    (TransitionState transition -> Bool) ->
+    DistributionMap Natural
+boundedLaw = visitCountDistributionBefore
+
+{- | Probability of a 'DiscreteEvent' in the number of visits strictly before
+a finite time bound. The bounded law has no atom at infinity, and values
+outside its support contribute exactly zero.
+-}
+boundedProbability ::
+    ( Distribution distribution
+    , Transition transition
+    , DistributionState distribution ~ TransitionState transition
+    , Ord (TransitionState transition)
+    ) =>
+    Natural ->
+    DiscreteEvent ->
+    distribution ->
+    transition ->
+    (TransitionState transition -> Bool) ->
+    Double
+boundedProbability bound event initial transition isVisited =
+    sum
+        [ weight
+        | (count, weight) <- distributionWeights law
+        , matchesDiscreteEvent event count
+        ]
+  where
+    law = boundedLaw bound initial transition isVisited
+
+{- | Expected visits strictly before a finite time bound.
+-}
+boundedExpectation ::
+    ( Distribution distribution
+    , Transition transition
+    , DistributionState distribution ~ TransitionState transition
+    , Ord (TransitionState transition)
+    ) =>
+    Natural ->
+    distribution ->
+    transition ->
+    (TransitionState transition -> Bool) ->
+    Double
+boundedExpectation = visitCountExpectationBefore

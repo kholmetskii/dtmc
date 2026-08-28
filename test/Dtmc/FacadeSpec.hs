@@ -5,6 +5,12 @@ module Dtmc.FacadeSpec (
 ) where
 
 import Dtmc
+import Dtmc.Analysis.Event (
+    DiscreteEvent (..),
+ )
+import Dtmc.Analysis.FiniteTime qualified as FT
+import Dtmc.Analysis.HittingTime qualified as Hit
+import Dtmc.Analysis.VisitCount qualified as Visit
 import GHC.Generics (
     Generic,
  )
@@ -214,7 +220,7 @@ spec =
             mapM_
                 ( \n ->
                     abs
-                        ( transitionProbabilityN
+                        ( FT.nStepProbability
                             (3 * n + 1)
                             fruitTransition
                             Apple
@@ -230,7 +236,7 @@ spec =
             mapM_
                 ( \n ->
                     abs
-                        ( transitionProbabilityN
+                        ( FT.nStepProbability
                             (3 * n + 2)
                             fruitTransition
                             Mango
@@ -247,19 +253,19 @@ spec =
             reachesAny cafeTransition Thinking [Leave] `shouldBe` True
             absorbingStates (classify cafeTransition) `shouldBe` [Leave]
             abs
-                (checked (hittingProbability cafeTransition [Leave] Thinking) - 1)
+                (checked (Hit.eventualProbability cafeTransition [Leave] Thinking) - 1)
                 < 1e-12
                 `shouldBe` True
             abs
                 ( checked
-                    (hittingProbability cafeTransition [Drink] Thinking)
+                    (Hit.eventualProbability cafeTransition [Drink] Thinking)
                     - 4 / 43
                 )
                 < 1e-12
                 `shouldBe` True
             abs
                 ( checked
-                    ( hittingBeforeProbability
+                    ( Hit.raceProbability
                         cafeTransition
                         [PlainWaffle, ChocolateWaffle]
                         [Drink, Leave]
@@ -270,26 +276,26 @@ spec =
                 < 1e-12
                 `shouldBe` True
 
-        it "exposes finite-horizon visit-count analysis" $
-            visitCountExpectationBefore 1 cafeInitial cafeTransition (== Thinking)
+        it "uses qualified finite-horizon visit-count analysis" $
+            Visit.boundedExpectation 1 cafeInitial cafeTransition (== Thinking)
                 `shouldBe` 1
 
-        it "exposes infinite-horizon total visit-count analysis" $ do
-            checked (infiniteVisitProbability weatherTransition Dry Wet)
+        it "uses qualified infinite-horizon total visit-count analysis" $ do
+            checked (Visit.infiniteProbability weatherTransition Dry Wet)
                 `shouldBe` 1
-            checked (visitCountProbability 1 weatherTransition Dry Wet)
+            checked (Visit.totalProbability (EqualTo 1) weatherTransition Dry Wet)
                 `shouldBe` 0
-            checked (visitCountExpectation weatherTransition Dry Wet)
+            checked (Visit.totalExpectation weatherTransition Dry Wet)
                 `shouldBe` InfiniteExpectation
 
-        it "exposes conditional-probability errors" $
-            conditionalProbability
+        it "uses qualified conditional-probability errors" $
+            FT.conditionalObservationProbability
                 cafeInitial
                 cafeTransition
                 []
-                [At 0 Leave]
-                `shouldBe` Left ZeroProbabilityCondition
+                [FT.At 0 Leave]
+                `shouldBe` Left FT.ZeroProbabilityCondition
 
-        it "exposes joint probabilities of timed observations" $
-            jointProbability cafeInitial cafeTransition [At 0 Thinking]
+        it "uses qualified timed-observation probabilities" $
+            FT.observationProbability cafeInitial cafeTransition [FT.At 0 Thinking]
                 `shouldBe` 1

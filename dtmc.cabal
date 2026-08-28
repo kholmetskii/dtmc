@@ -48,6 +48,7 @@ library
       Dtmc.Transition.Kernel
       Dtmc.Simulation
       Dtmc.Dynamics
+      Dtmc.Analysis.Event
       Dtmc.Analysis.FiniteTime
       Dtmc.Analysis.Expectation
       Dtmc.Analysis.LinearSystem
@@ -91,8 +92,16 @@ test-suite spec
       Dtmc.Transition.MatrixSpec
       Dtmc.SimulationSpec
       Dtmc.DynamicsSpec
+      Dtmc.Analysis.EventSpec
+      Dtmc.Analysis.FiniteTimeCanonicalSpec
+      Dtmc.Analysis.HittingTimeCanonicalSpec
+      Dtmc.Analysis.CanonicalDifferentialSpec
+      Dtmc.Analysis.NamespaceCompileSpec
+      Dtmc.Analysis.ProbabilityOracle
       Dtmc.Analysis.FiniteTimeSpec
       Dtmc.Analysis.ClassificationSpec
+      Dtmc.Analysis.ReturnTimeCanonicalSpec
+      Dtmc.Analysis.VisitCountCanonicalSpec
       Dtmc.Analysis.HittingTimeSpec
       Dtmc.Analysis.ReturnTimeSpec
       Dtmc.Analysis.VisitCountSpec
