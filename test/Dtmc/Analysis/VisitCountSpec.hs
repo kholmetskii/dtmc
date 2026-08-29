@@ -425,3 +425,57 @@ spec = do
                                         | time <- [0 .. rawBound - 1]
                                         ]
                              in property (closeTo marginalSum expectation)
+
+    describe "occupationMatrix" $ do
+        it "matches the closed form of the transient block" $
+            Visit.occupationMatrix transientVisitChain
+                `shouldSatisfy` matchesOccupation
+                    [ [Just (4 / 3), Just 0, Nothing]
+                    , [Just (2 / 3), Just 1, Nothing]
+                    , [Just 0, Just 0, Nothing]
+                    ]
+
+        it "is infinite everywhere when no state is transient" $
+            Visit.occupationMatrix twoCycle
+                `shouldSatisfy` matchesOccupation
+                    [ [Nothing, Nothing]
+                    , [Nothing, Nothing]
+                    ]
+
+        prop "agrees with totalExpectation entry by entry" $
+            forAll (genTransitionMatrix @3) $ \m ->
+                case mkTransitionMatrix m of
+                    Left err -> counterexample (show err) False
+                    Right p ->
+                        case Visit.occupationMatrix p of
+                            -- A refused solve is a documented outcome.
+                            Left _ -> property True
+                            Right rows ->
+                                conjoin
+                                    [ counterexample
+                                        (show (i, j, entry))
+                                        (agreesWithSingle entry (Visit.totalExpectation p j i))
+                                    | (i, row) <- zip (finites :: [Finite 3]) rows
+                                    , (j, entry) <- zip (finites :: [Finite 3]) row
+                                    ]
+
+-- Nothing stands for InfiniteExpectation; Just v for a finite entry near v.
+matchesOccupation ::
+    [[Maybe Double]] ->
+    Either error [[Expectation]] ->
+    Bool
+matchesOccupation _ (Left _) = False
+matchesOccupation expected (Right actual) =
+    length expected == length actual
+        && and (zipWith matchesRow expected actual)
+  where
+    matchesRow e a = length e == length a && and (zipWith matchesEntry e a)
+    matchesEntry (Just v) x = expectationCloseTo v x
+    matchesEntry Nothing InfiniteExpectation = True
+    matchesEntry Nothing _ = False
+
+agreesWithSingle :: Expectation -> Either error Expectation -> Bool
+agreesWithSingle _ (Left _) = True
+agreesWithSingle InfiniteExpectation (Right InfiniteExpectation) = True
+agreesWithSingle (FiniteExpectation x) (Right (FiniteExpectation y)) = closeTo x y
+agreesWithSingle _ _ = False

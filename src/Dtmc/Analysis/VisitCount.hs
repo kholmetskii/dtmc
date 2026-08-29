@@ -30,12 +30,16 @@ module Dtmc.Analysis.VisitCount (
     boundedLaw,
     boundedProbability,
     boundedExpectation,
+    occupationMatrix,
 ) where
 
 import Data.Finite (
     getFinite,
  )
 import Data.Map.Strict qualified as Map
+import Dtmc.Analysis.Absorption (
+    fundamentalMatrix,
+ )
 import Dtmc.Analysis.Classification (
     accessible,
     recurrentState,
@@ -476,3 +480,49 @@ boundedExpectation ::
     (TransitionState transition -> Bool) ->
     Double
 boundedExpectation = visitCountExpectationBefore
+
+{- | The occupation matrix of the chain, also known as its Green function:
+entry @(i, j)@ is @sum_(n >= 0) (P^n)(i,j) = E(V_j | X_0 = i)@, the expected
+total number of visits to @j@ started from @i@. Rows and columns follow the
+canonical order of the 'FiniteState' instance.
+
+Unlike 'Dtmc.Analysis.Absorption.fundamentalMatrix', which is the finite
+@T x T@ block, this is defined on the whole state space and therefore needs
+'Expectation': a recurrent target reachable from @i@ is visited infinitely
+often almost surely. The four cases are
+
+* @j@ transient and @i@ transient: the corresponding entry of
+  @(I - Q)^-1@;
+* @j@ transient and @i@ recurrent: exactly zero, because a recurrent class is
+  closed and cannot reach a transient state;
+* @j@ recurrent and reachable from @i@: 'InfiniteExpectation';
+* @j@ recurrent and unreachable from @i@: exactly zero.
+
+Only the transient block needs arithmetic; the infinite and zero entries come
+from the support graph, so they are exact.
+'Dtmc.Analysis.VisitCount.totalExpectation' computes single entries by a
+different route and agrees with this one.
+
+Time: @O(n^2 + t^3 + n E)@ for @t@ transient states and @E@ support edges.
+Result space: @O(n^2)@.
+-}
+occupationMatrix ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    Either LinearSystemError [[Expectation]]
+occupationMatrix p = do
+    (transient, block) <- fundamentalMatrix p
+    let table =
+            Map.fromList
+                [ ((i, j), value)
+                | (i, row) <- zip transient block
+                , (j, value) <- zip transient row
+                ]
+        valueAt i j
+            | recurrentState p j =
+                if accessible p i j
+                    then InfiniteExpectation
+                    else FiniteExpectation 0
+            | otherwise =
+                FiniteExpectation (Map.findWithDefault 0 (i, j) table)
+    pure [[valueAt i j | j <- finiteStates] | i <- finiteStates]
