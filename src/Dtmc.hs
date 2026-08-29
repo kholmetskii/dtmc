@@ -27,6 +27,7 @@ module Dtmc (
     DistributionError (..),
     mkDistributionVector,
     unDistributionVector,
+    expectation,
     DistributionMap,
     mkDistributionMap,
     unDistributionMap,
@@ -110,6 +111,7 @@ import Dtmc.Distribution.Vector (
     DistributionVector,
     mkDistributionVector,
     unDistributionVector,
+    expectation,
  )
 import Dtmc.Simplex (
     SimplexError (..),
