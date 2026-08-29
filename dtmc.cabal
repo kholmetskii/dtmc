@@ -55,6 +55,7 @@ library
       Dtmc.Analysis.HittingTime
       Dtmc.Analysis.ReturnTime
       Dtmc.Analysis.VisitCount
+      Dtmc.Analysis.Absorption
       Dtmc.Analysis.Classification
       Dtmc.Analysis.Stationary
 
@@ -99,6 +100,7 @@ test-suite spec
       Dtmc.Analysis.NamespaceCompileSpec
       Dtmc.Analysis.ProbabilityOracle
       Dtmc.Analysis.FiniteTimeSpec
+      Dtmc.Analysis.AbsorptionSpec
       Dtmc.Analysis.ClassificationSpec
       Dtmc.Analysis.ReturnTimeCanonicalSpec
       Dtmc.Analysis.VisitCountCanonicalSpec
