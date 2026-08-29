@@ -12,8 +12,13 @@ import Dtmc.Analysis.Classification (
     Irreducible,
     witnessIrreducible,
  )
+import Dtmc.Analysis.Expectation (
+    Expectation (..),
+ )
+import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.Stationary (
     LinearSystemError (IllConditionedSystem),
+    classStationaryDistributions,
     stationaryDistribution,
  )
 import Dtmc.Distribution (
@@ -32,6 +37,7 @@ import Dtmc.State (
 import Dtmc.TestSupport (
     approxDistributionEq,
     approxEq,
+    genTransitionMatrix,
     testTolerance,
  )
 import Dtmc.Transition.Matrix (
@@ -49,6 +55,7 @@ import Test.Hspec (
     expectationFailure,
     it,
     shouldBe,
+    shouldSatisfy,
  )
 import Test.Hspec.QuickCheck (
     prop,
@@ -144,7 +151,7 @@ stationaryLawsHold raw =
                                 ]
 
 spec :: Spec
-spec =
+spec = do
     describe "stationaryDistribution" $ do
         it "returns the point mass for a singleton chain" $
             entries (checked (stationaryDistribution (certified singleton)))
@@ -196,3 +203,93 @@ spec =
                 result ->
                     expectationFailure
                         ("expected IllConditionedSystem, got " ++ show result)
+
+    describe "classStationaryDistributions" $ do
+        it "returns one distribution per recurrent class, by least member" $
+            fmap (map fst) (classStationaryDistributions twoClosedClasses)
+                `shouldBe` Right [[0], [1, 2]]
+
+        it "matches the closed form of the notes" $
+            case classStationaryDistributions twoClosedClasses of
+                Right [(_, onFirst), (_, onSecond)] -> do
+                    entries onFirst `shouldSatisfy` allCloseTo [1, 0, 0]
+                    entries onSecond `shouldSatisfy` allCloseTo [0, 5 / 11, 6 / 11]
+                other -> expectationFailure ("unexpected result: " ++ show other)
+
+        it "puts exact zero on a transient state" $
+            case classStationaryDistributions withTransient of
+                Right [(members, only)] -> do
+                    members `shouldBe` [1, 2]
+                    take 1 (entries only) `shouldBe` [0]
+                    entries only `shouldSatisfy` allCloseTo [0, 5 / 11, 6 / 11]
+                other -> expectationFailure ("unexpected result: " ++ show other)
+
+        it "agrees with the irreducible witness on an irreducible chain" $
+            case
+                ( classStationaryDistributions twoState
+                , stationaryDistribution (certified twoState)
+                )
+                of
+                    (Right [(_, viaClasses)], Right viaWitness) ->
+                        entries viaClasses `shouldSatisfy` allCloseTo (entries viaWitness)
+                    other -> expectationFailure ("unexpected result: " ++ show other)
+
+        it "inverts the mean return time" $
+            -- pi_i m_i = 1 for state 1 of the recurrent class {1, 2}
+            case classStationaryDistributions twoClosedClasses of
+                Right [_, (_, onSecond)] ->
+                    Return.expectation twoClosedClasses 1
+                        `shouldSatisfy` inverts (entries onSecond !! 1)
+                other -> expectationFailure ("unexpected result: " ++ show other)
+
+        prop "every returned distribution is stationary and normalised" $
+            forAll (genTransitionMatrix @3) $ \raw ->
+                case mkTransitionMatrix @(Finite 3) raw of
+                    Left err -> counterexample (show err) (property False)
+                    Right matrix ->
+                        case classStationaryDistributions matrix of
+                            -- A refused solve is a documented outcome.
+                            Left _ -> property True
+                            Right results ->
+                                conjoin
+                                    [ conjoin
+                                        [ counterexample "pi P /= pi" $
+                                            property
+                                                ( approxDistributionEq
+                                                    testTolerance
+                                                    (evolveVector d matrix)
+                                                    d
+                                                )
+                                        , counterexample "sum pi /= 1" $
+                                            property
+                                                (approxEq testTolerance (sum (entries d)) 1)
+                                        ]
+                                    | (_, d) <- results
+                                    ]
+
+-- Section 4.1: two closed classes, hence infinitely many stationary
+-- distributions for the chain as a whole.
+twoClosedClasses :: TransitionMatrix (Finite 3)
+twoClosedClasses =
+    checked
+        ( mkTransitionMatrix
+            (S.matrix [1, 0, 0, 0, 0.4, 0.6, 0, 0.5, 0.5] :: S.Sq 3)
+        )
+
+-- State 0 is transient; {1, 2} is the only recurrent class.
+withTransient :: TransitionMatrix (Finite 3)
+withTransient =
+    checked
+        ( mkTransitionMatrix
+            (S.matrix [0, 0.5, 0.5, 0, 0.4, 0.6, 0, 0.5, 0.5] :: S.Sq 3)
+        )
+
+allCloseTo :: [Double] -> [Double] -> Bool
+allCloseTo expected actual =
+    length expected == length actual
+        && and (zipWith (approxEq testTolerance) expected actual)
+
+inverts :: Double -> Either error Expectation -> Bool
+inverts probability (Right (FiniteExpectation mean)) =
+    approxEq testTolerance (probability * mean) 1
+inverts _ _ = False
