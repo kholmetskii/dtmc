@@ -58,6 +58,7 @@ library
       Dtmc.Analysis.VisitCount
       Dtmc.Analysis.Absorption
       Dtmc.Analysis.Classification
+      Dtmc.Analysis.Spectral
       Dtmc.Analysis.Stationary
 
   other-modules:
@@ -109,6 +110,7 @@ test-suite spec
       Dtmc.Analysis.ReturnTimeSpec
       Dtmc.Analysis.VisitCountSpec
       Dtmc.Analysis.LimitingSpec
+      Dtmc.Analysis.SpectralSpec
       Dtmc.Analysis.StationarySpec
       Dtmc.Analysis.TimeSpecSupport
       Dtmc.Transition.KernelSpec
