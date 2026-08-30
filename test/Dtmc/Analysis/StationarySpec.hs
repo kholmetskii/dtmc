@@ -17,7 +17,6 @@ import Dtmc.Analysis.Expectation (
  )
 import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.Stationary (
-    LinearSystemError (IllConditionedSystem),
     classStationaryDistributions,
     stationaryDistribution,
  )
@@ -184,7 +183,10 @@ spec = do
         prop "satisfies the balance and normalization equations" $
             forAll genPositiveTransitionMatrix stationaryLawsHold
 
-        it "reports an ill-conditioned balance system explicitly" $ do
+        it "solves a symmetric nearly uncoupled chain exactly" $ do
+            -- The balance system is hopelessly ill conditioned here, but GTH
+            -- never forms it: the exit mass is accumulated rather than taken
+            -- as 1 - P(k,k), so the answer comes out bit-exact.
             let epsilon = 1e-14
                 matrix =
                     checked
@@ -198,11 +200,29 @@ spec = do
                                 S.Sq 2
                             )
                         )
-            case stationaryDistribution (certified matrix) of
-                Left IllConditionedSystem{} -> pure ()
-                result ->
-                    expectationFailure
-                        ("expected IllConditionedSystem, got " ++ show result)
+            entries (checked (stationaryDistribution (certified matrix)))
+                `shouldBe` [0.5, 0.5]
+
+        it "solves an asymmetric nearly uncoupled chain" $ do
+            -- For [[1-a, a], [b, 1-b]] the stationary law is
+            -- (b, a) / (a + b), here (3/4, 1/4) at a scale where forming
+            -- transpose(P) - I would destroy every significant digit.
+            let leaving = 1e-14
+                returning = 3e-14
+                matrix =
+                    checked
+                        ( mkTransitionMatrix @(Finite 2)
+                            ( S.matrix
+                                [ 1 - leaving
+                                , leaving
+                                , returning
+                                , 1 - returning
+                                ] ::
+                                S.Sq 2
+                            )
+                        )
+            entries (checked (stationaryDistribution (certified matrix)))
+                `shouldSatisfy` allCloseTo [0.75, 0.25]
 
     describe "classStationaryDistributions" $ do
         it "returns one distribution per recurrent class, by least member" $

@@ -13,11 +13,21 @@ all. Every stationary distribution of the chain is a convex combination of
 these, and a chain with two or more recurrent classes therefore has
 infinitely many.
 
-Both entry points share one solve: a dependent balance equation is replaced
-by the normalization equation and the system goes through a checked LU
-factorisation. Results are not clamped or renormalised. Non-finite, singular,
-ill-conditioned, and high-residual systems return an explicit
-'LinearSystemError'.
+Both entry points share one solver, the Grassmann-Taksar-Heyman state
+reduction. GTH never forms @transpose(P) - I@ and performs no subtraction at
+all: every step adds, multiplies or divides non-negative quantities, so the
+cancellation that ruins a balance solve on a nearly uncoupled chain cannot
+occur. It costs the same @O(m^3)@ as an LU factorisation and returns the
+stationary vector to full relative accuracy.
+
+Both call sites supply an irreducible block -- 'stationaryDistribution' by its
+witness, 'classStationaryDistributions' because a closed communicating class
+restricted to itself is irreducible -- which is exactly the condition under
+which no elimination step can divide by zero. An 'IllConditionedSystem' is
+therefore unreachable here, unlike in the hitting- and return-time solves that
+share the error type. Results are not clamped or renormalised; a non-finite
+input or solution, and a residual @|pi P - pi|@ above @1e-9@, are still
+reported explicitly.
 -}
 module Dtmc.Analysis.Stationary (
     LinearSystemError (..),
@@ -25,6 +35,18 @@ module Dtmc.Analysis.Stationary (
     classStationaryDistributions,
 ) where
 
+import Control.Monad.ST (
+    ST,
+    runST,
+ )
+import Data.Array.MArray (
+    newListArray,
+    readArray,
+    writeArray,
+ )
+import Data.Array.ST (
+    STUArray,
+ )
 import Data.Array.Unboxed qualified as Unboxed
 import Data.Finite (
     getFinite,
@@ -44,7 +66,6 @@ import Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
  )
 import Dtmc.Analysis.LinearSystem.Internal (
-    solveLinearSystem,
     subMatrix,
  )
 import Dtmc.Distribution.Vector.Internal (
@@ -68,33 +89,126 @@ import Numeric.LinearAlgebra.Static qualified as S
 toIndex :: (FiniteState state) => state -> Int
 toIndex = fromIntegral . getFinite . stateIndex
 
-{- | The stationary vector of a non-empty stochastic block, as a dynamically
-sized vector in the block's own ordering.
+{- | The stationary vector of a non-empty irreducible stochastic block, in the
+block's own ordering, by Grassmann-Taksar-Heyman state reduction.
 
-One balance equation is dependent on the others, so the last row of the
-system is replaced by @sum pi = 1@. A @1 x 1@ block reduces to @1 * x = 1@
-and needs no balance row at all.
+The reduction removes states one at a time. Censoring the chain on
+@{1, ..., k-1}@ -- watching it only when it is outside @k@ -- leaves a Markov
+chain with the same stationary distribution up to normalisation, and its
+transition probabilities are
 
-Time: @O(m^3)@ for an @m x m@ block.
+@P'(i,j) = P(i,j) + P(i,k) P(k,j) / S,   S = sum_(j < k) P(k,j)@,
+
+read as: reach @j@ directly, or by entering @k@ and leaving it at @j@. This is
+the same elimination order as Gaussian elimination, arranged so that no
+subtraction appears. In particular @S@ is accumulated from the off-diagonal
+entries rather than as @1 - P(k,k)@, which is what saves a state that holds
+probability close to one: the difference would lose most of its significant
+digits while the sum loses none.
+
+The back substitution reads @x(k) = sum_(i < k) x(i) P(i,k)@ off the stored
+factors, @x(k)@ being the expected number of visits to @k@ per visit to the
+first state in the chain censored on @{1, ..., k}@ -- non-negative, so it does
+not cancel either. Normalising gives @pi@.
+
+An irreducible block makes @S > 0@ at every step, since the censored chain is
+again irreducible and its last state must be able to leave. A reducible block
+reaches @S = 0@ and is reported as 'SingularSystem'.
+
+Time: @O(m^3)@ for an @m x m@ block. Space: @O(m^2)@.
 -}
 stationaryOfBlock ::
     LA.Matrix Double ->
     Either LinearSystemError (LA.Vector Double)
-stationaryOfBlock block =
-    LA.flatten <$> solveLinearSystem coefficient rightHandSide
+stationaryOfBlock block
+    | dimension == 0 = Left SingularSystem
+    | not (all isFinite (LA.toList (LA.flatten block))) = Left NonFiniteSystem
+    | otherwise =
+        case reduceGth dimension (LA.toList (LA.flatten block)) of
+            Nothing -> Left SingularSystem
+            Just weights -> normalise weights
   where
     dimension = LA.rows block
-    balanceRows = LA.toLists (LA.tr block - LA.ident dimension)
-    coefficient =
-        LA.fromLists
-            ( take (dimension - 1) balanceRows
-                ++ [replicate dimension 1]
-            )
-    rightHandSide =
-        LA.fromLists
-            ( replicate (dimension - 1) [0]
-                ++ [[1]]
-            )
+    normalise weights
+        | not (all isFinite weights) = Left NonFiniteSolution
+        | total <= 0 = Left SingularSystem
+        | residual > limit =
+            Left
+                ( ResidualTooLarge
+                    { relativeResidual = residual
+                    , residualLimit = limit
+                    }
+                )
+        | otherwise = Right stationary
+      where
+        limit = 1e-9
+        total = sum weights
+        stationary = LA.fromList (map (/ total) weights)
+        residual =
+            foldr
+                max
+                0
+                ( map
+                    abs
+                    (LA.toList (LA.tr block LA.#> stationary - stationary))
+                )
+
+isFinite :: Double -> Bool
+isFinite value = not (isNaN value || isInfinite value)
+
+-- Allocating through a signature that quantifies the state thread keeps the
+-- array type unambiguous without local annotations inside 'runST'.
+newFlatArray :: (Int, Int) -> [Double] -> ST s (STUArray s Int Double)
+newFlatArray = newListArray
+
+{- | The unnormalised GTH weights of an @n x n@ block given row-major, or
+'Nothing' when an elimination step finds no way out of the state it is
+removing.
+-}
+reduceGth :: Int -> [Double] -> Maybe [Double]
+reduceGth n entries = runST $ do
+    a <- newFlatArray (0, n * n - 1) entries
+    let index i j = i * n + j
+
+        exitMass k =
+            sum <$> mapM (\j -> readArray a (index k j)) [0 .. k - 1]
+
+        absorbRow k s i = do
+            entering <- readArray a (index i k)
+            let scaled = entering / s
+            writeArray a (index i k) scaled
+            mapM_
+                ( \j -> do
+                    leaving <- readArray a (index k j)
+                    current <- readArray a (index i j)
+                    writeArray a (index i j) (current + scaled * leaving)
+                )
+                [0 .. k - 1]
+
+        eliminate k
+            | k < 1 = pure True
+            | otherwise = do
+                s <- exitMass k
+                if s <= 0
+                    then pure False
+                    else do
+                        mapM_ (absorbRow k s) [0 .. k - 1]
+                        eliminate (k - 1)
+
+        -- visits holds x(0) .. x(k-1) in order.
+        substitute k visits
+            | k >= n = pure visits
+            | otherwise = do
+                terms <-
+                    mapM
+                        (\(i, x) -> (x *) <$> readArray a (index i k))
+                        (zip [0 ..] visits)
+                substitute (k + 1) (visits ++ [sum terms])
+
+    feasible <- eliminate (n - 1)
+    if feasible
+        then Just <$> substitute 1 [1]
+        else pure Nothing
 
 {- | The unique stationary distribution of a certified finite irreducible
 chain. The witness cannot exist for an empty chain. Coordinates follow the
