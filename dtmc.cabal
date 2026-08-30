@@ -51,6 +51,7 @@ library
       Dtmc.Analysis.Event
       Dtmc.Analysis.FiniteTime
       Dtmc.Analysis.Expectation
+      Dtmc.Analysis.Limiting
       Dtmc.Analysis.LinearSystem
       Dtmc.Analysis.HittingTime
       Dtmc.Analysis.ReturnTime
@@ -107,6 +108,7 @@ test-suite spec
       Dtmc.Analysis.HittingTimeSpec
       Dtmc.Analysis.ReturnTimeSpec
       Dtmc.Analysis.VisitCountSpec
+      Dtmc.Analysis.LimitingSpec
       Dtmc.Analysis.StationarySpec
       Dtmc.Analysis.TimeSpecSupport
       Dtmc.Transition.KernelSpec
