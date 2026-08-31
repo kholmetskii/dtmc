@@ -10,7 +10,6 @@ import Data.Finite (
 import Data.List.NonEmpty (
     NonEmpty ((:|)),
  )
-import Dtmc qualified as Core
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
     matchesDiscreteEvent,
@@ -19,6 +18,14 @@ import Dtmc.Analysis.FiniteTime qualified as FT
 import Dtmc.Analysis.HittingTime qualified as Hit
 import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.VisitCount qualified as Visit
+import Dtmc.Distribution.Vector (
+    DistributionVector,
+    mkDistributionVector,
+ )
+import Dtmc.Transition.Matrix (
+    TransitionMatrix,
+    mkTransitionMatrix,
+ )
 import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
@@ -27,17 +34,17 @@ import Test.Hspec (
     shouldBe,
  )
 
-matrix :: Core.TransitionMatrix (Finite 2)
+matrix :: TransitionMatrix (Finite 2)
 matrix =
     checked
-        ( Core.mkTransitionMatrix
+        ( mkTransitionMatrix
             (S.matrix [0.5, 0.5, 0, 1] :: S.Sq 2)
         )
 
-initial :: Core.DistributionVector (Finite 2)
+initial :: DistributionVector (Finite 2)
 initial =
     checked
-        (Core.mkDistributionVector (S.vector [1, 0] :: S.R 2))
+        (mkDistributionVector (S.vector [1, 0] :: S.R 2))
 
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id

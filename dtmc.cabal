@@ -37,7 +37,6 @@ library
   hs-source-dirs:   src
 
   exposed-modules:
-      Dtmc
       Dtmc.Simplex
       Dtmc.State
       Dtmc.Distribution
@@ -115,7 +114,7 @@ test-suite spec
       Dtmc.Analysis.TimeSpecSupport
       Dtmc.Transition.KernelSpec
       Dtmc.Transition.InterfaceSpec
-      Dtmc.FacadeSpec
+      Dtmc.IntegrationSpec
       Dtmc.TestSupport
 
   build-depends:

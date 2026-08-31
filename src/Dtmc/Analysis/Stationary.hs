@@ -145,13 +145,7 @@ stationaryOfBlock block
         total = sum weights
         stationary = LA.fromList (map (/ total) weights)
         residual =
-            foldr
-                max
-                0
-                ( map
-                    abs
-                    (LA.toList (LA.tr block LA.#> stationary - stationary))
-                )
+            foldr (max . abs) 0 (LA.toList (LA.tr block LA.#> stationary - stationary))
 
 isFinite :: Double -> Bool
 isFinite value = not (isNaN value || isInfinite value)
@@ -171,7 +165,7 @@ reduceGth n entries = runST $ do
     let index i j = i * n + j
 
         exitMass k =
-            sum <$> mapM (\j -> readArray a (index k j)) [0 .. k - 1]
+            sum <$> mapM (readArray a . index k) [0 .. k - 1]
 
         absorbRow k s i = do
             entering <- readArray a (index i k)

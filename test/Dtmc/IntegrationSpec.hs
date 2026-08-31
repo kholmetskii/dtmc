@@ -1,16 +1,41 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Dtmc.FacadeSpec (
+module Dtmc.IntegrationSpec (
     spec,
 ) where
 
-import Dtmc
+import Dtmc.Analysis.Classification (
+    absorbingStates,
+    classify,
+    reachesAny,
+    witnessIrreducible,
+ )
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
  )
+import Dtmc.Analysis.Expectation (
+    Expectation (..),
+ )
 import Dtmc.Analysis.FiniteTime qualified as FT
 import Dtmc.Analysis.HittingTime qualified as Hit
+import Dtmc.Analysis.Stationary (
+    stationaryDistribution,
+ )
 import Dtmc.Analysis.VisitCount qualified as Visit
+import Dtmc.Distribution (
+    Distribution (..),
+ )
+import Dtmc.Distribution.Vector (
+    DistributionVector,
+    mkDistributionVector,
+ )
+import Dtmc.State (
+    FiniteState,
+ )
+import Dtmc.Transition.Matrix (
+    TransitionMatrix,
+    mkTransitionMatrix,
+ )
 import GHC.Generics (
     Generic,
  )
@@ -209,7 +234,7 @@ cafeTransition =
 
 spec :: Spec
 spec =
-    describe "Dtmc facade" $ do
+    describe "public module integration" $ do
         it "computes a stationary distribution" $ do
             abs (probabilityAt weatherStationary Dry - 0.8) < 1e-12
                 `shouldBe` True
