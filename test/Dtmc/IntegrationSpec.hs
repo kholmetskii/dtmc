@@ -278,19 +278,19 @@ spec =
             reachesAny cafeTransition Thinking [Leave] `shouldBe` True
             absorbingStates (classify cafeTransition) `shouldBe` [Leave]
             abs
-                (checked (Hit.eventualProbability cafeTransition [Leave] Thinking) - 1)
+                (checked (Hit.eventualProbabilityGivenInitialState cafeTransition [Leave] Thinking) - 1)
                 < 1e-12
                 `shouldBe` True
             abs
                 ( checked
-                    (Hit.eventualProbability cafeTransition [Drink] Thinking)
+                    (Hit.eventualProbabilityGivenInitialState cafeTransition [Drink] Thinking)
                     - 4 / 43
                 )
                 < 1e-12
                 `shouldBe` True
             abs
                 ( checked
-                    ( Hit.raceProbability
+                    ( Hit.raceProbabilityGivenInitialState
                         cafeTransition
                         [PlainWaffle, ChocolateWaffle]
                         [Drink, Leave]
@@ -306,11 +306,11 @@ spec =
                 `shouldBe` 1
 
         it "uses qualified infinite-horizon total visit-count analysis" $ do
-            checked (Visit.infiniteProbability weatherTransition Dry Wet)
+            checked (Visit.infiniteProbabilityGivenInitialState weatherTransition Dry Wet)
                 `shouldBe` 1
-            checked (Visit.totalProbability (EqualTo 1) weatherTransition Dry Wet)
+            checked (Visit.totalProbabilityGivenInitialState (EqualTo 1) weatherTransition Dry Wet)
                 `shouldBe` 0
-            checked (Visit.totalExpectation weatherTransition Dry Wet)
+            checked (Visit.totalExpectationGivenInitialState weatherTransition Dry Wet)
                 `shouldBe` InfiniteExpectation
 
         it "uses qualified conditional-probability errors" $

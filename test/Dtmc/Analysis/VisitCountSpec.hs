@@ -26,10 +26,7 @@ import Dtmc.Distribution (
     distributionWeights,
  )
 import Dtmc.Distribution.Map qualified as DistributionMap
-import Dtmc.TestSupport (
-    genTransitionMatrix,
-    testTolerance,
- )
+import Dtmc.TestSupport
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -158,7 +155,7 @@ spec = do
     describe "totalProbabilityByState" $ do
         it "matches the geometric law for a transient target" $ do
             let probabilities count =
-                    entries (checked ((Visit.totalProbabilityByState . EqualTo) count transientVisitChain 0))
+                    entries (checked ((visitTotalProbabilityByState . EqualTo) count transientVisitChain 0))
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
@@ -174,32 +171,32 @@ spec = do
                 | (actual, expected) <-
                     zip (probabilities 3) [3 / 64, 3 / 128, 0]
                 ]
-            entries (checked (Visit.infiniteProbabilityByState transientVisitChain 0))
+            entries (checked (visitInfiniteProbabilityByState transientVisitChain 0))
                 `shouldBe` [0, 0, 0]
 
         it "puts all positive recurrent-target mass at infinity" $ do
             entries
-                (checked ((Visit.totalProbabilityByState . EqualTo) 1 recurrentVisitChain 2))
+                (checked ((visitTotalProbabilityByState . EqualTo) 1 recurrentVisitChain 2))
                 `shouldBe` [0, 0, 0, 0]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
                     zip
-                        (entries (checked (Visit.infiniteProbabilityByState recurrentVisitChain 2)))
+                        (entries (checked (visitInfiniteProbabilityByState recurrentVisitChain 2)))
                         [2 / 3, 1 / 3, 1, 0]
                 ]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
                     zip
-                        (entries (checked ((Visit.totalProbabilityByState . EqualTo) 0 recurrentVisitChain 2)))
+                        (entries (checked ((visitTotalProbabilityByState . EqualTo) 0 recurrentVisitChain 2)))
                         [1 / 3, 2 / 3, 0, 1]
                 ]
 
         it "counts the target at time zero" $ do
-            checked ((Visit.totalProbability . EqualTo) 0 transientVisitChain 0 0)
+            checked ((Visit.totalProbabilityGivenInitialState . EqualTo) 0 transientVisitChain 0 0)
                 `shouldBe` 0
-            checked ((Visit.totalProbability . EqualTo) 1 transientVisitChain 0 0)
+            checked ((Visit.totalProbabilityGivenInitialState . EqualTo) 1 transientVisitChain 0 0)
                 `shouldSatisfy` closeTo (3 / 4)
 
         prop "scalar queries look up the all-state result (random @3)" $
@@ -209,22 +206,22 @@ spec = do
                     Right matrix ->
                         conjoin
                             [ conjoin
-                                [ case (Visit.totalProbabilityByState . EqualTo) count matrix 0 of
+                                [ case (visitTotalProbabilityByState . EqualTo) count matrix 0 of
                                     Left err -> counterexample (show err) False
                                     Right probabilities ->
                                         conjoin
-                                            [ (Visit.totalProbability . EqualTo) count matrix 0 initial
+                                            [ (Visit.totalProbabilityGivenInitialState . EqualTo) count matrix 0 initial
                                                 === Right probability
                                             | (initial, probability) <-
                                                 zip (finites :: [Finite 3]) (entries probabilities)
                                             ]
                                 | count <- [0, 1, 3]
                                 ]
-                            , case Visit.infiniteProbabilityByState matrix 0 of
+                            , case visitInfiniteProbabilityByState matrix 0 of
                                 Left err -> counterexample (show err) False
                                 Right probabilities ->
                                     conjoin
-                                        [ Visit.infiniteProbability matrix 0 initial
+                                        [ Visit.infiniteProbabilityGivenInitialState matrix 0 initial
                                             === Right probability
                                         | (initial, probability) <-
                                             zip (finites :: [Finite 3]) (entries probabilities)
@@ -233,18 +230,18 @@ spec = do
 
     describe "totalExpectationByState" $ do
         it "matches h / (1 - f) for a transient target" $ do
-            let expectations = checked (Visit.totalExpectationByState transientVisitChain 0)
+            let expectations = checked (visitTotalExpectationByState transientVisitChain 0)
             sequence_
                 [ expectation `shouldSatisfy` expectationCloseTo expected
                 | (expectation, expected) <- zip expectations [4 / 3, 2 / 3, 0]
                 ]
-            checked (Visit.totalExpectation transientVisitChain 0 1)
+            checked (Visit.totalExpectationGivenInitialState transientVisitChain 0 1)
                 `shouldSatisfy` expectationCloseTo (2 / 3)
 
         it "is infinite exactly where a recurrent target is reachable" $ do
-            checked (Visit.totalExpectationByState recurrentVisitChain 2)
+            checked (visitTotalExpectationByState recurrentVisitChain 2)
                 `shouldBe` [InfiniteExpectation, InfiniteExpectation, InfiniteExpectation, FiniteExpectation 0]
-            checked (Visit.totalExpectation recurrentVisitChain 2 3)
+            checked (Visit.totalExpectationGivenInitialState recurrentVisitChain 2 3)
                 `shouldBe` FiniteExpectation 0
 
         prop "agrees with hitting, return, recurrence, and reachability (random @3)" $
@@ -253,13 +250,13 @@ spec = do
                     Left err -> counterexample (show err) False
                     Right matrix ->
                         case do
-                            hits <- Hit.eventualProbabilityByState matrix [0]
-                            returning <- Return.eventualProbability matrix 0
-                            zeroVisits <- (Visit.totalProbabilityByState . EqualTo) 0 matrix 0
-                            oneVisit <- (Visit.totalProbabilityByState . EqualTo) 1 matrix 0
-                            twoVisits <- (Visit.totalProbabilityByState . EqualTo) 2 matrix 0
-                            infiniteVisits <- Visit.infiniteProbabilityByState matrix 0
-                            expectations <- Visit.totalExpectationByState matrix 0
+                            hits <- hitEventualProbabilityByState matrix [0]
+                            returning <- Return.eventualProbabilityGivenInitialState matrix 0
+                            zeroVisits <- (visitTotalProbabilityByState . EqualTo) 0 matrix 0
+                            oneVisit <- (visitTotalProbabilityByState . EqualTo) 1 matrix 0
+                            twoVisits <- (visitTotalProbabilityByState . EqualTo) 2 matrix 0
+                            infiniteVisits <- visitInfiniteProbabilityByState matrix 0
+                            expectations <- visitTotalExpectationByState matrix 0
                             pure
                                 ( hits
                                 , returning
@@ -454,7 +451,7 @@ spec = do
                                 conjoin
                                     [ counterexample
                                         (show (i, j, entry))
-                                        (agreesWithSingle entry (Visit.totalExpectation p j i))
+                                        (agreesWithSingle entry (Visit.totalExpectationGivenInitialState p j i))
                                     | (i, row) <- zip (finites :: [Finite 3]) rows
                                     , (j, entry) <- zip (finites :: [Finite 3]) row
                                     ]

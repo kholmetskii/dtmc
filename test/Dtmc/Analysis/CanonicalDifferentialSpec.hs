@@ -33,11 +33,7 @@ import Dtmc.Distribution.Vector (
     DistributionVector,
     mkDistributionVector,
  )
-import Dtmc.TestSupport (
-    approxEq,
-    genTransitionMatrix,
-    testTolerance,
- )
+import Dtmc.TestSupport
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     mkTransitionMatrix,
@@ -70,9 +66,15 @@ terminalChain =
     checked
         ( mkTransitionMatrix
             ( S.matrix
-                [ 0, 0.5, 0.5
-                , 0, 0, 1
-                , 0, 0, 1
+                [ 0
+                , 0.5
+                , 0.5
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 1
                 ] ::
                 S.Sq 3
             )
@@ -162,8 +164,8 @@ finiteAndBoundedChecks matrix =
         and
             [ let law = Oracle.hittingLaw 4 matrix target source
                   exact = known (Oracle.lawProbability (EqualTo time) law)
-                  dense = entries (Hit.probabilityByState (EqualTo time) matrix [2])
-               in close (Hit.probability (EqualTo time) matrix target source) exact
+                  dense = entries (hitProbabilityByState (EqualTo time) matrix [2])
+               in close (Hit.probabilityGivenInitialState (EqualTo time) matrix target source) exact
                     && close (dense !! fromIntegral source) exact
             | source <- finites
             , time <- [0 .. 4]
@@ -171,9 +173,9 @@ finiteAndBoundedChecks matrix =
             && and
                 [ let law = Oracle.hittingLaw 4 matrix target source
                       bounded = known (Oracle.lawProbability (LessThan bound) law)
-                      dense = entries (Hit.probabilityByState (LessThan bound) matrix [2])
+                      dense = entries (hitProbabilityByState (LessThan bound) matrix [2])
                    in close
-                        (Hit.probability (LessThan bound) matrix target source)
+                        (Hit.probabilityGivenInitialState (LessThan bound) matrix target source)
                         bounded
                         && close (dense !! fromIntegral source) bounded
                 | source <- finites
@@ -183,8 +185,8 @@ finiteAndBoundedChecks matrix =
         and
             [ let law = Oracle.returnLaw 4 matrix source
                   exact = known (Oracle.lawProbability (EqualTo time) law)
-                  dense = entries (Return.probabilityByState (EqualTo time) matrix)
-               in close (Return.probability (EqualTo time) matrix source) exact
+                  dense = entries (returnProbabilityByState (EqualTo time) matrix)
+               in close (Return.probabilityGivenInitialState (EqualTo time) matrix source) exact
                     && close (dense !! fromIntegral source) exact
             | source <- finites
             , time <- [0 .. 4]
@@ -192,9 +194,9 @@ finiteAndBoundedChecks matrix =
             && and
                 [ let law = Oracle.returnLaw 4 matrix source
                       bounded = known (Oracle.lawProbability (LessThan bound) law)
-                      dense = entries (Return.probabilityByState (LessThan bound) matrix)
+                      dense = entries (returnProbabilityByState (LessThan bound) matrix)
                    in close
-                        (Return.probability (LessThan bound) matrix source)
+                        (Return.probabilityGivenInitialState (LessThan bound) matrix source)
                         bounded
                         && close (dense !! fromIntegral source) bounded
                 | source <- finites
@@ -203,17 +205,17 @@ finiteAndBoundedChecks matrix =
     visitChecks =
         and
             [ let law =
-                      Oracle.visitLawBefore
-                          bound
-                          initialWeights
-                          matrix
-                          target
+                    Oracle.visitLawBefore
+                        bound
+                        initialWeights
+                        matrix
+                        target
                   distribution =
-                      Visit.boundedLaw
-                          bound
-                          initialDistribution
-                          matrix
-                          target
+                    Visit.boundedLaw
+                        bound
+                        initialDistribution
+                        matrix
+                        target
                   expected = known (Oracle.lawFiniteExpectation law)
                in and
                     [ close
@@ -261,12 +263,12 @@ terminalChecks =
     hitValues = map eventual hitLaws
     returnValues = map eventual returnLaws
     hittingEventualChecks =
-        case Hit.eventualProbabilityByState terminalChain [1] of
+        case hitEventualProbabilityByState terminalChain [1] of
             Left _ -> False
             Right dense ->
                 and (zipWith close (entries dense) hitValues)
                     && and
-                        [ rightClose expected (Hit.eventualProbability terminalChain [1] state)
+                        [ rightClose expected (Hit.eventualProbabilityGivenInitialState terminalChain [1] state)
                         | (state, expected) <- zip states hitValues
                         ]
     raceValues =
@@ -279,19 +281,19 @@ terminalChecks =
         | state <- states
         ]
     hittingRaceChecks =
-        case Hit.raceProbabilityByState terminalChain [1] [2] of
+        case hitRaceProbabilityByState terminalChain [1] [2] of
             Left _ -> False
             Right dense ->
                 and (zipWith close (entries dense) raceValues)
                     && and
                         [ rightClose
                             expected
-                            (Hit.raceProbability terminalChain [1] [2] state)
+                            (Hit.raceProbabilityGivenInitialState terminalChain [1] [2] state)
                         | (state, expected) <- zip states raceValues
                         ]
     hitExpectations = map Oracle.lawFiniteExpectation hitLaws
     hittingExpectationChecks =
-        case Hit.expectationByState terminalChain [1] of
+        case hitExpectationByState terminalChain [1] of
             Left _ -> False
             Right actual ->
                 and (zipWith expectationClose hitExpectations actual)
@@ -299,21 +301,21 @@ terminalChecks =
                         [ either
                             (const False)
                             (expectationClose expected)
-                            (Hit.expectation terminalChain [1] state)
+                            (Hit.expectationGivenInitialState terminalChain [1] state)
                         | (state, expected) <- zip states hitExpectations
                         ]
     returnEventualChecks =
-        case Return.eventualProbabilityByState terminalChain of
+        case returnEventualProbabilityByState terminalChain of
             Left _ -> False
             Right dense ->
                 and (zipWith close (entries dense) returnValues)
                     && and
-                        [ rightClose expected (Return.eventualProbability terminalChain state)
+                        [ rightClose expected (Return.eventualProbabilityGivenInitialState terminalChain state)
                         | (state, expected) <- zip states returnValues
                         ]
     returnExpectations = map Oracle.lawFiniteExpectation returnLaws
     returnExpectationChecks =
-        case Return.expectationByState terminalChain of
+        case returnExpectationByState terminalChain of
             Left _ -> False
             Right actual ->
                 and (zipWith expectationClose returnExpectations actual)
@@ -321,7 +323,7 @@ terminalChecks =
                         [ either
                             (const False)
                             (expectationClose expected)
-                            (Return.expectation terminalChain state)
+                            (Return.expectationGivenInitialState terminalChain state)
                         | (state, expected) <- zip states returnExpectations
                         ]
     visitLaws =
@@ -331,7 +333,7 @@ terminalChecks =
     visitExpectations = map Oracle.lawFiniteExpectation visitLaws
     totalVisitChecks =
         and
-            [ case Visit.totalProbabilityByState (EqualTo count) terminalChain 1 of
+            [ case visitTotalProbabilityByState (EqualTo count) terminalChain 1 of
                 Left _ -> False
                 Right dense ->
                     and
@@ -339,19 +341,19 @@ terminalChecks =
                            in close (entries dense !! fromIntegral state) expected
                                 && rightClose
                                     expected
-                                    (Visit.totalProbability (EqualTo count) terminalChain 1 state)
+                                    (Visit.totalProbabilityGivenInitialState (EqualTo count) terminalChain 1 state)
                         | (state, law) <- zip states visitLaws
                         ]
             | count <- [0 .. 2]
             ]
-            && case Visit.infiniteProbabilityByState terminalChain 1 of
+            && case visitInfiniteProbabilityByState terminalChain 1 of
                 Left _ -> False
                 Right dense ->
                     entries dense == [0, 0, 0]
                         && all
-                            (rightClose 0 . Visit.infiniteProbability terminalChain 1)
+                            (rightClose 0 . Visit.infiniteProbabilityGivenInitialState terminalChain 1)
                             states
-            && case Visit.totalExpectationByState terminalChain 1 of
+            && case visitTotalExpectationByState terminalChain 1 of
                 Left _ -> False
                 Right actual ->
                     and (zipWith expectationClose visitExpectations actual)
@@ -359,7 +361,7 @@ terminalChecks =
                             [ either
                                 (const False)
                                 (expectationClose expected)
-                                (Visit.totalExpectation terminalChain 1 state)
+                                (Visit.totalExpectationGivenInitialState terminalChain 1 state)
                             | (state, expected) <- zip states visitExpectations
                             ]
 

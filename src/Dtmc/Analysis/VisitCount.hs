@@ -22,14 +22,16 @@ module Dtmc.Analysis.VisitCount (
     LinearSystemError (..),
     Expectation (..),
     totalProbability,
-    totalProbabilityByState,
+    totalProbabilityGivenInitialState,
     infiniteProbability,
-    infiniteProbabilityByState,
+    infiniteProbabilityGivenInitialState,
     totalExpectation,
-    totalExpectationByState,
+    totalExpectationGivenInitialState,
     boundedLaw,
     boundedProbability,
+    boundedProbabilityGivenInitialState,
     boundedExpectation,
+    boundedExpectationGivenInitialState,
     occupationMatrix,
 ) where
 
@@ -44,24 +46,27 @@ import Dtmc.Analysis.Classification (
     accessible,
     recurrentState,
  )
-import Dtmc.Analysis.Expectation (
-    Expectation (..),
- )
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
     matchesDiscreteEvent,
  )
-import Dtmc.Analysis.HittingTime (
-    eventualProbabilityByState,
+import Dtmc.Analysis.Expectation (
+    Expectation (..),
+ )
+import Dtmc.Analysis.HittingTime qualified as Hit
+import Dtmc.Analysis.Initial.Internal (
+    expectationUnderEither,
+    probabilityUnderEither,
  )
 import Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
  )
-import Dtmc.Analysis.ReturnTime (
-    eventualProbability,
- )
+import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Distribution (
     Distribution (..),
+ )
+import Dtmc.Distribution.Map (
+    pointMass,
  )
 import Dtmc.Distribution.Map.Internal (
     DistributionMap (DistributionMap),
@@ -106,8 +111,8 @@ Recurrence is decided from the support graph, not by comparing a computed
 return probability with one.
 
 Structural zero cases avoid a linear solve. Other cases inherit the numerical
-behavior and errors of 'eventualProbabilityByState' and
-'eventualProbability'.
+behavior and errors of the state-conditioned eventual hitting and return
+queries.
 -}
 visitCountProbabilities ::
     forall state.
@@ -121,11 +126,16 @@ visitCountProbabilities count matrix target
     | recurrentState matrix target = Right zeroProbabilities
     | otherwise = do
         hits <- hitting
-        returning <- eventualProbability matrix target
+        returning <- Return.eventualProbabilityGivenInitialState matrix target
         let finiteMass = returning ^ (count - 1) * (1 - returning)
         pure (mapProbabilities (* finiteMass) hits)
   where
-    hitting = eventualProbabilityByState matrix [target]
+    hitting :: Either LinearSystemError (S.R (Cardinality state))
+    hitting =
+        S.vector
+            <$> traverse
+                (Hit.eventualProbabilityGivenInitialState matrix [target])
+                finiteStates
     zeroProbabilities = S.vector [0 | _ <- finiteStates @state]
     mapProbabilities transform =
         S.vector . map transform . LA.toList . S.extract
@@ -136,7 +146,8 @@ target returns its hitting probabilities; a transient target returns an exact
 zero vector without a linear solve.
 
 Recurrence is decided from the support graph. The recurrent case inherits the
-numerical behavior and errors of 'eventualProbabilityByState'.
+numerical behavior and errors of
+'Dtmc.Analysis.HittingTime.eventualProbabilityGivenInitialState'.
 -}
 infiniteVisitProbabilities ::
     forall state.
@@ -145,7 +156,11 @@ infiniteVisitProbabilities ::
     state ->
     Either LinearSystemError (S.R (Cardinality state))
 infiniteVisitProbabilities matrix target
-    | recurrentState matrix target = eventualProbabilityByState matrix [target]
+    | recurrentState matrix target =
+        S.vector
+            <$> traverse
+                (Hit.eventualProbabilityGivenInitialState matrix [target])
+                finiteStates
     | otherwise = Right (S.vector [0 | _ <- finiteStates @state])
 
 {- | Probability of infinitely many visits from one initial state. Argument
@@ -171,7 +186,7 @@ unreachable from @j@ and 'InfiniteExpectation' otherwise. The recurrent case
 is decided entirely from the support graph and requires no linear solve.
 
 Transient results inherit the numerical behavior and errors of
-'eventualProbabilityByState' and 'eventualProbability'.
+the state-conditioned eventual hitting and return queries.
 -}
 visitCountExpectations ::
     (FiniteState state) =>
@@ -187,11 +202,14 @@ visitCountExpectations matrix target
             | initial <- finiteStates
             ]
     | otherwise = do
-        hits <- eventualProbabilityByState matrix [target]
-        returning <- eventualProbability matrix target
+        hits <-
+            traverse
+                (Hit.eventualProbabilityGivenInitialState matrix [target])
+                finiteStates
+        returning <- Return.eventualProbabilityGivenInitialState matrix target
         pure
             [ FiniteExpectation (hit / (1 - returning))
-            | hit <- LA.toList (S.extract hits)
+            | hit <- hits
             ]
 
 {- | Expected total visits to the target from one initial state. Argument
@@ -312,8 +330,9 @@ visitCountExpectationBefore bound initial transition isVisited =
                     let next = pushSparseWeights weights transition
                      in cumulative `seq` next `seq` go (remaining - 1) next cumulative
 
-{- | Probability of a finite-threshold event in the total number of visits
-@V_i = sum_(t = 0)^infinity 1_{X_t = i}@ from one initial state.
+{- | Probability under an arbitrary initial distribution of a finite-threshold
+event in the total number of visits
+@V_i = sum_(t = 0)^infinity 1_{X_t = i}@.
 
 The initial state at time zero is included. Upper-tail events include the atom
 at infinity. For @h_ji = P_j(H_i < infinity)@ and transient-target return
@@ -321,17 +340,31 @@ probability @f_i@, the implementation evaluates
 @P_j(V_i > n) = h_ji f_i^n@ directly. Recurrent targets use support
 classification, so their positive mass is placed structurally at infinity.
 
-This scalar query shares the all-state solve performed by
-'totalProbabilityByState'.
+The implementation mixes the internally shared state-conditioned results
+under the supplied initial distribution.
 -}
 totalProbability ::
+    ( FiniteState state
+    , Distribution distribution
+    , DistributionState distribution ~ state
+    ) =>
+    DiscreteEvent ->
+    TransitionMatrix state ->
+    state ->
+    distribution ->
+    Either LinearSystemError Double
+totalProbability event matrix target initial =
+    probabilityUnderEither initial (totalProbabilityGivenInitialState event matrix target)
+
+-- | Probability of a total-visit event conditioned on @X_0 = j@.
+totalProbabilityGivenInitialState ::
     (FiniteState state) =>
     DiscreteEvent ->
     TransitionMatrix state ->
     state ->
     state ->
     Either LinearSystemError Double
-totalProbability event matrix target =
+totalProbabilityGivenInitialState event matrix target =
     \initial -> (`LA.atIndex` toIndex initial) <$> probabilities
   where
     probabilities = S.extract <$> totalProbabilityByState event matrix target
@@ -362,7 +395,12 @@ totalProbabilityByState event matrix target =
         AtLeast count -> after (count - 1)
   where
     recurrent = recurrentState matrix target
-    hits = eventualProbabilityByState matrix [target]
+    hits :: Either LinearSystemError (S.R (Cardinality state))
+    hits =
+        S.vector
+            <$> traverse
+                (Hit.eventualProbabilityGivenInitialState matrix [target])
+                finiteStates
     zeros = S.vector [0 | _ <- finiteStates @state]
     ones = S.vector [1 | _ <- finiteStates @state]
     mapValues transform =
@@ -372,7 +410,7 @@ totalProbabilityByState event matrix target =
         | recurrent = mapValues (1 -) <$> hits
         | otherwise = do
             hitValues <- hits
-            returning <- eventualProbability matrix target
+            returning <- Return.eventualProbabilityGivenInitialState matrix target
             pure
                 ( mapValues
                     (\hit -> 1 - hit * returning ^ count)
@@ -384,46 +422,54 @@ totalProbabilityByState event matrix target =
         | count == 0 = hits
         | otherwise = do
             hitValues <- hits
-            returning <- eventualProbability matrix target
+            returning <- Return.eventualProbabilityGivenInitialState matrix target
             pure (mapValues (* (returning ^ count)) hitValues)
 
-{- | Probability of infinitely many visits from one initial state.
+{- | Probability under an arbitrary initial distribution of infinitely many
+visits.
 -}
 infiniteProbability ::
+    ( FiniteState state
+    , Distribution distribution
+    , DistributionState distribution ~ state
+    ) =>
+    TransitionMatrix state ->
+    state ->
+    distribution ->
+    Either LinearSystemError Double
+infiniteProbability matrix target initial =
+    probabilityUnderEither initial (infiniteVisitProbability matrix target)
+
+-- | Probability of infinitely many visits conditioned on @X_0 = j@.
+infiniteProbabilityGivenInitialState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
     state ->
     Either LinearSystemError Double
-infiniteProbability = infiniteVisitProbability
+infiniteProbabilityGivenInitialState = infiniteVisitProbability
 
-{- | Probabilities of infinitely many visits in canonical initial-state order.
--}
-infiniteProbabilityByState ::
-    (FiniteState state) =>
+-- | Expected total visits under an arbitrary initial distribution.
+totalExpectation ::
+    ( FiniteState state
+    , Distribution distribution
+    , DistributionState distribution ~ state
+    ) =>
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError (S.R (Cardinality state))
-infiniteProbabilityByState = infiniteVisitProbabilities
+    distribution ->
+    Either LinearSystemError Expectation
+totalExpectation matrix target initial =
+    expectationUnderEither initial (visitCountExpectation matrix target)
 
-{- | Expected total visits from one initial state.
--}
-totalExpectation ::
+-- | Expected total visits conditioned on @X_0 = j@.
+totalExpectationGivenInitialState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
     state ->
     Either LinearSystemError Expectation
-totalExpectation = visitCountExpectation
-
-{- | Expected total visits in canonical initial-state order.
--}
-totalExpectationByState ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    state ->
-    Either LinearSystemError [Expectation]
-totalExpectationByState = visitCountExpectations
+totalExpectationGivenInitialState = visitCountExpectation
 
 {- | Exact law of visits strictly before a finite time bound. Visits at time zero are
 included when the bound is positive.
@@ -466,8 +512,21 @@ boundedProbability bound event initial transition isVisited =
   where
     law = boundedLaw bound initial transition isVisited
 
-{- | Expected visits strictly before a finite time bound.
--}
+-- | Probability of a bounded visit-count event conditioned on @X_0 = i@.
+boundedProbabilityGivenInitialState ::
+    ( Transition transition
+    , Ord (TransitionState transition)
+    ) =>
+    Natural ->
+    DiscreteEvent ->
+    TransitionState transition ->
+    transition ->
+    (TransitionState transition -> Bool) ->
+    Double
+boundedProbabilityGivenInitialState bound event initial =
+    boundedProbability bound event (pointMass initial)
+
+-- | Expected visits strictly before a finite time bound.
 boundedExpectation ::
     ( Distribution distribution
     , Transition transition
@@ -480,6 +539,21 @@ boundedExpectation ::
     (TransitionState transition -> Bool) ->
     Double
 boundedExpectation = visitCountExpectationBefore
+
+{- | Expected visits before a strict finite time bound conditioned on
+@X_0 = i@.
+-}
+boundedExpectationGivenInitialState ::
+    ( Transition transition
+    , Ord (TransitionState transition)
+    ) =>
+    Natural ->
+    TransitionState transition ->
+    transition ->
+    (TransitionState transition -> Bool) ->
+    Double
+boundedExpectationGivenInitialState bound initial =
+    boundedExpectation bound (pointMass initial)
 
 {- | The occupation matrix of the chain, also known as its Green function:
 entry @(i, j)@ is @sum_(n >= 0) (P^n)(i,j) = E(V_j | X_0 = i)@, the expected

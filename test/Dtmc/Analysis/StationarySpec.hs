@@ -245,20 +245,18 @@ spec = do
                 other -> expectationFailure ("unexpected result: " ++ show other)
 
         it "agrees with the irreducible witness on an irreducible chain" $
-            case
-                ( classStationaryDistributions twoState
-                , stationaryDistribution (certified twoState)
-                )
-                of
-                    (Right [(_, viaClasses)], Right viaWitness) ->
-                        entries viaClasses `shouldSatisfy` allCloseTo (entries viaWitness)
-                    other -> expectationFailure ("unexpected result: " ++ show other)
+            case ( classStationaryDistributions twoState
+                 , stationaryDistribution (certified twoState)
+                 ) of
+                (Right [(_, viaClasses)], Right viaWitness) ->
+                    entries viaClasses `shouldSatisfy` allCloseTo (entries viaWitness)
+                other -> expectationFailure ("unexpected result: " ++ show other)
 
         it "inverts the mean return time" $
             -- pi_i m_i = 1 for state 1 of the recurrent class {1, 2}
             case classStationaryDistributions twoClosedClasses of
                 Right [_, (_, onSecond)] ->
-                    Return.expectation twoClosedClasses 1
+                    Return.expectationGivenInitialState twoClosedClasses 1
                         `shouldSatisfy` inverts (entries onSecond !! 1)
                 other -> expectationFailure ("unexpected result: " ++ show other)
 

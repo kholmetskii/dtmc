@@ -20,11 +20,7 @@ import Dtmc.Analysis.HittingTime qualified as Hitting
 import Dtmc.State (
     FiniteState,
  )
-import Dtmc.TestSupport (
-    approxEq,
-    genTransitionMatrix,
-    testTolerance,
- )
+import Dtmc.TestSupport
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     TransitionMatrixError,
@@ -51,10 +47,22 @@ chain =
     either (error . show) id $
         mkTransitionMatrix
             ( S.matrix
-                [ 0, 1 / 3, 2 / 3, 0
-                , 1 / 2, 0, 1 / 8, 3 / 8
-                , 0, 0, 1 / 2, 1 / 2
-                , 0, 0, 3 / 4, 1 / 4
+                [ 0
+                , 1 / 3
+                , 2 / 3
+                , 0
+                , 1 / 2
+                , 0
+                , 1 / 8
+                , 3 / 8
+                , 0
+                , 0
+                , 1 / 2
+                , 1 / 2
+                , 0
+                , 0
+                , 3 / 4
+                , 1 / 4
                 ]
             )
 
@@ -99,34 +107,34 @@ spec = do
 
     describe "probability" $ do
         it "reproduces the hit-before probabilities of the notes" $ do
-            Absorption.probability chain C A `shouldSatisfy` rightCloseTo (17 / 20)
-            Absorption.probability chain D A `shouldSatisfy` rightCloseTo (3 / 20)
-            Absorption.probability chain C B `shouldSatisfy` rightCloseTo (11 / 20)
-            Absorption.probability chain D B `shouldSatisfy` rightCloseTo (9 / 20)
+            Absorption.probabilityGivenInitialState chain C A `shouldSatisfy` rightCloseTo (17 / 20)
+            Absorption.probabilityGivenInitialState chain D A `shouldSatisfy` rightCloseTo (3 / 20)
+            Absorption.probabilityGivenInitialState chain C B `shouldSatisfy` rightCloseTo (11 / 20)
+            Absorption.probabilityGivenInitialState chain D B `shouldSatisfy` rightCloseTo (9 / 20)
 
         it "is exact at a recurrent starting state" $ do
-            Absorption.probability chain C C `shouldBe` Right 1
-            Absorption.probability chain D C `shouldBe` Right 0
+            Absorption.probabilityGivenInitialState chain C C `shouldBe` Right 1
+            Absorption.probabilityGivenInitialState chain D C `shouldBe` Right 0
 
         it "is exactly zero for a transient target" $
-            Absorption.probability chain A B `shouldBe` Right 0
+            Absorption.probabilityGivenInitialState chain A B `shouldBe` Right 0
 
         it "differs from ever hitting the same state" $ do
             -- The chain reaches C almost surely, but it enters {C,D} at D
             -- with probability 3/20, so B(A,C) is strictly smaller.
-            Hitting.eventualProbability chain [C] A `shouldSatisfy` rightCloseTo 1
-            Absorption.probability chain C A `shouldSatisfy` rightCloseTo (17 / 20)
+            Hitting.eventualProbabilityGivenInitialState chain [C] A `shouldSatisfy` rightCloseTo 1
+            Absorption.probabilityGivenInitialState chain C A `shouldSatisfy` rightCloseTo (17 / 20)
 
         it "agrees with eventual hitting after summing over the class" $
-            case (Absorption.probability chain C A, Absorption.probability chain D A) of
+            case (Absorption.probabilityGivenInitialState chain C A, Absorption.probabilityGivenInitialState chain D A) of
                 (Right toC, Right toD) ->
-                    Hitting.eventualProbability chain [C, D] A
+                    Hitting.eventualProbabilityGivenInitialState chain [C, D] A
                         `shouldSatisfy` rightCloseTo (toC + toD)
                 other -> expectationFailure ("solve failed: " <> show other)
 
     describe "expectationByState" $ do
         it "matches the closed form of the notes" $
-            case Absorption.expectationByState chain of
+            case absorptionExpectationByState chain of
                 Left err -> expectationFailure ("solve failed: " <> show err)
                 Right values ->
                     values
@@ -135,19 +143,19 @@ spec = do
                                         )
 
         it "equals the expected hitting time of the recurrent set" $
-            Absorption.expectationByState chain
-                `shouldBe` Hitting.expectationByState chain [C, D]
+            absorptionExpectationByState chain
+                `shouldBe` hitExpectationByState chain [C, D]
 
     describe "absorption probabilities" $
         prop "sum to one from every transient state" $
             forAll (genTransitionMatrix @3) $ \m ->
                 case mkTransitionMatrix m ::
-                    Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left err ->
                         counterexample ("generated matrix rejected: " <> show err) False
                     Right p ->
                         conjoin
-                            [ case traverse (\k -> Absorption.probability p k i) (recurrentStates p) of
+                            [ case traverse (\k -> Absorption.probabilityGivenInitialState p k i) (recurrentStates p) of
                                 -- A refused solve is a documented outcome, not a
                                 -- violated law.
                                 Left _ -> property True

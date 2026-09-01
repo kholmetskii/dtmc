@@ -4,7 +4,7 @@ Description : Exact, bounded, eventual, competing, and expected hitting times.
 
 Hitting-time quantities for DTMCs. Scalar exact-time and bounded queries work
 through any locally finite 'Transition', including kernels on infinite state
-spaces. All-state, eventual, competing, and expected queries use a finite
+spaces. Eventual, competing, and expected queries use a finite
 'TransitionMatrix'. For a target set @A@,
 @H_A = inf { t >= 0 | X_t in A }@.
 
@@ -16,13 +16,13 @@ module Dtmc.Analysis.HittingTime (
     LinearSystemError (..),
     Expectation (..),
     probability,
-    probabilityByState,
+    probabilityGivenInitialState,
     eventualProbability,
-    eventualProbabilityByState,
+    eventualProbabilityGivenInitialState,
     raceProbability,
-    raceProbabilityByState,
+    raceProbabilityGivenInitialState,
     expectation,
-    expectationByState,
+    expectationGivenInitialState,
 ) where
 
 import Data.Array qualified as Array
@@ -41,19 +41,27 @@ import Data.Proxy (
 import Dtmc.Analysis.Classification.Internal (
     backwardReachable,
  )
+import Dtmc.Analysis.Event (
+    DiscreteEvent (..),
+ )
 import Dtmc.Analysis.Expectation (
     Expectation (..),
  )
-import Dtmc.Analysis.Event (
-    DiscreteEvent (..),
+import Dtmc.Analysis.Initial.Internal (
+    expectationUnderEither,
+    probabilityUnder,
+    probabilityUnderEither,
+ )
+import Dtmc.Analysis.LinearSystem (
+    LinearSystemError (..),
  )
 import Dtmc.Analysis.LinearSystem.Internal (
     rowSums,
     solveIminusQVector,
     subMatrix,
  )
-import Dtmc.Analysis.LinearSystem (
-    LinearSystemError (..),
+import Dtmc.Distribution (
+    Distribution (..),
  )
 import Dtmc.Dynamics.Internal (
     pushSparseWeights,
@@ -91,14 +99,6 @@ indexMask :: Int -> [Int] -> Unboxed.UArray Int Bool
 indexMask dim indices =
     Unboxed.accumArray (||) False (0, dim - 1) [(i, True) | i <- indices]
 
-iterateNatural :: Natural -> (a -> a) -> a -> a
-iterateNatural steps f = go steps
-  where
-    go 0 value = value
-    go remaining value =
-        let next = f value
-         in next `seq` go (remaining - 1) next
-
 advanceUntilTarget ::
     (Transition kernel, Ord (TransitionState kernel)) =>
     kernel ->
@@ -111,44 +111,6 @@ advanceUntilTarget kernel isTarget survivors =
     advanced = pushSparseWeights survivors kernel
     (hits, remaining) = Map.partitionWithKey (\state _ -> isTarget state) advanced
     hitMass = sum (Map.elems hits)
-
-{- | Exact hitting-time probabilities
-@h_i(t) = P(H_A = t | X_0 = i)@ in state order, where
-@H_A = inf { r >= 0 | X_r in A }@. Target order and duplicates are ignored.
-
-At @t = 0@ target states are exactly @1@ and all other states are exactly
-@0@. At positive times target states are exactly @0@: starting in the target
-means it was hit at time zero. An empty target set gives an all-zero vector at
-every time.
-
-The implementation starts with the target indicator and repeatedly applies
-the first-step recurrence
-@h_i(t + 1) = sum_j P(i,j) h_j(t)@ off @A@, resetting entries on @A@ to zero.
-It uses ordinary 'Double' arithmetic without clamping or renormalisation.
-
-Time: @O(t n^2)@; temporary and result space: @O(n)@.
--}
-hittingTimeProbabilities ::
-    forall state.
-    (FiniteState state) =>
-    Natural ->
-    TransitionMatrix state ->
-    [state] ->
-    S.R (Cardinality state)
-hittingTimeProbabilities time p targets =
-    S.vector (LA.toList (iterateNatural time step initial))
-  where
-    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
-    targetMask = indexMask dim (map toIndex targets)
-    inTarget i = targetMask Unboxed.! i
-    matrix = S.extract (unTransitionMatrix p)
-    initial = LA.fromList [if inTarget i then 1 else 0 | i <- [0 .. dim - 1]]
-    step masses =
-        let pushed = matrix LA.#> masses
-         in LA.fromList
-                [ if inTarget i then 0 else pushed `LA.atIndex` i
-                | i <- [0 .. dim - 1]
-                ]
 
 {- | Exact scalar hitting-time probability @P(H_A = t | X_0 = i)@ through any
 'Transition'. The target set is represented by a membership predicate, which
@@ -176,45 +138,6 @@ hittingTimeProbability time kernel isTarget initialState
          in if remaining == 1
                 then hitMass
                 else go (remaining - 1) next
-
-{- | Strictly bounded hitting-time probabilities
-@b_i(c) = P(H_A < c | X_0 = i)@ in state order. The bound @c@ is a number of
-time instants, not an inclusive deadline:
-
-* at @c = 0@ every entry is exactly @0@;
-* for @c > 0@ target states are exactly @1@;
-* an empty target set gives an all-zero vector for every bound;
-* target order and duplicates are ignored.
-
-The recurrence starts with @b_i(0) = 0@ and applies
-@b_i(c + 1) = 1@ on @A@ and
-@b_i(c + 1) = sum_j P(i,j) b_j(c)@ elsewhere. Thus, in exact arithmetic,
-@b_i(c + 1) - b_i(c) = P(H_A = c | X_0 = i)@. Results use ordinary 'Double'
-arithmetic and are not clamped or renormalised.
-
-Time: @O(c n^2)@; temporary and result space: @O(n)@.
--}
-hittingTimeBeforeProbabilities ::
-    forall state.
-    (FiniteState state) =>
-    Natural ->
-    TransitionMatrix state ->
-    [state] ->
-    S.R (Cardinality state)
-hittingTimeBeforeProbabilities bound p targets =
-    S.vector (LA.toList (iterateNatural bound step initial))
-  where
-    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
-    targetMask = indexMask dim (map toIndex targets)
-    inTarget i = targetMask Unboxed.! i
-    matrix = S.extract (unTransitionMatrix p)
-    initial = LA.konst 0 dim
-    step cumulative =
-        let pushed = matrix LA.#> cumulative
-         in LA.fromList
-                [ if inTarget i then 1 else pushed `LA.atIndex` i
-                | i <- [0 .. dim - 1]
-                ]
 
 {- | Strict bounded scalar hitting probability @P(H_A < c | X_0 = i)@ through
 any 'Transition'. At @c = 0@ the result is zero; at a positive bound an
@@ -484,7 +407,6 @@ hittingTimeExpectation p targets =
         Array.listArray (0, dim - 1) <$> hittingTimeExpectations p targets
     dim = fromIntegral (natVal (Proxy @(Cardinality state)))
 
-
 -- Direct survivor mass @P(H_A > t)@ through a locally finite transition.
 -- Newly hit paths are removed at every step, so paths that never hit remain
 -- in the map and the result naturally includes the infinity atom.
@@ -507,44 +429,10 @@ hittingTimeAfterProbability time kernel isTarget initialState
         let (next, _) = advanceUntilTarget kernel isTarget survivors
          in next `seq` go (remaining - 1) next
 
--- Dense all-state survivor recurrence. It is deliberately separate from the
--- lower tail to avoid cancellation in upper-tail queries.
-hittingTimeAfterProbabilities ::
-    forall state.
-    (FiniteState state) =>
-    Natural ->
-    TransitionMatrix state ->
-    [state] ->
-    S.R (Cardinality state)
-hittingTimeAfterProbabilities time p targets
-    | null targets = S.vector [1 | _ <- [0 .. dim - 1]]
-    | otherwise = S.vector (LA.toList (iterateNatural time step initial))
-  where
-    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
-    targetMask = indexMask dim (map toIndex targets)
-    inTarget i = targetMask Unboxed.! i
-    matrix = S.extract (unTransitionMatrix p)
-    initial =
-        LA.fromList [if inTarget i then 0 else 1 | i <- [0 .. dim - 1]]
-    step survivors =
-        let pushed = matrix LA.#> survivors
-         in LA.fromList
-                [ if inTarget i then 0 else pushed `LA.atIndex` i
-                | i <- [0 .. dim - 1]
-                ]
-
-onesByState ::
-    forall state.
-    (FiniteState state) =>
-    Proxy state ->
-    S.R (Cardinality state)
-onesByState _ = S.vector [1 | _ <- [0 .. dim - 1]]
-  where
-    dim :: Int
-    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
-
-{- | Probability of a finite-threshold event in the hitting time
-@H_A = inf { t >= 0 | X_t in A }@ from one initial state.
+{- | Probability under an arbitrary initial distribution of a finite-threshold
+event in the hitting time
+@H_A = inf { t >= 0 | X_t in A }@. The initial distribution supplies the
+probability measure @P_mu@.
 
 'EqualTo' and the two lower tails reuse the direct exact/bounded recurrences.
 'GreaterThan' and 'AtLeast' use surviving mass directly rather than subtracting
@@ -556,6 +444,23 @@ This function works through any locally finite 'Transition'. Results use ordinar
 arithmetic without clamping or renormalisation.
 -}
 probability ::
+    ( Distribution distribution
+    , Transition kernel
+    , DistributionState distribution ~ TransitionState kernel
+    , Ord (TransitionState kernel)
+    ) =>
+    DiscreteEvent ->
+    kernel ->
+    (TransitionState kernel -> Bool) ->
+    distribution ->
+    Double
+probability event kernel isTarget initial =
+    probabilityUnder initial (probabilityGivenInitialState event kernel isTarget)
+
+{- | Probability of a finite-threshold hitting-time event conditioned on
+@X_0 = i@ for the supplied initial state @i@.
+-}
+probabilityGivenInitialState ::
     ( Transition kernel
     , Ord (TransitionState kernel)
     ) =>
@@ -564,7 +469,7 @@ probability ::
     (TransitionState kernel -> Bool) ->
     TransitionState kernel ->
     Double
-probability event kernel isTarget initialState =
+probabilityGivenInitialState event kernel isTarget initialState =
     case event of
         EqualTo time ->
             hittingTimeProbability time kernel isTarget initialState
@@ -578,93 +483,77 @@ probability event kernel isTarget initialState =
         AtLeast time ->
             hittingTimeAfterProbability (time - 1) kernel isTarget initialState
 
-{- | Hitting-time event probabilities in canonical initial-state order.
-Coordinate @i@ is @P_i(H_A in E)@ for the supplied 'DiscreteEvent' @E@.
-Target order and duplicates are ignored.
-
-Upper tails use a direct all-state survivor recurrence and include mass at
-infinity. An empty target gives exact zeros for exact/lower-tail events and
-exact ones for upper-tail events. 'AtLeast' @0@ is an exact all-one vector.
-
-Time is @O(t n^2)@ for a threshold @t@; temporary and result space are
-@O(n)@.
--}
-probabilityByState ::
-    forall state.
-    (FiniteState state) =>
-    DiscreteEvent ->
-    TransitionMatrix state ->
-    [state] ->
-    S.R (Cardinality state)
-probabilityByState event matrix targets =
-    case event of
-        EqualTo time -> hittingTimeProbabilities time matrix targets
-        LessThan bound -> hittingTimeBeforeProbabilities bound matrix targets
-        AtMost time -> hittingTimeBeforeProbabilities (time + 1) matrix targets
-        GreaterThan time -> hittingTimeAfterProbabilities time matrix targets
-        AtLeast 0 -> onesByState (Proxy @state)
-        AtLeast time ->
-            hittingTimeAfterProbabilities (time - 1) matrix targets
-
-{- | Probability of ever hitting the target set from one state,
-@P(H_A < infinity | X_0 = i)@. This finite-matrix query returns a checked
-linear-system result.
+{- | Probability under an arbitrary initial distribution of ever hitting the
+target set. This finite-matrix query returns a checked linear-system result.
 -}
 eventualProbability ::
+    ( FiniteState state
+    , Distribution distribution
+    , DistributionState distribution ~ state
+    ) =>
+    TransitionMatrix state ->
+    [state] ->
+    distribution ->
+    Either LinearSystemError Double
+eventualProbability matrix targets initial =
+    probabilityUnderEither initial (hittingProbability matrix targets)
+
+-- | Probability of ever hitting the target set conditioned on @X_0 = i@.
+eventualProbabilityGivenInitialState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
     state ->
     Either LinearSystemError Double
-eventualProbability = hittingProbability
+eventualProbabilityGivenInitialState = hittingProbability
 
-{- | Eventual hitting probabilities in canonical initial-state order.
--}
-eventualProbabilityByState ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    [state] ->
-    Either LinearSystemError (S.R (Cardinality state))
-eventualProbabilityByState = hittingProbabilities
-
-{- | Probability of hitting the successful boundary strictly before the
-competing boundary from one state. Overlap ties lose.
+{- | Probability under an arbitrary initial distribution of hitting the
+successful boundary strictly before the competing boundary. Overlap ties lose.
 -}
 raceProbability ::
+    ( FiniteState state
+    , Distribution distribution
+    , DistributionState distribution ~ state
+    ) =>
+    TransitionMatrix state ->
+    [state] ->
+    [state] ->
+    distribution ->
+    Either LinearSystemError Double
+raceProbability matrix successful competing initial =
+    probabilityUnderEither initial (hittingBeforeProbability matrix successful competing)
+
+-- | Probability of winning the hitting race conditioned on @X_0 = i@.
+raceProbabilityGivenInitialState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
     [state] ->
     state ->
     Either LinearSystemError Double
-raceProbability = hittingBeforeProbability
+raceProbabilityGivenInitialState = hittingBeforeProbability
 
-{- | Competing hitting probabilities in canonical initial-state order.
--}
-raceProbabilityByState ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    [state] ->
-    [state] ->
-    Either LinearSystemError (S.R (Cardinality state))
-raceProbabilityByState = hittingBeforeProbabilities
-
-{- | Expected hitting time from one state. It returns 'InfiniteExpectation' exactly when the
-target is not hit almost surely.
+{- | Expected hitting time under an arbitrary initial distribution. It is
+'InfiniteExpectation' exactly when a state of positive initial probability
+does not hit the target almost surely.
 -}
 expectation ::
+    ( FiniteState state
+    , Distribution distribution
+    , DistributionState distribution ~ state
+    ) =>
+    TransitionMatrix state ->
+    [state] ->
+    distribution ->
+    Either LinearSystemError Expectation
+expectation matrix targets initial =
+    expectationUnderEither initial (hittingTimeExpectation matrix targets)
+
+-- | Expected hitting time conditioned on @X_0 = i@.
+expectationGivenInitialState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
     state ->
     Either LinearSystemError Expectation
-expectation = hittingTimeExpectation
-
-{- | Expected hitting times in canonical initial-state order.
--}
-expectationByState ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    [state] ->
-    Either LinearSystemError [Expectation]
-expectationByState = hittingTimeExpectations
+expectationGivenInitialState = hittingTimeExpectation

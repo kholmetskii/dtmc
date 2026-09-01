@@ -116,8 +116,11 @@ limitingMatrix p
     zeros = replicate dim (replicate dim 0)
     addMatrices = zipWith (zipWith (+))
     contribution (members, classDistribution) = do
-        hits <- Hitting.eventualProbabilityByState p members
-        let entering = LA.toList (S.extract hits)
+        entering <-
+            traverse
+                (Hitting.eventualProbabilityGivenInitialState p members)
+                states
+        let
             mass = LA.toList (S.extract (unDistributionVector classDistribution))
         pure [[h * m | m <- mass] | h <- entering]
 

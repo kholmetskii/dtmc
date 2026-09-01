@@ -12,17 +12,44 @@ module Dtmc.TestSupport (
     bumpSmallest,
     bumpSmallestInFirstRow,
     setFirstEntry,
+    hitProbabilityByState,
+    hitEventualProbabilityByState,
+    hitRaceProbabilityByState,
+    hitExpectationByState,
+    returnProbabilityByState,
+    returnEventualProbabilityByState,
+    returnExpectationByState,
+    visitTotalProbabilityByState,
+    visitInfiniteProbabilityByState,
+    visitTotalExpectationByState,
+    absorptionProbabilityByState,
+    absorptionExpectationByState,
 ) where
 
 import Data.Proxy (
     Proxy (..),
  )
+import Dtmc.Analysis.Absorption qualified as Absorption
+import Dtmc.Analysis.Event (
+    DiscreteEvent,
+ )
+import Dtmc.Analysis.Expectation (
+    Expectation,
+ )
+import Dtmc.Analysis.HittingTime qualified as Hit
+import Dtmc.Analysis.LinearSystem (
+    LinearSystemError,
+ )
+import Dtmc.Analysis.ReturnTime qualified as Return
+import Dtmc.Analysis.VisitCount qualified as Visit
 import Dtmc.Distribution.Vector (
     DistributionVector,
     unDistributionVector,
  )
 import Dtmc.State (
+    Cardinality,
     FiniteState,
+    finiteStates,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -40,6 +67,146 @@ import Test.QuickCheck (
     frequency,
     vectorOf,
  )
+
+hitProbabilityByState ::
+    forall state.
+    (FiniteState state) =>
+    DiscreteEvent ->
+    TransitionMatrix state ->
+    [state] ->
+    S.R (Cardinality state)
+hitProbabilityByState event matrix targets =
+    S.vector
+        [ Hit.probabilityGivenInitialState event matrix (`elem` targets) initial
+        | initial <- finiteStates
+        ]
+
+hitEventualProbabilityByState ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
+    Either LinearSystemError (S.R (Cardinality state))
+hitEventualProbabilityByState matrix targets =
+    S.vector
+        <$> traverse
+            (Hit.eventualProbabilityGivenInitialState matrix targets)
+            finiteStates
+
+hitRaceProbabilityByState ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
+    [state] ->
+    Either LinearSystemError (S.R (Cardinality state))
+hitRaceProbabilityByState matrix successful competing =
+    S.vector
+        <$> traverse
+            (Hit.raceProbabilityGivenInitialState matrix successful competing)
+            finiteStates
+
+hitExpectationByState ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
+    Either LinearSystemError [Expectation]
+hitExpectationByState matrix targets =
+    traverse
+        (Hit.expectationGivenInitialState matrix targets)
+        finiteStates
+
+returnProbabilityByState ::
+    forall state.
+    (FiniteState state) =>
+    DiscreteEvent ->
+    TransitionMatrix state ->
+    S.R (Cardinality state)
+returnProbabilityByState event matrix =
+    S.vector
+        [ Return.probabilityGivenInitialState event matrix initial
+        | initial <- finiteStates
+        ]
+
+returnEventualProbabilityByState ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    Either LinearSystemError (S.R (Cardinality state))
+returnEventualProbabilityByState matrix =
+    S.vector
+        <$> traverse
+            (Return.eventualProbabilityGivenInitialState matrix)
+            finiteStates
+
+returnExpectationByState ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    Either LinearSystemError [Expectation]
+returnExpectationByState matrix =
+    traverse
+        (Return.expectationGivenInitialState matrix)
+        finiteStates
+
+visitTotalProbabilityByState ::
+    forall state.
+    (FiniteState state) =>
+    DiscreteEvent ->
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError (S.R (Cardinality state))
+visitTotalProbabilityByState event matrix target =
+    S.vector
+        <$> traverse
+            (Visit.totalProbabilityGivenInitialState event matrix target)
+            finiteStates
+
+visitInfiniteProbabilityByState ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError (S.R (Cardinality state))
+visitInfiniteProbabilityByState matrix target =
+    S.vector
+        <$> traverse
+            (Visit.infiniteProbabilityGivenInitialState matrix target)
+            finiteStates
+
+visitTotalExpectationByState ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError [Expectation]
+visitTotalExpectationByState matrix target =
+    traverse
+        (Visit.totalExpectationGivenInitialState matrix target)
+        finiteStates
+
+absorptionProbabilityByState ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    state ->
+    Either LinearSystemError (S.R (Cardinality state))
+absorptionProbabilityByState matrix target =
+    S.vector
+        <$> traverse
+            (Absorption.probabilityGivenInitialState matrix target)
+            finiteStates
+
+absorptionExpectationByState ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    Either LinearSystemError [Expectation]
+absorptionExpectationByState matrix =
+    traverse
+        (Absorption.expectationGivenInitialState matrix)
+        finiteStates
 
 {- | Absolute slack the tests use when comparing floating-point results. Kept
 independent of the library's private validation threshold so a change there

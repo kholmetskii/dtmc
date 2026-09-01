@@ -33,9 +33,9 @@ module Dtmc.Analysis.Absorption (
     canonicalOrder,
     fundamentalMatrix,
     probability,
-    probabilityByState,
+    probabilityGivenInitialState,
     expectation,
-    expectationByState,
+    expectationGivenInitialState,
 ) where
 
 import Data.Array.Unboxed qualified as Unboxed
@@ -54,12 +54,19 @@ import Dtmc.Analysis.Expectation (
     Expectation (..),
  )
 import Dtmc.Analysis.HittingTime qualified as Hitting
+import Dtmc.Analysis.Initial.Internal (
+    expectationUnderEither,
+    probabilityUnderEither,
+ )
 import Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
  )
 import Dtmc.Analysis.LinearSystem.Internal (
     fundamental,
     subMatrix,
+ )
+import Dtmc.Distribution (
+    Distribution (..),
  )
 import Dtmc.State (
     Cardinality,
@@ -180,49 +187,58 @@ probabilityByState p target
             [(i, True) | i <- transientIdx]
     arrived i = if i == targetIdx then 1 else 0
 
-{- | The probability that the first recurrent state visited is the supplied
-target, started from one state. Same edge cases, numerical behaviour, and
-errors as 'probabilityByState'.
-
-Partially applying the matrix and target shares one lazy all-state solve: the
-first forced query costs @O(n^2 + t^3)@ and later lookups cost @O(1)@.
+{- | The probability under an arbitrary initial distribution that the first
+recurrent state visited is the supplied target. The result is the
+initial-distribution mixture of the state-conditioned absorption
+probabilities.
 -}
 probability ::
+    ( FiniteState state
+    , Distribution distribution
+    , DistributionState distribution ~ state
+    ) =>
+    TransitionMatrix state ->
+    state ->
+    distribution ->
+    Either LinearSystemError Double
+probability p target initial =
+    probabilityUnderEither initial (probabilityGivenInitialState p target)
+
+{- | Probability that the first recurrent state visited is the supplied
+target, conditioned on @X_0 = i@.
+-}
+probabilityGivenInitialState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
     state ->
     Either LinearSystemError Double
-probability p target =
+probabilityGivenInitialState p target =
     \i -> (`LA.atIndex` toIndex i) <$> values
   where
     values = S.extract <$> probabilityByState p target
 
-{- | Expected number of transitions until the chain enters the recurrent set,
-in canonical state order. Recurrent states have already arrived, so their
-value is @FiniteExpectation 0@.
-
-This is @(G 1)_i@, and it is exactly
-@'Dtmc.Analysis.HittingTime.expectationByState' p ('recurrentStates' p)@ --
-the identity @eta_R = G 1@ from the block decomposition. The delegation is
-deliberate: one implementation, and the equality is a property test rather
-than duplicated arithmetic.
--}
-expectationByState ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    Either LinearSystemError [Expectation]
-expectationByState p =
-    Hitting.expectationByState p (recurrentStates p)
-
-{- | Expected number of transitions until absorption from one state. Same
-behaviour and errors as 'expectationByState'; partial application shares the
-single solve.
+{- | Expected number of transitions until absorption under an arbitrary
+initial distribution.
 -}
 expectation ::
+    ( FiniteState state
+    , Distribution distribution
+    , DistributionState distribution ~ state
+    ) =>
+    TransitionMatrix state ->
+    distribution ->
+    Either LinearSystemError Expectation
+expectation p initial =
+    expectationUnderEither initial (expectationGivenInitialState p)
+
+{- | Expected number of transitions until absorption conditioned on
+@X_0 = i@.
+-}
+expectationGivenInitialState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
     Either LinearSystemError Expectation
-expectation p =
-    Hitting.expectation p (recurrentStates p)
+expectationGivenInitialState p =
+    Hitting.expectationGivenInitialState p (recurrentStates p)

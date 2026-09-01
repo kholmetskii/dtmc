@@ -23,11 +23,7 @@ import Dtmc.Analysis.ProbabilityOracle qualified as Oracle
 import Dtmc.Distribution.Map (
     mkDistributionMap,
  )
-import Dtmc.TestSupport (
-    approxEq,
-    genTransitionMatrix,
-    testTolerance,
- )
+import Dtmc.TestSupport
 import Dtmc.Transition.Kernel (
     TransitionKernel,
     transitionKernel,
@@ -58,9 +54,15 @@ terminalChain =
     checked
         ( mkTransitionMatrix
             ( S.matrix
-                [ 0, 0.5, 0.5
-                , 0, 0, 1
-                , 0, 0, 1
+                [ 0
+                , 0.5
+                , 0.5
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 1
                 ] ::
                 S.Sq 3
             )
@@ -116,8 +118,8 @@ generatedChecks matrix =
     and
         [ let law = Oracle.hittingLaw 4 matrix isTarget initial
               oracle = known (Oracle.lawProbability event law)
-              scalar = Hit.probability event matrix isTarget initial
-              dense = entries (Hit.probabilityByState event matrix [2])
+              scalar = Hit.probabilityGivenInitialState event matrix isTarget initial
+              dense = entries (hitProbabilityByState event matrix [2])
            in close scalar oracle
                 && close (dense !! fromIntegral initial) oracle
         | initial <- finites
@@ -131,42 +133,42 @@ spec = do
     describe "canonical hitting probability" $ do
         it "implements every relation and carries the infinity atom in upper tails" $ do
             let target state = state == (1 :: Finite 3)
-            Hit.probability (EqualTo 0) terminalChain target 0 `shouldBe` 0
-            Hit.probability (EqualTo 1) terminalChain target 0 `shouldBe` 0.5
-            Hit.probability (LessThan 1) terminalChain target 0 `shouldBe` 0
-            Hit.probability (AtMost 1) terminalChain target 0 `shouldBe` 0.5
-            Hit.probability (GreaterThan 0) terminalChain target 0 `shouldBe` 1
-            Hit.probability (GreaterThan 1) terminalChain target 0 `shouldBe` 0.5
-            Hit.probability (AtLeast 0) terminalChain target 0 `shouldBe` 1
-            Hit.probability (AtLeast 1) terminalChain target 0 `shouldBe` 1
-            Hit.probability (AtLeast 2) terminalChain target 0 `shouldBe` 0.5
-            entries (Hit.probabilityByState (GreaterThan 1) terminalChain [1])
+            Hit.probabilityGivenInitialState (EqualTo 0) terminalChain target 0 `shouldBe` 0
+            Hit.probabilityGivenInitialState (EqualTo 1) terminalChain target 0 `shouldBe` 0.5
+            Hit.probabilityGivenInitialState (LessThan 1) terminalChain target 0 `shouldBe` 0
+            Hit.probabilityGivenInitialState (AtMost 1) terminalChain target 0 `shouldBe` 0.5
+            Hit.probabilityGivenInitialState (GreaterThan 0) terminalChain target 0 `shouldBe` 1
+            Hit.probabilityGivenInitialState (GreaterThan 1) terminalChain target 0 `shouldBe` 0.5
+            Hit.probabilityGivenInitialState (AtLeast 0) terminalChain target 0 `shouldBe` 1
+            Hit.probabilityGivenInitialState (AtLeast 1) terminalChain target 0 `shouldBe` 1
+            Hit.probabilityGivenInitialState (AtLeast 2) terminalChain target 0 `shouldBe` 0.5
+            entries (hitProbabilityByState (GreaterThan 1) terminalChain [1])
                 `shouldBe` [0.5, 0, 1]
-            entries (Hit.probabilityByState (AtMost 1) terminalChain [1])
+            entries (hitProbabilityByState (AtMost 1) terminalChain [1])
                 `shouldBe` [0.5, 1, 0]
 
         it "keeps empty-target and time-zero boundaries structural" $ do
-            entries (Hit.probabilityByState (EqualTo 3) terminalChain [])
+            entries (hitProbabilityByState (EqualTo 3) terminalChain [])
                 `shouldBe` [0, 0, 0]
-            entries (Hit.probabilityByState (AtMost 3) terminalChain [])
+            entries (hitProbabilityByState (AtMost 3) terminalChain [])
                 `shouldBe` [0, 0, 0]
-            entries (Hit.probabilityByState (GreaterThan 3) terminalChain [])
+            entries (hitProbabilityByState (GreaterThan 3) terminalChain [])
                 `shouldBe` [1, 1, 1]
-            entries (Hit.probabilityByState (AtLeast 0) terminalChain [1])
+            entries (hitProbabilityByState (AtLeast 0) terminalChain [1])
                 `shouldBe` [1, 1, 1]
-            Hit.probability (EqualTo 0) terminalChain (== 1) 1 `shouldBe` 1
-            Hit.probability (GreaterThan 0) terminalChain (== 1) 1 `shouldBe` 0
+            Hit.probabilityGivenInitialState (EqualTo 0) terminalChain (== 1) 1 `shouldBe` 1
+            Hit.probabilityGivenInitialState (GreaterThan 0) terminalChain (== 1) 1 `shouldBe` 0
 
         it "preserves locally finite kernels and tiny survivor mass directly" $ do
-            Hit.probability (EqualTo 2) simpleRandomWalk (== 2) 0
+            Hit.probabilityGivenInitialState (EqualTo 2) simpleRandomWalk (== 2) 0
                 `shouldBe` 0.25
-            Hit.probability (AtMost 2) simpleRandomWalk (== 2) 0
+            Hit.probabilityGivenInitialState (AtMost 2) simpleRandomWalk (== 2) 0
                 `shouldBe` 0.25
-            Hit.probability (GreaterThan 2) simpleRandomWalk (== 2) 0
+            Hit.probabilityGivenInitialState (GreaterThan 2) simpleRandomWalk (== 2) 0
                 `shouldBe` 0.75
-            Hit.probability (AtLeast 3) simpleRandomWalk (== 2) 0
+            Hit.probabilityGivenInitialState (AtLeast 3) simpleRandomWalk (== 2) 0
                 `shouldBe` 0.75
-            Hit.probability (GreaterThan 1) tinySurvivalKernel (== 1) 0
+            Hit.probabilityGivenInitialState (GreaterThan 1) tinySurvivalKernel (== 1) 0
                 `shouldBe` tinySurvival
 
         prop "matches the path oracle for every relation (random @3)" $
@@ -178,25 +180,25 @@ spec = do
     describe "canonical eventual, race, and expectation names" $ do
         it "match the completed defective hitting law" $ do
             let states = finites :: [Finite 3]
-            case Hit.eventualProbabilityByState terminalChain [1] of
+            case hitEventualProbabilityByState terminalChain [1] of
                 Left problem -> error (show problem)
                 Right values -> entries values `shouldBe` [0.5, 1, 0]
             mapM_
                 ( \(state, expected) ->
-                    Hit.eventualProbability terminalChain [1] state
+                    Hit.eventualProbabilityGivenInitialState terminalChain [1] state
                         `shouldBe` Right expected
                 )
                 (zip states [0.5, 1, 0])
-            case Hit.raceProbabilityByState terminalChain [1] [2] of
+            case hitRaceProbabilityByState terminalChain [1] [2] of
                 Left problem -> error (show problem)
                 Right values -> entries values `shouldBe` [0.5, 1, 0]
             mapM_
                 ( \(state, expected) ->
-                    Hit.raceProbability terminalChain [1] [2] state
+                    Hit.raceProbabilityGivenInitialState terminalChain [1] [2] state
                         `shouldBe` Right expected
                 )
                 (zip states [0.5, 1, 0])
-            Hit.expectationByState terminalChain [1]
+            hitExpectationByState terminalChain [1]
                 `shouldBe` Right
                     [ InfiniteExpectation
                     , FiniteExpectation 0
@@ -204,7 +206,7 @@ spec = do
                     ]
             mapM_
                 ( \(state, expected) ->
-                    Hit.expectation terminalChain [1] state
+                    Hit.expectationGivenInitialState terminalChain [1] state
                         `shouldBe` Right expected
                 )
                 ( zip

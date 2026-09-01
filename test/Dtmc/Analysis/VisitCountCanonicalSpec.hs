@@ -23,11 +23,7 @@ import Dtmc.Distribution (
     distributionWeights,
  )
 import Dtmc.Distribution.Map qualified as DistributionMap
-import Dtmc.TestSupport (
-    approxEq,
-    genTransitionMatrix,
-    testTolerance,
- )
+import Dtmc.TestSupport
 import Dtmc.Transition.Kernel (
     TransitionKernel,
     transitionKernel,
@@ -65,9 +61,15 @@ transientVisitChain =
     checked
         ( mkTransitionMatrix
             ( S.matrix
-                [ 1 / 4, 0, 3 / 4
-                , 1 / 2, 0, 1 / 2
-                , 0, 0, 1
+                [ 1 / 4
+                , 0
+                , 3 / 4
+                , 1 / 2
+                , 0
+                , 1 / 2
+                , 0
+                , 0
+                , 1
                 ] ::
                 S.Sq 3
             )
@@ -78,10 +80,22 @@ recurrentVisitChain =
     checked
         ( mkTransitionMatrix
             ( S.matrix
-                [ 0, 1 / 2, 1 / 2, 0
-                , 1 / 2, 0, 0, 1 / 2
-                , 0, 0, 1, 0
-                , 0, 0, 0, 1
+                [ 0
+                , 1 / 2
+                , 1 / 2
+                , 0
+                , 1 / 2
+                , 0
+                , 0
+                , 1 / 2
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
                 ] ::
                 S.Sq 4
             )
@@ -95,8 +109,10 @@ tinyVisitChain =
     checked
         ( mkTransitionMatrix
             ( S.matrix
-                [ tinyReturn, 1 - tinyReturn
-                , 0, 1
+                [ tinyReturn
+                , 1 - tinyReturn
+                , 0
+                , 1
                 ] ::
                 S.Sq 2
             )
@@ -130,8 +146,8 @@ eventsThrough horizon =
 generatedTotalChecks :: TransitionMatrix (Finite 3) -> Bool
 generatedTotalChecks matrix =
     and
-        [ let scalar = checked (Visit.totalProbability event matrix 0 initial)
-              dense = entries (checked (Visit.totalProbabilityByState event matrix 0))
+        [ let scalar = checked (Visit.totalProbabilityGivenInitialState event matrix 0 initial)
+              dense = entries (checked (visitTotalProbabilityByState event matrix 0))
            in close (dense !! fromIntegral initial) scalar
                 && scalar >= negate testTolerance
                 && scalar <= 1 + testTolerance
@@ -156,7 +172,7 @@ spec = do
     describe "canonical total visit count" $ do
         it "implements every relation for a transient geometric law" $ do
             let probability event =
-                    checked (Visit.totalProbability event transientVisitChain 0 1)
+                    checked (Visit.totalProbabilityGivenInitialState event transientVisitChain 0 1)
             probability (EqualTo 0) `shouldSatisfy` close (1 / 2)
             probability (EqualTo 1) `shouldSatisfy` close (3 / 8)
             probability (LessThan 2) `shouldSatisfy` close (7 / 8)
@@ -168,7 +184,7 @@ spec = do
         it "places recurrent positive-count mass structurally at infinity" $ do
             let probabilities event =
                     LA.toList
-                        (S.extract (checked (Visit.totalProbabilityByState event recurrentVisitChain 2)))
+                        (S.extract (checked (visitTotalProbabilityByState event recurrentVisitChain 2)))
                 expectedHit = [2 / 3, 1 / 3, 1, 0]
                 expectedMiss = [1 / 3, 2 / 3, 0, 1]
             sequence_
@@ -185,7 +201,7 @@ spec = do
         it "evaluates a tiny upper tail without complement subtraction" $ do
             let actual =
                     checked
-                        ( Visit.totalProbability
+                        ( Visit.totalProbabilityGivenInitialState
                             (GreaterThan 1)
                             tinyVisitChain
                             0
@@ -227,21 +243,21 @@ spec = do
                     LA.toList
                         ( S.extract
                             ( checked
-                                (Visit.infiniteProbabilityByState recurrentVisitChain 2)
+                                (visitInfiniteProbabilityByState recurrentVisitChain 2)
                             )
                         )
             sequence_
                 [ actual `shouldSatisfy` close expected
                 | (actual, expected) <- zip infiniteValues [2 / 3, 1 / 3, 1, 0]
                 ]
-            checked (Visit.infiniteProbability recurrentVisitChain 2 0)
+            checked (Visit.infiniteProbabilityGivenInitialState recurrentVisitChain 2 0)
                 `shouldSatisfy` close (2 / 3)
-            Visit.totalExpectationByState recurrentVisitChain 2
+            visitTotalExpectationByState recurrentVisitChain 2
                 `shouldBe` Right
                     [ InfiniteExpectation
                     , InfiniteExpectation
                     , InfiniteExpectation
                     , FiniteExpectation 0
                     ]
-            Visit.totalExpectation recurrentVisitChain 2 3
+            Visit.totalExpectationGivenInitialState recurrentVisitChain 2 3
                 `shouldBe` Right (FiniteExpectation 0)
