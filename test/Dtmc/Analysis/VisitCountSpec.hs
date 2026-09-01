@@ -16,7 +16,6 @@ import Dtmc.Analysis.Event (
     DiscreteEvent (..),
  )
 import Dtmc.Analysis.FiniteTime qualified as FT
-import Dtmc.Analysis.HittingTime qualified as Hit
 import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.VisitCount (
     Expectation (..),
