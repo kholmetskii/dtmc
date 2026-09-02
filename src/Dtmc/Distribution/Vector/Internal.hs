@@ -2,9 +2,9 @@
 Module      : Dtmc.Distribution.Vector.Internal
 Description : Unsafe carrier for dense distribution vectors.
 
-Public smart constructors validate the simplex invariant. Internal callers may
-use the constructor only when their operation preserves that invariant up to
-floating-point error.
+The public smart constructor validates and canonicalises the simplex
+invariant. Internal callers may use the constructor only when their operation
+preserves that invariant up to floating-point error.
 -}
 module Dtmc.Distribution.Vector.Internal (
     DistributionVector (DistributionVector),

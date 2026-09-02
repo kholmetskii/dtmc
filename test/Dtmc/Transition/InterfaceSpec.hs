@@ -14,6 +14,7 @@ import Dtmc.Analysis.FiniteTime (
 import Dtmc.Distribution qualified as Distribution
 import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.TestSupport (
+    approxEq,
     genTransitionMatrix,
  )
 import Dtmc.Transition qualified as Transition
@@ -36,7 +37,6 @@ import Test.QuickCheck (
     conjoin,
     counterexample,
     forAll,
-    (===),
  )
 
 checked :: (Show error) => Either error value -> value
@@ -92,16 +92,32 @@ spec =
                 (Transition.transitionLaw (Kernel.deterministicKernel (+ 1)) (4 :: Int))
                 `shouldBe` [(5, 1)]
 
-        prop "gives matrices and equivalent kernels the same transition laws" $
+        prop "gives matrices and equivalent kernels approximately equal laws" $
             forAll (genTransitionMatrix @3) $ \rawMatrix ->
                 case mkTransitionMatrix rawMatrix of
                     Left problem -> counterexample (show problem) False
                     Right matrix ->
                         let kernel = asTransitionKernel matrix
                          in conjoin
-                                [ Distribution.distributionWeights
-                                    (Transition.transitionLaw matrix source)
-                                    === Distribution.distributionWeights
-                                        (Transition.transitionLaw kernel source)
+                                [ let matrixLaw =
+                                            Transition.transitionLaw matrix source
+                                      kernelLaw =
+                                            Transition.transitionLaw kernel source
+                                   in counterexample ("source: " <> show source) $
+                                        Distribution.support matrixLaw
+                                            == Distribution.support kernelLaw
+                                            && and
+                                                [ approxEq
+                                                    1e-12
+                                                    ( Distribution.probabilityAt
+                                                        matrixLaw
+                                                        destination
+                                                    )
+                                                    ( Distribution.probabilityAt
+                                                        kernelLaw
+                                                        destination
+                                                    )
+                                                | destination <- finites :: [Finite 3]
+                                                ]
                                 | source <- finites :: [Finite 3]
                                 ]

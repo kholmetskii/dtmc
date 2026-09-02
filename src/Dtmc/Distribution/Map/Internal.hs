@@ -2,9 +2,9 @@
 Module      : Dtmc.Distribution.Map.Internal
 Description : Unsafe carrier for map-backed distributions.
 
-The public smart constructor validates the simplex invariant. Internal callers
-may construct values only when their operation preserves that invariant up to
-floating-point error.
+The public smart constructor validates and canonicalises the simplex
+invariant. Internal callers may construct values only when their operation
+preserves that invariant up to floating-point error.
 -}
 module Dtmc.Distribution.Map.Internal (
     DistributionMap (DistributionMap),

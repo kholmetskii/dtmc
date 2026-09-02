@@ -88,8 +88,8 @@ data Classification state = Classification
     -- ^ States lying in non-closed classes -- transient.
     , absorbingStates :: [state]
     {- ^ Singleton closed classes. For exact stochastic rows these are
-    absorbing states with @P(i,i) = 1@; tolerated or unchecked rows are
-    classified only by strict-positive support.
+    absorbing states with @P(i,i) = 1@; numerically derived or otherwise
+    unchecked rows are classified only by strict-positive support.
     -}
     }
 

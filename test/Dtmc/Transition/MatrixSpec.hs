@@ -20,11 +20,13 @@ import Dtmc.State (
     FiniteState,
  )
 import Dtmc.TestSupport (
+    approxEq,
     approxTransitionMatrixEq,
     bumpSmallestInFirstRow,
     genTransitionMatrix,
     modifyMatrixRows,
     setFirstEntry,
+    testTolerance,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -44,6 +46,7 @@ import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
+    expectationFailure,
     it,
     shouldBe,
  )
@@ -56,7 +59,6 @@ import Test.QuickCheck (
     counterexample,
     forAll,
     property,
-    (===),
  )
 
 data NamedPhase = PhaseA | PhaseB | PhaseC
@@ -93,16 +95,65 @@ twoStateSquared =
 spec :: Spec
 spec = do
     describe "mkTransitionMatrix" $ do
-        prop "preserves the validated matrix" $
+        prop "stores canonical rows close to the accepted input" $
             forAll (genTransitionMatrix @3) $ \matrix ->
                 case mkTransitionMatrix @(Finite 3) matrix of
                     Right transitionMatrix ->
-                        S.extract (unTransitionMatrix transitionMatrix)
-                            === S.extract matrix
+                        let storedRows =
+                                LA.toLists
+                                    (S.extract (unTransitionMatrix transitionMatrix))
+                            inputRows = LA.toLists (S.extract matrix)
+                            closeRow left right =
+                                and
+                                    ( zipWith
+                                        (approxEq testTolerance)
+                                        left
+                                        right
+                                    )
+                         in counterexample ("stored rows: " <> show storedRows) $
+                                property
+                                    ( all
+                                        ( \row ->
+                                            all
+                                                (\entry -> entry >= 0 && entry <= 1)
+                                                row
+                                                && approxEq 1e-12 (sum row) 1
+                                        )
+                                        storedRows
+                                        && and (zipWith closeRow storedRows inputRows)
+                                    )
                     Left err ->
                         counterexample
                             ("generated matrix was rejected: " <> show err)
                             False
+
+        it "canonicalises tolerated error independently in each row" $
+            case mkTransitionMatrix @(Finite 2)
+                ( S.matrix
+                    [-5e-10, 1 + 5e-10, 0.5, 0.5 - 5e-10]
+                    :: S.Sq 2
+                ) of
+                Right transitionMatrix -> do
+                    let rows =
+                            LA.toLists
+                                (S.extract (unTransitionMatrix transitionMatrix))
+                    case rows of
+                        firstRow : secondRow : _ -> do
+                            firstRow `shouldBe` [0, 1]
+                            approxEq 1e-12 (sum secondRow) 1 `shouldBe` True
+                        _ ->
+                            expectationFailure "expected two rows"
+                Left err ->
+                    expectationFailure
+                        ("expected acceptance, got " <> show err)
+
+        it "reports a non-finite coordinate with its row and column" $
+            case mkTransitionMatrix @(Finite 2)
+                (S.matrix [1, 0, 0, 1 / 0] :: S.Sq 2) of
+                Left err ->
+                    err `shouldBe` InRow 1 (NonFiniteEntry 1)
+                Right _ ->
+                    expectationFailure "expected rejection"
 
         prop "identifies a row whose sum is invalid" $
             forAll (genTransitionMatrix @3) $ \matrix ->

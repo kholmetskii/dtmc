@@ -31,6 +31,7 @@ import Dtmc.TestSupport (
 import GHC.Generics (
     Generic,
  )
+import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
@@ -46,7 +47,6 @@ import Test.QuickCheck (
     counterexample,
     forAll,
     property,
-    (===),
  )
 
 data NamedState = NamedA | NamedB | NamedC
@@ -64,13 +64,43 @@ spec = do
                 Right _ ->
                     expectationFailure "expected rejection"
 
-        it "accepts a tiny negative rounding error" $
+        it "clamps a tiny negative rounding error" $
             case mkDistributionVector @(Finite 2) (S.vector [-1e-17, 1] :: S.R 2) of
-                Right _ ->
-                    pure ()
+                Right distribution ->
+                    LA.toList (S.extract (unDistributionVector distribution))
+                        `shouldBe` [0, 1]
                 Left err ->
                     expectationFailure
                         ("expected acceptance, got " <> show err)
+
+        it "normalises an accepted total near one" $
+            case mkDistributionVector @(Finite 2)
+                (S.vector [0.5, 0.5 - 5e-10] :: S.R 2) of
+                Right distribution -> do
+                    let stored =
+                            LA.toList
+                                (S.extract (unDistributionVector distribution))
+                    approxEq 1e-12 (sum stored) 1 `shouldBe` True
+                    stored == [0.5, 0.5 - 5e-10] `shouldBe` False
+                Left err ->
+                    expectationFailure
+                        ("expected acceptance, got " <> show err)
+
+        it "reports NaN at its coordinate" $
+            case mkDistributionVector @(Finite 2)
+                (S.vector [0 / 0, 1] :: S.R 2) of
+                Left err ->
+                    err `shouldBe` DistributionError (NonFiniteEntry 0)
+                Right _ ->
+                    expectationFailure "expected rejection"
+
+        it "reports infinity at its coordinate" $
+            case mkDistributionVector @(Finite 2)
+                (S.vector [1, 1 / 0] :: S.R 2) of
+                Left err ->
+                    err `shouldBe` DistributionError (NonFiniteEntry 1)
+                Right _ ->
+                    expectationFailure "expected rejection"
 
         it "reports an entry above one" $
             case mkDistributionVector @(Finite 2) (S.vector [1.5, -0.5] :: S.R 2) of
@@ -115,13 +145,25 @@ spec = do
                                 ("expected DistributionError NegativeEntry 0, got " <> show result)
                                 False
 
-        prop "preserves the validated vector" $
+        prop "stores a canonical vector close to the accepted input" $
             forAll (genSimplexPoint 3) $ \entries ->
                 let simplexVector = S.vector entries :: S.R 3
                  in case mkDistributionVector @(Finite 3) simplexVector of
                         Right distribution ->
-                            S.extract (unDistributionVector distribution)
-                                === S.extract simplexVector
+                            let stored =
+                                    LA.toList
+                                        (S.extract (unDistributionVector distribution))
+                             in counterexample ("stored vector: " <> show stored) $
+                                    property
+                                        ( all (\entry -> entry >= 0 && entry <= 1) stored
+                                            && approxEq 1e-12 (sum stored) 1
+                                            && and
+                                                ( zipWith
+                                                    (approxEq testTolerance)
+                                                    stored
+                                                    entries
+                                                )
+                                        )
                         Left err ->
                             counterexample
                                 ("generated vector was rejected: " <> show err)
@@ -143,12 +185,12 @@ spec = do
             approxEq testTolerance (probabilityAt known maxBound) 0.3
                 `shouldBe` True
 
-        it "returns tolerated stored values without clamping" $ do
+        it "returns canonical stored values after tolerated repair" $ do
             let tolerated =
                     either (error . show) id $
                         mkDistributionVector @(Finite 2) (S.vector [-1e-17, 1] :: S.R 2)
 
-            probabilityAt tolerated 0 `shouldBe` (-1e-17)
+            probabilityAt tolerated 0 `shouldBe` 0
             probabilityAt tolerated 1 `shouldBe` 1
 
     describe "named finite states" $ do

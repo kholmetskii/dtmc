@@ -26,13 +26,13 @@ import Dtmc.Distribution.Map.Internal (
     unDistributionMap,
  )
 import Dtmc.Simplex.Internal (
-    validateSimplexEntries,
+    canonicaliseSimplexEntries,
  )
 
 {- | Combine duplicate states, remove entries whose combined weight is exactly
-zero, and validate the resulting finite-support probability law. Input order
-is irrelevant; accepted weights are otherwise preserved without clamping or
-renormalisation.
+zero, and construct a canonical finite-support probability law. Tolerated
+coordinate error is clamped to @[0, 1]@, the repaired weights are normalised,
+and any weights repaired to zero are omitted. Input order is irrelevant.
 
 Time: @O(m log m)@ for @m@ supplied entries. Space: @O(s)@ for @s@ distinct
 states.
@@ -42,10 +42,13 @@ mkDistributionMap ::
     [(state, Double)] ->
     Either DistributionError (DistributionMap state)
 mkDistributionMap entries =
-    DistributionMap canonical
-        <$ first DistributionError (validateSimplexEntries (Map.elems canonical))
+    DistributionMap . Map.fromDistinctAscList . filter ((/= 0) . snd)
+        . zip (Map.keys combined)
+        <$> first
+            DistributionError
+            (canonicaliseSimplexEntries (Map.elems combined))
   where
-    canonical = Map.filter (/= 0) (Map.fromListWith (+) entries)
+    combined = Map.filter (/= 0) (Map.fromListWith (+) entries)
 
 -- | The point mass concentrated on one state. This is valid by construction.
 pointMass :: state -> DistributionMap state

@@ -16,6 +16,10 @@ Initial distributions can use either:
 - `DistributionVector` for a dense, statically sized representation;
 - `DistributionMap` for a sparse finite-support representation.
 
+Their smart constructors, and `mkTransitionMatrix`, accept floating-point
+error within `1e-9`, then clamp tolerated coordinate error and normalise before
+storing the value. `NaN` and infinite coordinates are rejected explicitly.
+
 ### Countable-state chains
 
 Countable-state chains use `TransitionKernel`. A kernel may have an infinite

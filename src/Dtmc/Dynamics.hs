@@ -49,9 +49,9 @@ import Numeric.Natural (Natural)
 {- | The next-state distribution @mu' = transpose(P) mu@.
 
 Exact probability inputs produce a probability distribution. The result is
-wrapped without validation, clamping, or renormalisation, so tolerated input
-error and floating-point rounding are preserved and may make a subsequent
-validation fail.
+wrapped without validation, clamping, or renormalisation, so error from custom
+or numerically derived inputs and floating-point rounding is preserved and may
+make a subsequent validation fail.
 
 Time: @O(n^2)@. Result space: @O(n)@.
 -}

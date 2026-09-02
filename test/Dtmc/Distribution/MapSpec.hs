@@ -16,9 +16,13 @@ import Dtmc.Distribution.Map (
 import Dtmc.Simplex (
     SimplexError (..),
  )
+import Dtmc.TestSupport (
+    approxEq,
+ )
 import Test.Hspec (
     Spec,
     describe,
+    expectationFailure,
     it,
     shouldBe,
     shouldSatisfy,
@@ -48,3 +52,31 @@ spec =
         it "uses the shared error type" $
             mkDistributionMap ([] :: [(Int, Double)])
                 `shouldBe` Left (DistributionError (SumOffBy 0))
+
+        it "removes weights repaired to zero" $
+            case mkDistributionMap [('a', -1e-17), ('b', 1)] of
+                Right distribution ->
+                    Map.toAscList (unDistributionMap distribution)
+                        `shouldBe` [('b', 1)]
+                Left err ->
+                    expectationFailure
+                        ("expected acceptance, got " <> show err)
+
+        it "normalises an accepted combined total near one" $
+            case mkDistributionMap [('a', 0.5), ('b', 0.5 - 5e-10)] of
+                Right distribution ->
+                    approxEq
+                        1e-12
+                        (sum (Map.elems (unDistributionMap distribution)))
+                        1
+                        `shouldBe` True
+                Left err ->
+                    expectationFailure
+                        ("expected acceptance, got " <> show err)
+
+        it "reports a non-finite combined weight by ascending state index" $
+            case mkDistributionMap [('b', 1), ('a', 0 / 0), ('a', 0)] of
+                Left err ->
+                    err `shouldBe` DistributionError (NonFiniteEntry 0)
+                Right _ ->
+                    expectationFailure "expected rejection"

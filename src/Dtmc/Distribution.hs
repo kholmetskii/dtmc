@@ -17,8 +17,9 @@ import Dtmc.Simplex (
 
 {- | A simplex failure while constructing a distribution representation.
 For a map-backed law, coordinate indices refer to ascending state order after
-duplicate states have been combined. The wrapper keeps distribution failures
-distinct from transition-matrix row failures.
+duplicate states have been combined and exact-zero weights omitted. The
+wrapper keeps distribution failures distinct from transition-matrix row
+failures.
 -}
 newtype DistributionError
     = -- | Wrap the underlying simplex failure.
@@ -46,14 +47,16 @@ class Distribution distribution where
         Double
 
     {- | Return canonical ascending state weights. Exact-zero weights are
-    omitted; tolerated negative values remain visible.
+    omitted. Custom instances and numerically derived values are returned
+    without revalidation.
     -}
     distributionWeights ::
         distribution ->
         [(DistributionState distribution, Double)]
 
     {- | States with strictly positive stored weight, in ascending order.
-    Tolerated negative coordinates are not mathematical support.
+    Non-positive coordinates from custom instances or unchecked numerical
+    operations are not mathematical support.
     -}
     support :: distribution -> [DistributionState distribution]
     support distribution =

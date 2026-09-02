@@ -1,25 +1,28 @@
 {- |
 Module      : Dtmc.Simplex
-Description : The probability-simplex validation error.
+Description : Probability-simplex construction errors.
 
 Errors shared by the distribution and transition-matrix smart constructors.
-Validation uses an absolute tolerance of @1e-9@ for coordinates and the total.
+Construction uses an absolute tolerance of @1e-9@ for coordinates and the
+total.
 -}
 module Dtmc.Simplex (
     SimplexError (..),
 ) where
 
-{- | Why a vector failed to be a probability distribution. Coordinate errors
-carry a zero-based index and the offending value; 'SumOffBy' carries the
-computed total.
+{- | Why a vector failed to be a probability distribution. Bound errors carry
+a zero-based index and the offending value; 'NonFiniteEntry' identifies a
+@NaN@ or infinite coordinate; 'SumOffBy' carries the computed total.
 
 The first coordinate error takes precedence over the total. Coordinate bounds
-are inclusive; the total succeeds when @abs (total - 1) <= 1e-9@. An empty
-vector yields @SumOffBy 0@; with no coordinate bound error, a @NaN@ coordinate
-yields @SumOffBy NaN@.
+accept @[-1e-9, 1 + 1e-9]@; the total succeeds when
+@abs (total - 1) <= 1e-9@. Smart constructors clamp accepted coordinates to
+@[0, 1]@ and normalise before storage. An empty vector yields @SumOffBy 0@.
 -}
 data SimplexError
-    = -- | Coordinate less than @-1e-9@.
+    = -- | Coordinate is @NaN@ or infinite.
+      NonFiniteEntry Int
+    | -- | Coordinate less than @-1e-9@.
       NegativeEntry Int Double
     | -- | Coordinate greater than @1 + 1e-9@.
       EntryAboveOne Int Double

@@ -4,8 +4,8 @@ Description : Dense probability vectors over finite state types.
 
 t'DistributionVector' stores a probability law over a 'FiniteState' type in a
 statically sized vector. Coordinates follow its canonical state order.
-'mkDistributionVector' checks the simplex invariant with the @1e-9@ tolerance
-documented by 'Dtmc.Simplex.SimplexError'.
+'mkDistributionVector' checks and canonicalises the simplex invariant with the
+@1e-9@ tolerance documented by 'Dtmc.Simplex.SimplexError'.
 -}
 module Dtmc.Distribution.Vector (
     DistributionVector,
@@ -24,7 +24,7 @@ import Dtmc.Distribution.Vector.Internal (
     unDistributionVector,
  )
 import Dtmc.Simplex.Internal (
-    validateSimplex,
+    canonicaliseSimplex,
  )
 import Dtmc.State (
     Cardinality,
@@ -32,17 +32,18 @@ import Dtmc.State (
  )
 import Numeric.LinearAlgebra.Static qualified as S
 
-{- | Validate a raw state distribution vector. On success it is preserved
-exactly; tolerated coordinates are not clamped and the total is not
-renormalised. For a state type of cardinality zero, returns
+{- | Construct a state distribution vector. Tolerated coordinate error is
+clamped to @[0, 1]@ and the repaired vector is normalised before storage. For
+a state type of cardinality zero, returns
 @Left (DistributionError (SumOffBy 0))@.
 
-Time: @O(k)@. Space: @O(k)@ for validation, where @k@ is the state
+Time and result space: @O(k)@, where @k@ is the state
 cardinality.
 -}
 mkDistributionVector ::
     (FiniteState state) =>
     S.R (Cardinality state) ->
     Either DistributionError (DistributionVector state)
-mkDistributionVector vector =
-    DistributionVector vector <$ first DistributionError (validateSimplex vector)
+mkDistributionVector vector = do
+    canonical <- first DistributionError (canonicaliseSimplex vector)
+    pure (DistributionVector canonical)

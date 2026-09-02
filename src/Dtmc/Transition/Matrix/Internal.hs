@@ -4,7 +4,8 @@ Description : Raw carrier for transition matrices (unsafe underbelly).
 
 Raw carrier behind t'Dtmc.Transition.Matrix.TransitionMatrix': a statically
 sized matrix paired with its lazy support graph. The public smart constructor
-validates rows; this internal module exposes unchecked construction.
+validates and canonicalises rows; this internal module exposes unchecked
+construction.
 
 The constructor is positional so the public matrix projection cannot act as a
 record-update setter and desynchronise the matrix from its cached graph.
@@ -45,8 +46,9 @@ import Numeric.LinearAlgebra.Static qualified as S
 
 {- | A stored square matrix whose rows and columns follow the canonical order
 of its finite state type. Entry @(i,j)@ is the transition probability from
-state @i@ to state @j@. The public constructor applies tolerant row validation;
-the internal constructor and arithmetic instances do not revalidate.
+state @i@ to state @j@. The public constructor applies tolerant row validation
+and canonicalisation; the internal constructor and arithmetic instances do not
+revalidate.
 
 Each value also carries its support graph as a /lazy/ second argument, so any
 graph-based analyses on the same value share one build. Construct internal

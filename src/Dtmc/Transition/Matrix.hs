@@ -3,9 +3,9 @@ Module      : Dtmc.Transition.Matrix
 Description : Row-stochastic matrices over finite state types.
 
 One-step transition probabilities for a DTMC over a 'FiniteState' type.
-'mkTransitionMatrix' validates each row with the simplex tolerance;
-'mulTransitionMatrix', 'identityMatrix', and 'matrixPower' provide multi-step
-transitions.
+'mkTransitionMatrix' validates and canonicalises each row with the simplex
+tolerance; 'mulTransitionMatrix', 'identityMatrix', and 'matrixPower' provide
+multi-step transitions.
 -}
 module Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -21,9 +21,6 @@ module Dtmc.Transition.Matrix (
 import Data.Bifunctor (
     first,
  )
-import Data.Foldable (
-    traverse_,
- )
 import Data.Semigroup (
     mtimesDefault,
  )
@@ -34,7 +31,7 @@ import Dtmc.Simplex (
     SimplexError,
  )
 import Dtmc.Simplex.Internal (
-    validateSimplex,
+    canonicaliseSimplex,
  )
 import Dtmc.State (
     Cardinality,
@@ -46,6 +43,7 @@ import Dtmc.Transition.Matrix.Internal (
     unTransitionMatrix,
     unsafeTransitionMatrix,
  )
+import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
@@ -59,28 +57,30 @@ data TransitionMatrixError
       InRow Int SimplexError
     deriving (Eq, Show)
 
-{- | Validate every row as a next-state distribution, stopping at the first
-failure. Accepted entries are preserved without clamping or renormalisation;
-the support graph remains lazy. The empty @0 x 0@ matrix is accepted.
+{- | Construct a row-stochastic matrix, stopping at the first invalid row.
+Within each accepted row, tolerated coordinate error is clamped to @[0, 1]@
+and the repaired row is normalised. The support graph remains lazy. The empty
+@0 x 0@ matrix is accepted.
 
-Time: @O(n^2)@. Additional validation space: @O(n)@.
+Time and result space: @O(n^2)@.
 -}
 mkTransitionMatrix ::
     (FiniteState state) =>
     S.Sq (Cardinality state) ->
     Either TransitionMatrixError (TransitionMatrix state)
 mkTransitionMatrix matrix =
-    unsafeTransitionMatrix matrix <$ traverse_ validateRow (zip [0 ..] (S.toRows matrix))
+    unsafeTransitionMatrix . S.matrix . concatMap (LA.toList . S.extract)
+        <$> traverse canonicaliseRow (zip [0 ..] (S.toRows matrix))
   where
-    validateRow (index, row) =
-        first (InRow index) (validateSimplex row)
+    canonicaliseRow (index, row) =
+        first (InRow index) (canonicaliseSimplex row)
 
 {- | Compose two transitions: @mulTransitionMatrix p q@ means take a @p@ step,
 then a @q@ step, and stores the matrix product @P Q@.
 
-The product is not revalidated. Exact row-stochastic matrices are closed under
-multiplication, but tolerated input error and floating-point rounding can
-accumulate, so the result may fail 'mkTransitionMatrix' if checked again.
+The product is not revalidated. Row-stochastic matrices are closed under
+multiplication mathematically, but floating-point rounding can accumulate, so
+the result may be repaired or fail 'mkTransitionMatrix' if checked again.
 
 Time: @O(n^3)@. Result space: @O(n^2)@; its support graph is built lazily.
 -}
