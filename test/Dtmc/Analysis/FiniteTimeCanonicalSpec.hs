@@ -9,9 +9,6 @@ import Data.Finite (
     Finite,
     finites,
  )
-import Data.List.NonEmpty (
-    NonEmpty ((:|)),
- )
 import Dtmc.Analysis.FiniteTime qualified as FT
 import Dtmc.Analysis.ProbabilityOracle qualified as Oracle
 import Dtmc.Distribution.Map (
@@ -92,16 +89,20 @@ canonicalMatchesOracle matrix =
             ]
         , and
             [ close
-                (FT.stateProbability time initialDistribution matrix destination)
+                (FT.probability initialDistribution matrix [FT.At time destination])
                 (Oracle.stateProbability time initialWeights matrix destination)
             | time <- [0 .. 4]
             , destination <- finites
             ]
         , close
-            (FT.pathProbability initialDistribution matrix (0 :| [1, 2]))
+            ( FT.probability
+                initialDistribution
+                matrix
+                [FT.At 0 0, FT.At 1 1, FT.At 2 2]
+            )
             (Oracle.trajectoryProbability initialWeights matrix [0, 1, 2])
         , close
-            ( FT.observationProbability
+            ( FT.probability
                 initialDistribution
                 matrix
                 [FT.At 1 1, FT.At 3 2]
@@ -125,7 +126,7 @@ canonicalMatchesOracle matrix =
             [(1, 1), (3, 2)]
     conditionalMatchesOracle =
         case
-            FT.conditionalObservationProbability
+            FT.probabilityGiven
                 initialDistribution
                 matrix
                 [FT.At 3 2]
@@ -137,7 +138,7 @@ canonicalMatchesOracle matrix =
 spec :: Spec
 spec = do
     describe "canonical finite-time namespace" $ do
-        it "uses the six grammar-compliant names together" $ do
+        it "uses the four grammar-compliant names together" $ do
             let matrix :: TransitionMatrix (Finite 2)
                 matrix =
                     checked
@@ -150,11 +151,10 @@ spec = do
                         (mkDistributionVector (S.vector [1, 0] :: S.R 2))
             FT.stepProbability matrix 0 1 `shouldBe` 0.5
             FT.nStepProbability 2 matrix 0 1 `shouldBe` 0.75
-            FT.stateProbability 1 initial matrix 1 `shouldBe` 0.5
-            FT.pathProbability initial matrix (0 :| [1]) `shouldBe` 0.5
-            FT.observationProbability initial matrix [FT.At 1 1]
+            FT.probability initial matrix [FT.At 1 1] `shouldBe` 0.5
+            FT.probability initial matrix [FT.At 0 0, FT.At 1 1]
                 `shouldBe` 0.5
-            FT.conditionalObservationProbability
+            FT.probabilityGiven
                 initial
                 matrix
                 [FT.At 1 1]
@@ -164,19 +164,19 @@ spec = do
         it "preserves locally finite countable-state support" $ do
             FT.stepProbability simpleRandomWalk 0 1 `shouldBe` 0.5
             FT.nStepProbability 2 simpleRandomWalk 0 0 `shouldBe` 0.5
-            FT.stateProbability 2 (pointMass 0) simpleRandomWalk 0
+            FT.probability (pointMass 0) simpleRandomWalk [FT.At 2 0]
                 `shouldBe` 0.5
-            FT.pathProbability
+            FT.probability
                 (pointMass 0)
                 simpleRandomWalk
-                (0 :| [1, 0])
+                [FT.At 0 0, FT.At 1 1, FT.At 2 0]
                 `shouldBe` 0.25
-            FT.observationProbability
+            FT.probability
                 (pointMass 0)
                 simpleRandomWalk
                 [FT.At 0 0, FT.At 2 0]
                 `shouldBe` 0.5
-            FT.conditionalObservationProbability
+            FT.probabilityGiven
                 (pointMass 0)
                 simpleRandomWalk
                 [FT.At 2 0]

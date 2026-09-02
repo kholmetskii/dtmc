@@ -9,9 +9,6 @@ import Data.Finite (
     Finite,
     finites,
  )
-import Data.List.NonEmpty (
-    NonEmpty ((:|)),
- )
 import Data.Maybe (
     fromMaybe,
  )
@@ -130,21 +127,25 @@ finiteAndBoundedChecks matrix =
                 ]
             && and
                 [ close
-                    (FT.stateProbability time initialDistribution matrix destination)
+                    (FT.probability initialDistribution matrix [FT.At time destination])
                     (Oracle.stateProbability time initialWeights matrix destination)
                 | time <- [0 .. 4]
                 , destination <- finites
                 ]
     trajectoryChecks =
         close
-            (FT.pathProbability initialDistribution matrix (0 :| [1, 2]))
+            ( FT.probability
+                initialDistribution
+                matrix
+                [FT.At 0 0, FT.At 1 1, FT.At 2 2]
+            )
             (Oracle.trajectoryProbability initialWeights matrix [0, 1, 2])
     observations = [(1, 1), (3, 2)]
     oracleJoint =
         Oracle.observationProbability 3 initialWeights matrix observations
     observationChecks =
         close
-            (FT.observationProbability initialDistribution matrix [FT.At 1 1, FT.At 3 2])
+            (FT.probability initialDistribution matrix [FT.At 1 1, FT.At 3 2])
             oracleJoint
             && conditionalChecks
     conditionalChecks =
@@ -152,7 +153,7 @@ finiteAndBoundedChecks matrix =
                 Oracle.observationProbability 1 initialWeights matrix [(1, 1)]
             numerator = oracleJoint
             actual =
-                FT.conditionalObservationProbability
+                FT.probabilityGiven
                     initialDistribution
                     matrix
                     [FT.At 3 2]

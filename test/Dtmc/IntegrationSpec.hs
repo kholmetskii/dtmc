@@ -314,7 +314,7 @@ spec =
                 `shouldBe` InfiniteExpectation
 
         it "uses qualified conditional-probability errors" $
-            FT.conditionalObservationProbability
+            FT.probabilityGiven
                 cafeInitial
                 cafeTransition
                 []
@@ -322,5 +322,5 @@ spec =
                 `shouldBe` Left FT.ZeroProbabilityCondition
 
         it "uses qualified timed-observation probabilities" $
-            FT.observationProbability cafeInitial cafeTransition [FT.At 0 Thinking]
+            FT.probability cafeInitial cafeTransition [FT.At 0 Thinking]
                 `shouldBe` 1

@@ -1,6 +1,6 @@
 {- |
 Module      : Dtmc.Analysis.FiniteTime
-Description : Scalar, trajectory, event, and conditional probabilities.
+Description : Transition, event, and conditional probabilities.
 
 Finite-time probability queries shared by dense finite matrices and locally
 finite kernels. Kernels implement 'Transition'; initial laws may be either a
@@ -11,17 +11,12 @@ and perform no truncation, clamping, or renormalisation.
 module Dtmc.Analysis.FiniteTime (
     stepProbability,
     nStepProbability,
-    stateProbability,
-    pathProbability,
-    observationProbability,
-    conditionalObservationProbability,
+    probability,
+    probabilityGiven,
     Observation (..),
     ConditionalProbabilityError (..),
 ) where
 
-import Data.List.NonEmpty (
-    NonEmpty ((:|)),
- )
 import Dtmc.Analysis.FiniteTime.Internal (
     NormalisedObservations (..),
     normalise,
@@ -31,7 +26,6 @@ import Dtmc.Distribution (
  )
 import Dtmc.Distribution.Map (
     pointMass,
-    toDistributionMap,
  )
 import Dtmc.Dynamics (
     evolveN,
@@ -55,28 +49,6 @@ data ConditionalProbabilityError
     = -- | The condition has probability exactly zero.
       ZeroProbabilityCondition
     deriving (Eq, Show)
-
-{- | Probability of an explicit consecutive non-empty trajectory. A one-state
-path returns its initial probability; longer paths multiply the initial mass
-by every one-step transition probability.
--}
-pathProbability ::
-    ( Distribution distribution
-    , Transition kernel
-    , DistributionState distribution ~ TransitionState kernel
-    , Ord (TransitionState kernel)
-    ) =>
-    distribution ->
-    kernel ->
-    NonEmpty (TransitionState kernel) ->
-    Double
-pathProbability initial kernel (initialState :| rest) =
-    probabilityAt (toDistributionMap initial) initialState
-        * go initialState rest
-  where
-    go _ [] = 1
-    go previous (next : more) =
-        stepProbability kernel previous next * go next more
 
 {- | One-step transition probability @P(X_1 = j | X_0 = i)@ through any
 locally finite 'Transition'.
@@ -103,26 +75,13 @@ nStepProbability ::
 nStepProbability steps kernel source =
     probabilityAt (evolveN steps (pointMass source) kernel)
 
-{- | State probability @P(X_k = j)@ under an initial distribution.
--}
-stateProbability ::
-    ( Distribution distribution
-    , Transition kernel
-    , DistributionState distribution ~ TransitionState kernel
-    , Ord (TransitionState kernel)
-    ) =>
-    Natural ->
-    distribution ->
-    kernel ->
-    TransitionState kernel ->
-    Double
-stateProbability steps initial kernel =
-    probabilityAt (evolveN steps initial kernel)
-
 {- | Probability of a conjunction of timed observations. Observation order
 has no meaning, duplicates collapse, and an empty conjunction is exactly one.
+
+A state probability is represented by a singleton observation. A consecutive
+path is represented by observations at times zero, one, and so on.
 -}
-observationProbability ::
+probability ::
     ( Distribution distribution
     , Transition kernel
     , DistributionState distribution ~ TransitionState kernel
@@ -132,12 +91,12 @@ observationProbability ::
     kernel ->
     [Observation (TransitionState kernel)] ->
     Double
-observationProbability initial kernel observations =
+probability initial kernel observations =
     case normalise [(time, state) | At time state <- observations] of
         Impossible -> 0
         Consistent [] -> 1
         Consistent ((firstTime, firstState) : rest) ->
-            stateProbability firstTime initial kernel firstState
+            probabilityAt (evolveN firstTime initial kernel) firstState
                 * gaps (firstTime, firstState) rest
   where
     gaps _ [] = 1
@@ -149,11 +108,12 @@ observationProbability initial kernel observations =
             state
             * gaps (time, state) more
 
-{- | Conditional observation probability @P(E | C)@. An exactly
-zero-probability condition returns 'ZeroProbabilityCondition'; otherwise the
-result is the ordinary 'Double' quotient of joint probabilities.
+{- | Conditional probability @P(E | C)@ for two conjunctions of timed
+observations. An exactly zero-probability condition returns
+'ZeroProbabilityCondition'; otherwise the result is the ordinary 'Double'
+quotient of joint probabilities.
 -}
-conditionalObservationProbability ::
+probabilityGiven ::
     ( Distribution distribution
     , Transition kernel
     , DistributionState distribution ~ TransitionState kernel
@@ -164,10 +124,10 @@ conditionalObservationProbability ::
     [Observation (TransitionState kernel)] ->
     [Observation (TransitionState kernel)] ->
     Either ConditionalProbabilityError Double
-conditionalObservationProbability initial kernel event condition =
+probabilityGiven initial kernel event condition =
     if denominator == 0
         then Left ZeroProbabilityCondition
         else Right (numerator / denominator)
   where
-    denominator = observationProbability initial kernel condition
-    numerator = observationProbability initial kernel (event <> condition)
+    denominator = probability initial kernel condition
+    numerator = probability initial kernel (event <> condition)

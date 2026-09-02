@@ -417,7 +417,7 @@ spec = do
                                     Visit.boundedExpectation bound initial matrix (== 0)
                                 marginalSum =
                                     sum
-                                        [ FT.stateProbability (fromIntegral time) initial matrix 0
+                                        [ FT.probability initial matrix [FT.At (fromIntegral time) 0]
                                         | time <- [0 .. rawBound - 1]
                                         ]
                              in property (closeTo marginalSum expectation)

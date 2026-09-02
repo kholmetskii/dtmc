@@ -7,9 +7,6 @@ module Dtmc.Analysis.NamespaceCompileSpec (
 import Data.Finite (
     Finite,
  )
-import Data.List.NonEmpty (
-    NonEmpty ((:|)),
- )
 import Dtmc.Analysis.Absorption qualified as Absorption
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
@@ -64,11 +61,10 @@ spec = do
         it "coexist under the documented aliases" $ do
             FT.stepProbability matrix 0 1 `shouldBe` 0.5
             FT.nStepProbability 2 matrix 0 1 `shouldBe` 0.75
-            FT.stateProbability 1 initial matrix 1 `shouldBe` 0.5
-            FT.pathProbability initial matrix (0 :| [1]) `shouldBe` 0.5
-            FT.observationProbability initial matrix [FT.At 1 1]
+            FT.probability initial matrix [FT.At 1 1] `shouldBe` 0.5
+            FT.probability initial matrix [FT.At 0 0, FT.At 1 1]
                 `shouldBe` 0.5
-            FT.conditionalObservationProbability
+            FT.probabilityGiven
                 initial
                 matrix
                 [FT.At 1 1]
