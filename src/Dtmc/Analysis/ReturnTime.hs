@@ -112,14 +112,14 @@ advanceUntilTarget kernel isTarget survivors =
 {- | Exact first-return probability @P(T_i^+ = t | X_0 = i)@ through any
 'Transition'. Time zero is exactly zero; a self-loop returns at time one.
 -}
-returnTimeProbability ::
+exactProbabilityAt ::
     (Transition kernel, Ord (TransitionState kernel)) =>
     Natural ->
     kernel ->
     TransitionState kernel ->
     Double
-returnTimeProbability 0 _ _ = 0
-returnTimeProbability time kernel initialState =
+exactProbabilityAt 0 _ _ = 0
+exactProbabilityAt time kernel initialState =
     go time (Map.singleton initialState 1)
   where
     isInitial state = state == initialState
@@ -135,13 +135,13 @@ returnTimeProbability time kernel initialState =
 {- | Strict bounded first-return probability @P(T_i^+ < c | X_0 = i)@ through
 any 'Transition'. Bounds @0@ and @1@ are exactly zero.
 -}
-returnTimeBeforeProbability ::
+lowerTailProbability ::
     (Transition kernel, Ord (TransitionState kernel)) =>
     Natural ->
     kernel ->
     TransitionState kernel ->
     Double
-returnTimeBeforeProbability bound kernel initialState =
+lowerTailProbability bound kernel initialState =
     go bound (Map.singleton initialState 1) 0
   where
     isInitial state = state == initialState
@@ -164,12 +164,12 @@ fails the numerical contract.
 
 Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
-returnProbabilities ::
+eventualProbabilitiesByState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     Either LinearSystemError (S.R (Cardinality state))
-returnProbabilities p = do
+eventualProbabilitiesByState p = do
     transientReturns <-
         if null transient
             then Right []
@@ -202,21 +202,21 @@ fundamental-matrix solve. The first transient query costs @O(n^3)@ worst case;
 partial application shares that solve, making later lookups @O(1)@.
 
 Transient queries inherit the numerical behavior and errors of
-'returnProbabilities'.
+'eventualProbabilitiesByState'.
 -}
-returnProbability ::
+eventualProbabilityGivenInitialState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
     Either LinearSystemError Double
-returnProbability p =
+eventualProbabilityGivenInitialState p =
     \i ->
         if recurrentState p i
             then Right 1
             else (`LA.atIndex` toIndex i) <$> probabilities
   where
-    probabilities = S.extract <$> returnProbabilities p
+    probabilities = S.extract <$> eventualProbabilitiesByState p
 
 {- | The expected first-return time for one state. A transient state returns
 'InfiniteExpectation' without a linear solve. A recurrent state performs one
@@ -228,23 +228,23 @@ classification is cached, a transient query takes @O(1)@. Recurrent queries
 inherit the numerical behavior and errors of
 'Hit.expectationGivenInitialState'.
 -}
-returnTimeExpectation ::
+expectationGivenInitialState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
     Either LinearSystemError Expectation
-returnTimeExpectation p i
-    | recurrentState p i = returnTimeExpectationFrom p i
+expectationGivenInitialState p i
+    | recurrentState p i = expectationFromRecurrentState p i
     | otherwise = Right InfiniteExpectation
 
-returnTimeExpectationFrom ::
+expectationFromRecurrentState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
     Either LinearSystemError Expectation
-returnTimeExpectationFrom p i =
+expectationFromRecurrentState p i =
     foldM addTerm (FiniteExpectation 1) (zip finiteStates row)
   where
     eta = Hit.expectationGivenInitialState p [i]
@@ -262,13 +262,13 @@ returnTimeExpectationFrom p i =
 -- Direct survivor mass @P(T_i > t)@ through a locally finite transition.
 -- Unlike hitting time, the initial state is not removed at time zero: a first
 -- return can occur only after at least one transition.
-returnTimeAfterProbability ::
+upperTailProbability ::
     (Transition kernel, Ord (TransitionState kernel)) =>
     Natural ->
     kernel ->
     TransitionState kernel ->
     Double
-returnTimeAfterProbability time kernel initialState =
+upperTailProbability time kernel initialState =
     go time (Map.singleton initialState 1)
   where
     isInitial state = state == initialState
@@ -316,12 +316,12 @@ probabilityGivenInitialState ::
     Double
 probabilityGivenInitialState event kernel initialState =
     case event of
-        EqualTo time -> returnTimeProbability time kernel initialState
-        LessThan bound -> returnTimeBeforeProbability bound kernel initialState
-        AtMost time -> returnTimeBeforeProbability (time + 1) kernel initialState
-        GreaterThan time -> returnTimeAfterProbability time kernel initialState
+        EqualTo time -> exactProbabilityAt time kernel initialState
+        LessThan bound -> lowerTailProbability bound kernel initialState
+        AtMost time -> lowerTailProbability (time + 1) kernel initialState
+        GreaterThan time -> upperTailProbability time kernel initialState
         AtLeast 0 -> 1
-        AtLeast time -> returnTimeAfterProbability (time - 1) kernel initialState
+        AtLeast time -> upperTailProbability (time - 1) kernel initialState
 
 {- | Probability under an arbitrary initial distribution of eventually
 returning to the sampled initial state after at least one transition.
@@ -335,15 +335,7 @@ eventualProbability ::
     distribution ->
     Either LinearSystemError Double
 eventualProbability matrix initial =
-    probabilityUnderEither initial (returnProbability matrix)
-
--- | Probability of eventually returning conditioned on @X_0 = i@.
-eventualProbabilityGivenInitialState ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    state ->
-    Either LinearSystemError Double
-eventualProbabilityGivenInitialState = returnProbability
+    probabilityUnderEither initial (eventualProbabilityGivenInitialState matrix)
 
 {- | Expected first-return time under an arbitrary initial distribution. The
 result is infinite when a transient state has positive initial probability.
@@ -357,12 +349,4 @@ expectation ::
     distribution ->
     Either LinearSystemError Expectation
 expectation matrix initial =
-    expectationUnderEither initial (returnTimeExpectation matrix)
-
--- | Expected first-return time conditioned on @X_0 = i@.
-expectationGivenInitialState ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    state ->
-    Either LinearSystemError Expectation
-expectationGivenInitialState = returnTimeExpectation
+    expectationUnderEither initial (expectationGivenInitialState matrix)

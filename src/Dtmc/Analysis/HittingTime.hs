@@ -117,7 +117,7 @@ advanceUntilTarget kernel isTarget survivors =
 also works when the state space is infinite. Hitting includes time zero, and
 newly hit mass is removed after every step.
 -}
-hittingTimeProbability ::
+exactProbabilityAt ::
     ( Transition kernel
     , Ord (TransitionState kernel)
     ) =>
@@ -126,7 +126,7 @@ hittingTimeProbability ::
     (TransitionState kernel -> Bool) ->
     TransitionState kernel ->
     Double
-hittingTimeProbability time kernel isTarget initialState
+exactProbabilityAt time kernel isTarget initialState
     | time == 0 = if isTarget initialState then 1 else 0
     | isTarget initialState = 0
     | otherwise = go time (Map.singleton initialState 1)
@@ -143,7 +143,7 @@ hittingTimeProbability time kernel isTarget initialState
 any 'Transition'. At @c = 0@ the result is zero; at a positive bound an
 initial target gives one.
 -}
-hittingTimeBeforeProbability ::
+lowerTailProbability ::
     ( Transition kernel
     , Ord (TransitionState kernel)
     ) =>
@@ -152,7 +152,7 @@ hittingTimeBeforeProbability ::
     (TransitionState kernel -> Bool) ->
     TransitionState kernel ->
     Double
-hittingTimeBeforeProbability bound kernel isTarget initialState
+lowerTailProbability bound kernel isTarget initialState
     | bound == 0 = 0
     | isTarget initialState = 1
     | otherwise = go (bound - 1) (Map.singleton initialState 1) 0
@@ -176,34 +176,35 @@ states from which @A@ is unreachable are exactly @0@. Remaining entries solve
 Returns 'Left' if the interior solve fails the numerical contract. Worst-case
 time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
-hittingProbabilities ::
+eventualProbabilitiesByState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
     Either LinearSystemError (S.R (Cardinality state))
-hittingProbabilities p targets =
+eventualProbabilitiesByState p targets =
     -- The ordinary hitting problem is the competing problem with no competing
     -- boundary (@H_B = infinity@), so it reuses the same single solve.
-    hittingBeforeProbabilities p targets []
+    raceProbabilitiesByState p targets []
 
 {- | The probability of ever hitting the target set from one state. This has
-the same edge cases, numerical behavior, and errors as 'hittingProbabilities'.
+the same edge cases, numerical behavior, and errors as
+'eventualProbabilitiesByState'.
 
 Partially applying the matrix and target set shares one lazy all-state solve:
 the first forced query costs @O(n^3)@ worst case and later lookups cost
 @O(1)@.
 -}
-hittingProbability ::
+eventualProbabilityGivenInitialState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
     state ->
     Either LinearSystemError Double
-hittingProbability p targets =
+eventualProbabilityGivenInitialState p targets =
     \i -> (`LA.atIndex` toIndex i) <$> probabilities
   where
-    probabilities = S.extract <$> hittingProbabilities p targets
+    probabilities = S.extract <$> eventualProbabilitiesByState p targets
 
 {- | Competing hitting probabilities
 @h_i = P(H_A < H_B | X_0 = i)@ in state order, for a successful boundary @A@
@@ -225,7 +226,7 @@ the effective successful set as @A' = A \\ B@:
 Empty boundaries. Because @H_(empty) = infinity@:
 
 * an empty successful set gives an all-zero vector;
-* an empty competing set agrees with 'hittingProbabilities' on the same
+* an empty competing set agrees with 'eventualProbabilitiesByState' on the same
   successful set;
 * two empty sets give an all-zero vector.
 
@@ -246,14 +247,14 @@ performs at most one linear solve.
 
 Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
-hittingBeforeProbabilities ::
+raceProbabilitiesByState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
     [state] ->
     Either LinearSystemError (S.R (Cardinality state))
-hittingBeforeProbabilities p successful competing = do
+raceProbabilitiesByState p successful competing = do
     solved <-
         if null interiorIdx
             then Right []
@@ -304,13 +305,13 @@ hittingBeforeProbabilities p successful competing = do
 {- | The probability of hitting the successful boundary strictly before the
 competing boundary from one state, @P(H_A < H_B | X_0 = i)@. This has the same
 overlap, empty-set, structural, numerical, and error behaviour as
-'hittingBeforeProbabilities'.
+'raceProbabilitiesByState'.
 
 Partially applying the matrix and both boundaries shares one lazy all-state
 solve: the first forced query costs @O(n^3)@ worst case and later lookups cost
 @O(1)@.
 -}
-hittingBeforeProbability ::
+raceProbabilityGivenInitialState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
@@ -318,11 +319,11 @@ hittingBeforeProbability ::
     [state] ->
     state ->
     Either LinearSystemError Double
-hittingBeforeProbability p successful competing =
+raceProbabilityGivenInitialState p successful competing =
     \i -> (`LA.atIndex` toIndex i) <$> probabilities
   where
     probabilities =
-        S.extract <$> hittingBeforeProbabilities p successful competing
+        S.extract <$> raceProbabilitiesByState p successful competing
 
 {- | Expected hitting times @E(H_A | X_0 = i)@ in state order. Targets have
 exact expectation zero. A non-target state is 'InfiniteExpectation' exactly
@@ -337,13 +338,13 @@ contract.
 
 Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
 -}
-hittingTimeExpectations ::
+expectationsByState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
     Either LinearSystemError [Expectation]
-hittingTimeExpectations p targets = do
+expectationsByState p targets = do
     solved <-
         if null certainIdx
             then Right []
@@ -386,31 +387,31 @@ hittingTimeExpectations p targets = do
     matrix = S.extract (unTransitionMatrix p)
 
 {- | The expected time to hit the target set from one state. This has the same
-edge cases, numerical behavior, and errors as 'hittingTimeExpectations'.
+edge cases, numerical behavior, and errors as 'expectationsByState'.
 
 Partial application shares one lazy all-state table: the first forced query
 costs @O(n^3)@ worst case and later lookups cost @O(1)@.
 -}
-hittingTimeExpectation ::
+expectationGivenInitialState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
     state ->
     Either LinearSystemError Expectation
-hittingTimeExpectation p targets =
+expectationGivenInitialState p targets =
     \i -> (Array.! toIndex i) <$> table
   where
     -- Back the shared table with a boxed array so each state query is O(1)
     -- (list @!!@ was O(index)); the single solve is still shared across queries.
     table =
-        Array.listArray (0, dim - 1) <$> hittingTimeExpectations p targets
+        Array.listArray (0, dim - 1) <$> expectationsByState p targets
     dim = fromIntegral (natVal (Proxy @(Cardinality state)))
 
 -- Direct survivor mass @P(H_A > t)@ through a locally finite transition.
 -- Newly hit paths are removed at every step, so paths that never hit remain
 -- in the map and the result naturally includes the infinity atom.
-hittingTimeAfterProbability ::
+upperTailProbability ::
     ( Transition kernel
     , Ord (TransitionState kernel)
     ) =>
@@ -419,7 +420,7 @@ hittingTimeAfterProbability ::
     (TransitionState kernel -> Bool) ->
     TransitionState kernel ->
     Double
-hittingTimeAfterProbability time kernel isTarget initialState
+upperTailProbability time kernel isTarget initialState
     | isTarget initialState = 0
     | otherwise = go time (Map.singleton initialState 1)
   where
@@ -472,16 +473,16 @@ probabilityGivenInitialState ::
 probabilityGivenInitialState event kernel isTarget initialState =
     case event of
         EqualTo time ->
-            hittingTimeProbability time kernel isTarget initialState
+            exactProbabilityAt time kernel isTarget initialState
         LessThan bound ->
-            hittingTimeBeforeProbability bound kernel isTarget initialState
+            lowerTailProbability bound kernel isTarget initialState
         AtMost time ->
-            hittingTimeBeforeProbability (time + 1) kernel isTarget initialState
+            lowerTailProbability (time + 1) kernel isTarget initialState
         GreaterThan time ->
-            hittingTimeAfterProbability time kernel isTarget initialState
+            upperTailProbability time kernel isTarget initialState
         AtLeast 0 -> 1
         AtLeast time ->
-            hittingTimeAfterProbability (time - 1) kernel isTarget initialState
+            upperTailProbability (time - 1) kernel isTarget initialState
 
 {- | Probability under an arbitrary initial distribution of ever hitting the
 target set. This finite-matrix query returns a checked linear-system result.
@@ -496,16 +497,7 @@ eventualProbability ::
     distribution ->
     Either LinearSystemError Double
 eventualProbability matrix targets initial =
-    probabilityUnderEither initial (hittingProbability matrix targets)
-
--- | Probability of ever hitting the target set conditioned on @X_0 = i@.
-eventualProbabilityGivenInitialState ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    [state] ->
-    state ->
-    Either LinearSystemError Double
-eventualProbabilityGivenInitialState = hittingProbability
+    probabilityUnderEither initial (eventualProbabilityGivenInitialState matrix targets)
 
 {- | Probability under an arbitrary initial distribution of hitting the
 successful boundary strictly before the competing boundary. Overlap ties lose.
@@ -521,17 +513,7 @@ raceProbability ::
     distribution ->
     Either LinearSystemError Double
 raceProbability matrix successful competing initial =
-    probabilityUnderEither initial (hittingBeforeProbability matrix successful competing)
-
--- | Probability of winning the hitting race conditioned on @X_0 = i@.
-raceProbabilityGivenInitialState ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    [state] ->
-    [state] ->
-    state ->
-    Either LinearSystemError Double
-raceProbabilityGivenInitialState = hittingBeforeProbability
+    probabilityUnderEither initial (raceProbabilityGivenInitialState matrix successful competing)
 
 {- | Expected hitting time under an arbitrary initial distribution. It is
 'InfiniteExpectation' exactly when a state of positive initial probability
@@ -547,13 +529,4 @@ expectation ::
     distribution ->
     Either LinearSystemError Expectation
 expectation matrix targets initial =
-    expectationUnderEither initial (hittingTimeExpectation matrix targets)
-
--- | Expected hitting time conditioned on @X_0 = i@.
-expectationGivenInitialState ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    [state] ->
-    state ->
-    Either LinearSystemError Expectation
-expectationGivenInitialState = hittingTimeExpectation
+    expectationUnderEither initial (expectationGivenInitialState matrix targets)
