@@ -14,19 +14,20 @@ Module      : Dtmc.State
 Description : Compile-time indexing for finite named state types.
 
 'FiniteState' identifies a globally finite state type with a canonical total
-indexing by @'Finite' ('Cardinality' state)@. For an ordinary enumeration type,
-enable @DeriveAnyClass@ and @DeriveGeneric@, then derive both 'Generic' and
+indexing by @'Finite' ('Cardinality' state)@. The generic implementation
+supports enumeration types whose constructors have no fields. Enable
+@DeriveAnyClass@ and @DeriveGeneric@, then derive both 'Generic' and
 'FiniteState':
 
 @data Weather = Dry | Wet | Storm deriving (Eq, Ord, Show, Generic, FiniteState)@
 
-Declaring an empty @instance FiniteState Weather@ remains an equivalent,
-more explicit alternative.
+After deriving 'Generic', declaring an empty @instance FiniteState Weather@
+is a more explicit way to select the same generic defaults.
 
-Only nullary constructors are supported by the generic implementation.
 Constructor declaration order determines vector and matrix order. A stock
 derived 'Ord' instance has the same order and is the intended companion;
-custom instances must preserve that ordering.
+handwritten 'FiniteState' and 'Ord' instances are trusted to preserve the
+documented ordering and bijection laws.
 -}
 module Dtmc.State (
     type Cardinality,
@@ -70,8 +71,9 @@ import GHC.TypeNats (
  )
 
 {- | Number of inhabitants of a finite state type. For 'Finite' this is its
-existing type-level bound; for a named state type it is derived from the
-'Generic' representation. Users cannot override this closed family.
+existing type-level bound; for another type it is derived from its 'Generic'
+representation. Users cannot override this closed family independently of
+that representation.
 
 A generic constructor carrying any fields reduces to a custom 'TypeError'.
 -}
@@ -89,9 +91,11 @@ Instances must satisfy:
 * @finiteStates == map stateAt finites@;
 * @finiteStates@ is strictly ascending according to 'Ord'.
 
-The generic defaults satisfy these laws for nullary-constructor types with a
-stock derived 'Ord' instance. Empty state types are supported: their state list
-is empty and 'stateAt' has an uninhabited 'Finite 0' domain.
+The generic defaults satisfy these laws for fieldless enumeration types with
+a stock derived 'Ord' instance. Handwritten method implementations are trusted
+to satisfy them, but their 'Cardinality' still comes from the supported
+'Generic' representation. Empty state types are supported: their state list is
+empty and 'stateAt' has an uninhabited 'Finite 0' domain.
 -}
 class (Ord state, KnownNat (Cardinality state)) => FiniteState state where
     -- | Every state exactly once, in canonical index order.
@@ -207,12 +211,14 @@ instance
     ) =>
     GenericFiniteState (M1 C metadata fields)
     where
-    genericStates =
-        error "Dtmc.State.finiteStates: unsupported constructor fields"
-    genericIndex _ =
-        error "Dtmc.State.stateIndex: unsupported constructor fields"
-    genericAt _ =
-        error "Dtmc.State.stateAt: unsupported constructor fields"
+    genericStates = unsupportedConstructorFields
+    genericIndex _ = unsupportedConstructorFields
+    genericAt _ = unsupportedConstructorFields
+
+-- Required only to complete an instance that its 'TypeError' makes unusable.
+unsupportedConstructorFields :: value
+unsupportedConstructorFields =
+    error "Dtmc.State: constructors with fields are unsupported"
 
 instance GenericFiniteState V1 where
     genericStates = []

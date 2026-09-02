@@ -26,16 +26,10 @@ import Control.Monad (
     foldM,
  )
 import Data.Array.Unboxed qualified as Unboxed
-import Data.Finite (
-    getFinite,
- )
 import Data.Map.Strict (
     Map,
  )
 import Data.Map.Strict qualified as Map
-import Data.Proxy (
-    Proxy (..),
- )
 import Dtmc.Analysis.Classification (
     recurrentState,
     transientStates,
@@ -72,7 +66,10 @@ import Dtmc.State (
     Cardinality,
     FiniteState,
     finiteStates,
-    stateIndex,
+ )
+import Dtmc.State.Internal (
+    stateCardinalityInt,
+    stateIndexInt,
  )
 import Dtmc.Transition (
     Transition (..),
@@ -84,9 +81,6 @@ import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
     unTransitionMatrix,
  )
-import GHC.TypeNats (
-    natVal,
- )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
@@ -94,7 +88,7 @@ import Numeric.Natural (
  )
 
 toIndex :: (FiniteState state) => state -> Int
-toIndex = fromIntegral . getFinite . stateIndex
+toIndex = stateIndexInt
 
 advanceUntilTarget ::
     (Transition kernel, Ord (TransitionState kernel)) =>
@@ -191,7 +185,7 @@ eventualProbabilitiesByState p = do
             | otherwise = transientValues Unboxed.! toIndex i
     pure (S.vector [valueAt i | i <- finiteStates])
   where
-    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
+    dim = stateCardinalityInt @state
     transient = transientStates p
     transientIdx = map toIndex transient
     matrix = S.extract (unTransitionMatrix p)

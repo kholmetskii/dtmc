@@ -17,9 +17,6 @@ module Dtmc.Transition.Matrix.Internal (
     matrixRowAt,
 ) where
 
-import Data.Finite (
-    getFinite,
- )
 import Dtmc.Distribution.Map (
     toDistributionMap,
  )
@@ -29,7 +26,9 @@ import Dtmc.Distribution.Vector.Internal (
 import Dtmc.State (
     Cardinality,
     FiniteState,
-    stateIndex,
+ )
+import Dtmc.State.Internal (
+    stateIndexInt,
  )
 import Dtmc.Transition (
     Transition (..),
@@ -112,7 +111,7 @@ matrixRowAt ::
 matrixRowAt matrix state =
     DistributionVector
         ( S.toRows (unTransitionMatrix matrix)
-            !! fromIntegral (getFinite (stateIndex state))
+            !! stateIndexInt state
         )
 
 instance (FiniteState state) => Transition (TransitionMatrix state) where

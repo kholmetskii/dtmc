@@ -29,9 +29,6 @@ module Dtmc.Analysis.Limiting (
     cyclicLimits,
 ) where
 
-import Data.Finite (
-    getFinite,
- )
 import Data.Map.Strict qualified as Map
 import Data.Maybe (
     fromMaybe,
@@ -59,7 +56,9 @@ import Dtmc.Distribution.Vector (
 import Dtmc.State (
     FiniteState,
     finiteStates,
-    stateIndex,
+ )
+import Dtmc.State.Internal (
+    stateIndexInt,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -68,7 +67,7 @@ import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 
 toIndex :: (FiniteState state) => state -> Int
-toIndex = fromIntegral . getFinite . stateIndex
+toIndex = stateIndexInt
 
 {- | Whether @P^n@ converges entrywise, that is whether every recurrent class
 is aperiodic. Transient classes are irrelevant: their columns tend to zero

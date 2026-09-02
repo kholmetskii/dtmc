@@ -59,9 +59,8 @@ module Dtmc.Analysis.Classification (
 ) where
 
 import Data.Array qualified as Array
-import Data.Finite (
-    finite,
-    getFinite,
+import Data.Maybe (
+    fromMaybe,
  )
 import Dtmc.Analysis.Classification.Internal (
     unIrreducible,
@@ -71,18 +70,23 @@ import Dtmc.Analysis.Classification.Internal (
  )
 import Dtmc.State (
     FiniteState,
-    stateAt,
-    stateIndex,
+ )
+import Dtmc.State.Internal (
+    stateFromInt,
+    stateIndexInt,
  )
 import Dtmc.Transition.Matrix.Internal (TransitionMatrix, tmSupport)
 import Dtmc.Transition.Matrix.Internal.Graph qualified as G
 import Numeric.Natural (Natural)
 
 toState :: (FiniteState state) => Int -> state
-toState = stateAt . finite . fromIntegral
+toState index =
+    fromMaybe
+        (error "Dtmc.Analysis.Classification: graph vertex out of bounds")
+        (stateFromInt index)
 
 toIndex :: (FiniteState state) => state -> Int
-toIndex = fromIntegral . getFinite . stateIndex
+toIndex = stateIndexInt
 
 {- | Whether @P(i,j) > 0@: a direct transition in the support graph. No
 tolerance is applied.

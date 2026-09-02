@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE EmptyDataDecls #-}
@@ -85,6 +86,10 @@ spec = do
             finiteStates @One `shouldBe` [One]
             stateAt (stateIndex One) `shouldBe` One
 
+        describe "Empty laws" (finiteStateLaws @Empty)
+        describe "One laws" (finiteStateLaws @One)
+        describe "Three laws" (finiteStateLaws @Three)
+
     describe "Finite identity instance" $ do
         it "preserves enumeration and both conversions" $ do
             finiteStates @(Finite 3) `shouldBe` finites
@@ -94,8 +99,37 @@ spec = do
         it "supports Finite 0" $
             finiteStates @(Finite 0) `shouldBe` []
 
-    describe "base instances" $
+        describe "Finite 0 laws" (finiteStateLaws @(Finite 0))
+        describe "Finite 3 laws" (finiteStateLaws @(Finite 3))
+
+    describe "base instances" $ do
         it "use their standard constructor order" $ do
             finiteStates @() `shouldBe` [()]
             finiteStates @Bool `shouldBe` [False, True]
             finiteStates @Ordering `shouldBe` [LT, EQ, GT]
+
+        describe "() laws" (finiteStateLaws @())
+        describe "Bool laws" (finiteStateLaws @Bool)
+        describe "Ordering laws" (finiteStateLaws @Ordering)
+
+finiteStateLaws ::
+    forall state.
+    (FiniteState state, Show state) =>
+    Spec
+finiteStateLaws = do
+    it "enumerates every finite index in canonical order" $
+        finiteStates @state
+            `shouldBe` map (stateAt @state) (finites @(Cardinality state))
+
+    it "round-trips every state through its index" $
+        map (stateAt . stateIndex) (finiteStates @state)
+            `shouldBe` finiteStates @state
+
+    it "round-trips every index through its state" $
+        map (stateIndex . stateAt @state) (finites @(Cardinality state))
+            `shouldBe` finites @(Cardinality state)
+
+    it "enumerates states in strictly ascending order" $
+        and (zipWith (<) states (drop 1 states)) `shouldBe` True
+  where
+    states = finiteStates @state

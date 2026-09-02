@@ -39,12 +39,6 @@ module Dtmc.Analysis.Absorption (
 ) where
 
 import Data.Array.Unboxed qualified as Unboxed
-import Data.Finite (
-    getFinite,
- )
-import Data.Proxy (
-    Proxy (..),
- )
 import Dtmc.Analysis.Classification (
     recurrentState,
     recurrentStates,
@@ -71,20 +65,20 @@ import Dtmc.Distribution (
 import Dtmc.State (
     Cardinality,
     FiniteState,
-    stateIndex,
+ )
+import Dtmc.State.Internal (
+    stateCardinalityInt,
+    stateIndexInt,
  )
 import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
     unTransitionMatrix,
  )
-import GHC.TypeNats (
-    natVal,
- )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 
 toIndex :: (FiniteState state) => state -> Int
-toIndex = fromIntegral . getFinite . stateIndex
+toIndex = stateIndexInt
 
 {- | The transient and recurrent states, each in the canonical order of the
 'FiniteState' instance. This is the ordering that puts the matrix in block
@@ -174,7 +168,7 @@ probabilityByState p target
                 | otherwise = arrived i
         pure (S.vector [valueAt i | i <- [0 .. dim - 1]])
   where
-    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
+    dim = stateCardinalityInt @state
     matrix = S.extract (unTransitionMatrix p)
     targetIdx = toIndex target
     transientIdx = map toIndex (transientStates p)

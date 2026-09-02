@@ -48,12 +48,6 @@ import Data.Array.ST (
     STUArray,
  )
 import Data.Array.Unboxed qualified as Unboxed
-import Data.Finite (
-    getFinite,
- )
-import Data.Proxy (
-    Proxy (..),
- )
 import Dtmc.Analysis.Classification (
     Irreducible,
     classClosed,
@@ -72,22 +66,21 @@ import Dtmc.Distribution.Vector.Internal (
     DistributionVector (DistributionVector),
  )
 import Dtmc.State (
-    Cardinality,
     FiniteState,
-    stateIndex,
+ )
+import Dtmc.State.Internal (
+    stateCardinalityInt,
+    stateIndexInt,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     unTransitionMatrix,
  )
-import GHC.TypeNats (
-    natVal,
- )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 
 toIndex :: (FiniteState state) => state -> Int
-toIndex = fromIntegral . getFinite . stateIndex
+toIndex = stateIndexInt
 
 {- | The stationary vector of a non-empty irreducible stochastic block, in the
 block's own ordering, by Grassmann-Taksar-Heyman state reduction.
@@ -248,7 +241,7 @@ classStationaryDistributions ::
 classStationaryDistributions p =
     traverse distributionOn closedClasses
   where
-    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
+    dim = stateCardinalityInt @state
     matrix = S.extract (unTransitionMatrix p)
     closedClasses =
         [classMembers c | c <- classesOf (classify p), classClosed c]

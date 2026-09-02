@@ -71,6 +71,7 @@ library
       Dtmc.Analysis.Initial.Internal
       Dtmc.Transition.Matrix.Internal.Graph
       Dtmc.Dynamics.Internal
+      Dtmc.State.Internal
 
   build-depends:
       base >=4.20 && <5

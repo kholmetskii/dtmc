@@ -19,14 +19,14 @@ import Dtmc.Distribution.Vector (
     DistributionVector,
     mkDistributionVector,
  )
-import Dtmc.Transition.Kernel (
-    TransitionKernel,
-    transitionKernel,
- )
 import Dtmc.TestSupport (
     approxEq,
     genTransitionMatrix,
     testTolerance,
+ )
+import Dtmc.Transition.Kernel (
+    TransitionKernel,
+    transitionKernel,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -125,13 +125,11 @@ canonicalMatchesOracle matrix =
             matrix
             [(1, 1), (3, 2)]
     conditionalMatchesOracle =
-        case
-            FT.probabilityGiven
-                initialDistribution
-                matrix
-                [FT.At 3 2]
-                [FT.At 1 1]
-        of
+        case FT.probabilityGiven
+            initialDistribution
+            matrix
+            [FT.At 3 2]
+            [FT.At 1 1] of
             Left FT.ZeroProbabilityCondition -> denominator == 0
             Right actual -> denominator /= 0 && close actual (numerator / denominator)
 

@@ -35,9 +35,6 @@ module Dtmc.Analysis.VisitCount (
     occupationMatrix,
 ) where
 
-import Data.Finite (
-    getFinite,
- )
 import Data.Map.Strict qualified as Map
 import Dtmc.Analysis.Absorption (
     fundamentalMatrix,
@@ -79,7 +76,9 @@ import Dtmc.State (
     Cardinality,
     FiniteState,
     finiteStates,
-    stateIndex,
+ )
+import Dtmc.State.Internal (
+    stateIndexInt,
  )
 import Dtmc.Transition (
     Transition (..),
@@ -94,7 +93,7 @@ import Numeric.Natural (
  )
 
 toIndex :: (FiniteState state) => state -> Int
-toIndex = fromIntegral . getFinite . stateIndex
+toIndex = stateIndexInt
 
 {- | Probabilities of exactly @n@ total visits in canonical state order.
 The count is the first argument and the target is the third; coordinate @j@ is

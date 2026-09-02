@@ -26,14 +26,15 @@ module Dtmc.Analysis.Classification.Internal (
     backwardReachable,
 ) where
 
-import Data.Finite (
-    finite,
-    getFinite,
+import Data.Maybe (
+    fromMaybe,
  )
 import Dtmc.State (
     FiniteState,
-    stateAt,
-    stateIndex,
+ )
+import Dtmc.State.Internal (
+    stateFromInt,
+    stateIndexInt,
  )
 import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
@@ -114,10 +115,13 @@ unIrreducible :: Irreducible state -> TransitionMatrix state
 unIrreducible (Irreducible p) = p
 
 toState :: (FiniteState state) => Int -> state
-toState = stateAt . finite . fromIntegral
+toState index =
+    fromMaybe
+        (error "Dtmc.Analysis.Classification.Internal: graph vertex out of bounds")
+        (stateFromInt index)
 
 toIndex :: (FiniteState state) => state -> Int
-toIndex = fromIntegral . getFinite . stateIndex
+toIndex = stateIndexInt
 
 {- | States from which an allowed seed is reachable along a support path
 containing only states accepted by @allowed@. Disallowed seeds are ignored;

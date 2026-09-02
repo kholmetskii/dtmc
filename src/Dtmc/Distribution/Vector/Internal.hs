@@ -11,9 +11,6 @@ module Dtmc.Distribution.Vector.Internal (
     unDistributionVector,
 ) where
 
-import Data.Finite (
-    getFinite,
- )
 import Dtmc.Distribution (
     Distribution (..),
  )
@@ -21,7 +18,9 @@ import Dtmc.State (
     Cardinality,
     FiniteState,
     finiteStates,
-    stateIndex,
+ )
+import Dtmc.State.Internal (
+    stateIndexInt,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
@@ -51,7 +50,7 @@ instance (FiniteState state) => Distribution (DistributionVector state) where
 
     probabilityAt distribution state =
         S.extract (unDistributionVector distribution)
-            `LA.atIndex` fromIntegral (getFinite (stateIndex state))
+            `LA.atIndex` stateIndexInt state
 
     distributionWeights distribution =
         [ (state, weight)

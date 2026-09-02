@@ -27,16 +27,12 @@ module Dtmc.Analysis.HittingTime (
 
 import Data.Array qualified as Array
 import Data.Array.Unboxed qualified as Unboxed
-import Data.Finite (
-    finite,
-    getFinite,
- )
 import Data.Map.Strict (
     Map,
  )
 import Data.Map.Strict qualified as Map
-import Data.Proxy (
-    Proxy (..),
+import Data.Maybe (
+    fromMaybe,
  )
 import Dtmc.Analysis.Classification.Internal (
     backwardReachable,
@@ -69,8 +65,11 @@ import Dtmc.Dynamics.Internal (
 import Dtmc.State (
     Cardinality,
     FiniteState,
-    stateAt,
-    stateIndex,
+ )
+import Dtmc.State.Internal (
+    stateCardinalityInt,
+    stateFromInt,
+    stateIndexInt,
  )
 import Dtmc.Transition (
     Transition (..),
@@ -79,9 +78,6 @@ import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
     unTransitionMatrix,
  )
-import GHC.TypeNats (
-    natVal,
- )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
@@ -89,10 +85,13 @@ import Numeric.Natural (
  )
 
 toIndex :: (FiniteState state) => state -> Int
-toIndex = fromIntegral . getFinite . stateIndex
+toIndex = stateIndexInt
 
 toState :: (FiniteState state) => Int -> state
-toState = stateAt . finite . fromIntegral
+toState index =
+    fromMaybe
+        (error "Dtmc.Analysis.HittingTime: graph vertex out of bounds")
+        (stateFromInt index)
 
 -- Use a mask so duplicates collapse and per-state membership stays O(1).
 indexMask :: Int -> [Int] -> Unboxed.UArray Int Bool
@@ -276,7 +275,7 @@ raceProbabilitiesByState p successful competing = do
             | otherwise = 0
     pure (S.vector [valueAt i | i <- [0 .. dim - 1]])
   where
-    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
+    dim = stateCardinalityInt @state
     -- Masks keep boundary and solution lookup constant-time during assembly.
     competingMask = indexMask dim (map toIndex competing)
     inCompeting i = competingMask Unboxed.! i
@@ -366,7 +365,7 @@ expectationsByState p targets = do
             | otherwise = FiniteExpectation (certainValues Unboxed.! i)
     pure [valueAt i | i <- [0 .. dim - 1]]
   where
-    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
+    dim = stateCardinalityInt @state
     targetMask = indexMask dim (map toIndex targets)
     inTarget i = targetMask Unboxed.! i
     -- One reverse traversal replaces a reachability query for every state.
@@ -406,7 +405,7 @@ expectationGivenInitialState p targets =
     -- (list @!!@ was O(index)); the single solve is still shared across queries.
     table =
         Array.listArray (0, dim - 1) <$> expectationsByState p targets
-    dim = fromIntegral (natVal (Proxy @(Cardinality state)))
+    dim = stateCardinalityInt @state
 
 -- Direct survivor mass @P(H_A > t)@ through a locally finite transition.
 -- Newly hit paths are removed at every step, so paths that never hit remain

@@ -123,7 +123,7 @@ spec = do
         prop "starts at one and never exceeds it" $
             forAll (genTransitionMatrix @3) $ \m ->
                 case mkTransitionMatrix m ::
-                    Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left err -> counterexample (show err) False
                     Right p ->
                         let values = map magnitude (spectrum p)
