@@ -187,7 +187,7 @@ eventualProbabilitiesByState p targets =
 
 {- | The probability of ever hitting the target set from one state. This has
 the same edge cases, numerical behavior, and errors as
-'eventualProbabilitiesByState'.
+@eventualProbabilitiesByState@.
 
 Partially applying the matrix and target set shares one lazy all-state solve:
 the first forced query costs @O(n^3)@ worst case and later lookups cost
@@ -304,7 +304,7 @@ raceProbabilitiesByState p successful competing = do
 {- | The probability of hitting the successful boundary strictly before the
 competing boundary from one state, @P(H_A < H_B | X_0 = i)@. This has the same
 overlap, empty-set, structural, numerical, and error behaviour as
-'raceProbabilitiesByState'.
+@raceProbabilitiesByState@.
 
 Partially applying the matrix and both boundaries shares one lazy all-state
 solve: the first forced query costs @O(n^3)@ worst case and later lookups cost
@@ -386,7 +386,7 @@ expectationsByState p targets = do
     matrix = S.extract (unTransitionMatrix p)
 
 {- | The expected time to hit the target set from one state. This has the same
-edge cases, numerical behavior, and errors as 'expectationsByState'.
+edge cases, numerical behavior, and errors as @expectationsByState@.
 
 Partial application shares one lazy all-state table: the first forced query
 costs @O(n^3)@ worst case and later lookups cost @O(1)@.

@@ -196,7 +196,7 @@ fundamental-matrix solve. The first transient query costs @O(n^3)@ worst case;
 partial application shares that solve, making later lookups @O(1)@.
 
 Transient queries inherit the numerical behavior and errors of
-'eventualProbabilitiesByState'.
+@eventualProbabilitiesByState@.
 -}
 eventualProbabilityGivenInitialState ::
     forall state.
