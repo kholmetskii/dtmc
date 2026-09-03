@@ -35,13 +35,21 @@ module Dtmc.Analysis.VisitCount (
     occupationMatrix,
 ) where
 
+import Data.Array qualified as Array
+import Data.Array.Unboxed qualified as Unboxed
 import Data.Map.Strict qualified as Map
 import Dtmc.Analysis.Absorption (
     fundamentalMatrix,
  )
 import Dtmc.Analysis.Classification (
-    accessible,
+    classClosed,
+    classMembers,
+    classesOf,
+    classify,
     recurrentState,
+ )
+import Dtmc.Analysis.Classification.Internal (
+    backwardReachable,
  )
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
@@ -78,6 +86,7 @@ import Dtmc.State (
     finiteStates,
  )
 import Dtmc.State.Internal (
+    stateCardinalityInt,
     stateIndexInt,
  )
 import Dtmc.Transition (
@@ -94,6 +103,24 @@ import Numeric.Natural (
 
 toIndex :: (FiniteState state) => state -> Int
 toIndex = stateIndexInt
+
+{- | A Boolean mask of the states from which at least one seed is reachable.
+The reverse support graph is traversed once for the whole seed set.
+-}
+backwardReachabilityMask ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [state] ->
+    Unboxed.UArray Int Bool
+backwardReachabilityMask matrix seeds =
+    Unboxed.accumArray
+        (||)
+        False
+        (0, stateCardinalityInt @state - 1)
+        [ (toIndex state, True)
+        | state <- backwardReachable matrix (const True) seeds
+        ]
 
 {- | Probabilities of exactly @n@ total visits in canonical state order.
 The count is the first argument and the target is the third; coordinate @j@ is
@@ -188,6 +215,7 @@ Transient results inherit the numerical behavior and errors of
 the state-conditioned eventual hitting and return queries.
 -}
 totalExpectationsByState ::
+    forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
@@ -195,10 +223,10 @@ totalExpectationsByState ::
 totalExpectationsByState matrix target
     | recurrentState matrix target =
         Right
-            [ if accessible matrix initial target
+            [ if reachingTarget Unboxed.! toIndex initial
                 then InfiniteExpectation
                 else FiniteExpectation 0
-            | initial <- finiteStates
+            | initial <- finiteStates @state
             ]
     | otherwise = do
         hits <-
@@ -210,6 +238,8 @@ totalExpectationsByState matrix target
             [ FiniteExpectation (hit / (1 - returning))
             | hit <- hits
             ]
+  where
+    reachingTarget = backwardReachabilityMask matrix [target]
 
 {- | Expected total visits to the target from one initial state. Argument
 order is matrix, target, then initial state. Partially applying the matrix and
@@ -528,10 +558,14 @@ from the support graph, so they are exact.
 'Dtmc.Analysis.VisitCount.totalExpectation' computes single entries by a
 different route and agrees with this one.
 
-Time: @O(n^2 + t^3 + n E)@ for @t@ transient states and @E@ support edges.
-Result space: @O(n^2)@.
+If there are @c@ recurrent classes, reverse reachability is computed once per
+class and shared by every target in it.
+
+Time: @O(n^2 + t^3 + c(n + E))@ for @t@ transient states and @E@ support
+edges. Result space: @O(n^2 + cn)@.
 -}
 occupationMatrix ::
+    forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     Either LinearSystemError [[Expectation]]
@@ -543,11 +577,36 @@ occupationMatrix p = do
                 | (i, row) <- zip transient block
                 , (j, value) <- zip transient row
                 ]
+        closedClasses =
+            [ classMembers recurrentClass
+            | recurrentClass <- classesOf (classify p)
+            , classClosed recurrentClass
+            ]
+        classCount = length closedClasses
+        classByState :: Unboxed.UArray Int Int
+        classByState =
+            Unboxed.accumArray
+                (\_ classIndex -> classIndex)
+                (-1)
+                (0, stateCardinalityInt @state - 1)
+                [ (toIndex member, classIndex)
+                | (classIndex, members) <- zip [0 ..] closedClasses
+                , member <- members
+                ]
+        reachesClass :: Array.Array Int (Unboxed.UArray Int Bool)
+        reachesClass =
+            Array.listArray
+                (0, classCount - 1)
+                [ backwardReachabilityMask p members
+                | members <- closedClasses
+                ]
         valueAt i j
-            | recurrentState p j =
-                if accessible p i j
+            | targetClass >= 0 =
+                if (reachesClass Array.! targetClass) Unboxed.! toIndex i
                     then InfiniteExpectation
                     else FiniteExpectation 0
             | otherwise =
                 FiniteExpectation (Map.findWithDefault 0 (i, j) table)
+          where
+            targetClass = classByState Unboxed.! toIndex j
     pure [[valueAt i j | j <- finiteStates] | i <- finiteStates]

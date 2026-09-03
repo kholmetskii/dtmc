@@ -7,9 +7,10 @@ First-return quantities for DTMCs. For state @i@,
 exact-time and bounded queries work through any locally finite 'Transition'.
 Eventual and expected queries use a finite 'TransitionMatrix'.
 
-Exact-time and strictly bounded queries use finite recurrences. Eventual and
-expected queries use support classification and checked 'Double' linear
-solves. Results are not clamped or renormalised.
+Exact-time and strictly bounded queries use finite recurrences. Eventual
+queries use support classification and checked 'Double' linear solves.
+Expected return times use class stationary distributions and Kac's formula.
+Results are not clamped or renormalised.
 -}
 module Dtmc.Analysis.ReturnTime (
     LinearSystemError (..),
@@ -22,9 +23,7 @@ module Dtmc.Analysis.ReturnTime (
     expectationGivenInitialState,
 ) where
 
-import Control.Monad (
-    foldM,
- )
+import Data.Array qualified as Array
 import Data.Array.Unboxed qualified as Unboxed
 import Data.Map.Strict (
     Map,
@@ -40,7 +39,6 @@ import Dtmc.Analysis.Event (
 import Dtmc.Analysis.Expectation (
     Expectation (..),
  )
-import Dtmc.Analysis.HittingTime qualified as Hit
 import Dtmc.Analysis.Initial.Internal (
     expectationUnderEither,
     probabilityUnder,
@@ -52,6 +50,9 @@ import Dtmc.Analysis.LinearSystem (
 import Dtmc.Analysis.LinearSystem.Internal (
     fundamental,
     subMatrix,
+ )
+import Dtmc.Analysis.Stationary (
+    stationaryDistributions,
  )
 import Dtmc.Distribution (
     Distribution (..),
@@ -73,9 +74,6 @@ import Dtmc.State.Internal (
  )
 import Dtmc.Transition (
     Transition (..),
- )
-import Dtmc.Transition.Matrix (
-    rowAt,
  )
 import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
@@ -213,14 +211,15 @@ eventualProbabilityGivenInitialState p =
     probabilities = S.extract <$> eventualProbabilitiesByState p
 
 {- | The expected first-return time for one state. A transient state returns
-'InfiniteExpectation' without a linear solve. A recurrent state performs one
-singleton hitting-time solve and uses only stored transition probabilities
-greater than zero; zero and tolerated negative entries contribute nothing.
+'InfiniteExpectation' without a numerical solve. For a recurrent state @i@,
+Kac's formula gives @E_i T_i^+ = 1 / pi_i@, where @pi@ is the stationary
+distribution of its closed communicating class.
 
-A recurrent query takes @O(n^3)@ time and @O(n^2)@ temporary space. After
-classification is cached, a transient query takes @O(1)@. Recurrent queries
-inherit the numerical behavior and errors of
-'Hit.expectationGivenInitialState'.
+The first recurrent query computes the stationary distributions of all closed
+classes in @O(n^3)@ worst-case time and @O(n^2)@ temporary space. Partial
+application shares that table, making later lookups @O(1)@. A transient query
+does not force the table. Numerical failures are those of
+'stationaryDistributions'.
 -}
 expectationGivenInitialState ::
     forall state.
@@ -228,30 +227,48 @@ expectationGivenInitialState ::
     TransitionMatrix state ->
     state ->
     Either LinearSystemError Expectation
-expectationGivenInitialState p i
-    | recurrentState p i = expectationFromRecurrentState p i
-    | otherwise = Right InfiniteExpectation
+expectationGivenInitialState p =
+    \i ->
+        if recurrentState p i
+            then (Array.! toIndex i) <$> recurrentExpectations
+            else Right InfiniteExpectation
+  where
+    recurrentExpectations = recurrentReturnExpectations p
 
-expectationFromRecurrentState ::
+{- | Expected return times for all recurrent states from one set of
+class-stationary solves. The array also contains infinity at transient
+coordinates, although callers decide transience structurally before lookup.
+-}
+recurrentReturnExpectations ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
-    state ->
-    Either LinearSystemError Expectation
-expectationFromRecurrentState p i =
-    foldM addTerm (FiniteExpectation 1) (zip finiteStates row)
+    Either LinearSystemError (Array.Array Int Expectation)
+recurrentReturnExpectations p = do
+    classes <- stationaryDistributions p
+    recurrentEntries <- concat <$> traverse entriesForClass classes
+    pure
+        ( Array.accumArray
+            (\_ value -> value)
+            InfiniteExpectation
+            (0, stateCardinalityInt @state - 1)
+            recurrentEntries
+        )
   where
-    eta = Hit.expectationGivenInitialState p [i]
-    row = LA.toList (S.extract (unDistributionVector (rowAt p i)))
-    addTerm acc (j, pij)
-        | pij <= 0 = Right acc
-        | otherwise = do
-            hitting <- eta j
-            pure $
-                case (acc, hitting) of
-                    (FiniteExpectation total, FiniteExpectation hittingTime) ->
-                        FiniteExpectation (total + pij * hittingTime)
-                    _ -> InfiniteExpectation
+    entriesForClass (members, distribution) =
+        traverse (entry vector) members
+      where
+        vector = S.extract (unDistributionVector distribution)
+
+    entry vector member
+        | stationaryProbability <= 0 || not (finite reciprocal) = Left NonFiniteSolution
+        | otherwise = Right (index, FiniteExpectation reciprocal)
+      where
+        index = toIndex member
+        stationaryProbability = vector `LA.atIndex` index
+        reciprocal = 1 / stationaryProbability
+
+    finite value = not (isNaN value || isInfinite value)
 
 -- Direct survivor mass @P(T_i > t)@ through a locally finite transition.
 -- Unlike hitting time, the initial state is not removed at time zero: a first

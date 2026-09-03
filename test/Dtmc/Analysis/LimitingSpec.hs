@@ -59,6 +59,34 @@ withTransient =
             (S.matrix [0, 0.5, 0.5, 0, 0.4, 0.6, 0, 0.5, 0.5] :: S.Sq 3)
         )
 
+-- States 0 and 1 are transient and can enter either absorbing class. This
+-- exercises the multiple right-hand sides of the batched class-entry solve.
+withTwoDestinations :: TransitionMatrix (Finite 4)
+withTwoDestinations =
+    checked
+        ( mkTransitionMatrix
+            ( S.matrix
+                [ 0
+                , 1 / 2
+                , 1 / 4
+                , 1 / 4
+                , 0
+                , 1 / 5
+                , 3 / 10
+                , 1 / 2
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                ] ::
+                S.Sq 4
+            )
+        )
+
 -- Irreducible, aperiodic, stationary distribution (0.8, 0.2).
 twoState :: TransitionMatrix (Finite 2)
 twoState =
@@ -119,6 +147,15 @@ withTransientCycle =
             (S.matrix [0, 1, 0, 0, 0, 1, 0, 1, 0] :: S.Sq 3)
         )
 
+-- An irreducible period-2 chain whose two cyclic phases have different
+-- cardinalities and whose non-singleton phase is non-uniform.
+unequalPhases :: TransitionMatrix (Finite 3)
+unequalPhases =
+    checked
+        ( mkTransitionMatrix
+            (S.matrix [0, 1 / 4, 3 / 4, 1, 0, 0, 1, 0, 0] :: S.Sq 3)
+        )
+
 powerRows :: (FiniteState state) => Natural -> TransitionMatrix state -> [[Double]]
 powerRows steps p =
     LA.toLists (S.extract (unTransitionMatrix (matrixPower steps p)))
@@ -170,6 +207,18 @@ spec = do
                             [ [0, 5 / 11, 6 / 11]
                             , [0, 5 / 11, 6 / 11]
                             , [0, 5 / 11, 6 / 11]
+                            ]
+                other -> expectationFailure ("unexpected result: " ++ show other)
+
+        it "batches entry probabilities for several recurrent classes" $
+            case limitingMatrix withTwoDestinations of
+                Right (Just rows) ->
+                    rows
+                        `shouldSatisfy` matrixCloseTo
+                            [ [0, 0, 7 / 16, 9 / 16]
+                            , [0, 0, 3 / 8, 5 / 8]
+                            , [0, 0, 1, 0]
+                            , [0, 0, 0, 1]
                             ]
                 other -> expectationFailure ("unexpected result: " ++ show other)
 
@@ -227,6 +276,13 @@ spec = do
                 Right [atZero, atOne] -> do
                     atZero `shouldSatisfy` matrixCloseTo (powerRows 100 withTransientCycle)
                     atOne `shouldSatisfy` matrixCloseTo (powerRows 101 withTransientCycle)
+                other -> expectationFailure ("expected two limits: " ++ show other)
+
+        it "rotates non-uniform phase distributions" $
+            case cyclicLimits unequalPhases of
+                Right [atZero, atOne] -> do
+                    atZero `shouldSatisfy` matrixCloseTo (powerRows 100 unequalPhases)
+                    atOne `shouldSatisfy` matrixCloseTo (powerRows 101 unequalPhases)
                 other -> expectationFailure ("expected two limits: " ++ show other)
 
         it "returns one empty limit for the empty chain" $

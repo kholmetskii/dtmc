@@ -242,6 +242,8 @@ spec = do
                 `shouldBe` [InfiniteExpectation, InfiniteExpectation, InfiniteExpectation, FiniteExpectation 0]
             checked (Visit.totalExpectationGivenInitialState recurrentVisitChain 2 3)
                 `shouldBe` FiniteExpectation 0
+            checked (visitTotalExpectationByState recurrentVisitChain 3)
+                `shouldBe` [InfiniteExpectation, InfiniteExpectation, FiniteExpectation 0, InfiniteExpectation]
 
         prop "agrees with hitting, return, recurrence, and reachability (random @3)" $
             forAll (genTransitionMatrix @3) $ \rawMatrix ->
@@ -436,6 +438,15 @@ spec = do
                 `shouldSatisfy` matchesOccupation
                     [ [Nothing, Nothing]
                     , [Nothing, Nothing]
+                    ]
+
+        it "shares reachability across each recurrent class" $
+            Visit.occupationMatrix recurrentVisitChain
+                `shouldSatisfy` matchesOccupation
+                    [ [Just (4 / 3), Just (2 / 3), Nothing, Nothing]
+                    , [Just (2 / 3), Just (4 / 3), Nothing, Nothing]
+                    , [Just 0, Just 0, Nothing, Just 0]
+                    , [Just 0, Just 0, Just 0, Nothing]
                     ]
 
         prop "agrees with totalExpectation entry by entry" $
