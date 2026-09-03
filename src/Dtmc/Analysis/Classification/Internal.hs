@@ -5,24 +5,14 @@ Module      : Dtmc.Analysis.Classification.Internal
 Description : Internal carriers and graph operations for chain classification.
 
 Raw carrier types and solver-oriented graph operations behind
-"Dtmc.Analysis.Classification": the per-class summary
-'type CommClass', the whole-chain structural report 'type Classification', and
-the 'type Irreducible' certificate. This module exposes their constructors so trusted
-internal code can build and pattern-match on them directly.
-
-The public "Dtmc.Analysis.Classification" module re-exports 'type Classification' and
-'type Irreducible' /abstractly/ (constructors hidden) and provides the only
-validating way to build an 'type Irreducible' witness,
-'Dtmc.Analysis.Classification.witnessIrreducible'. Constructing these values here
-bypasses those guarantees, so an 'type Irreducible' built directly is not
-certified to wrap an irreducible matrix, and a 'type Classification' built
-directly may hold summary fields inconsistent with its communicating classes.
+"Dtmc.Analysis.Classification": the per-class summary 'type CommClass' and the
+whole-chain structural report 'type Classification'. This module exposes the
+report constructor for trusted internal use; constructing it here may produce
+summary fields inconsistent with its communicating classes.
 -}
 module Dtmc.Analysis.Classification.Internal (
     type CommClass (..),
     type Classification (..),
-    type Irreducible (Irreducible),
-    unIrreducible,
     backwardReachable,
 ) where
 
@@ -98,21 +88,6 @@ type role Classification nominal
 deriving instance (Eq state) => Eq (Classification state)
 
 deriving instance (Show state) => Show (Classification state)
-
-{- | A transition matrix certified as irreducible by
-'Dtmc.Analysis.Classification.witnessIrreducible'. The constructor is exposed here for
-trusted internal use but hidden by "Dtmc.Analysis.Classification", so user code cannot
-forge the witness through the public API.
--}
-newtype Irreducible state = Irreducible (TransitionMatrix state)
-
-type role Irreducible nominal
-
-deriving instance (FiniteState state) => Show (Irreducible state)
-
--- | Recover the certified transition matrix in @O(1)@ time.
-unIrreducible :: Irreducible state -> TransitionMatrix state
-unIrreducible (Irreducible p) = p
 
 toState :: (FiniteState state) => Int -> state
 toState index =

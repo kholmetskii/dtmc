@@ -51,11 +51,6 @@ module Dtmc.Analysis.Classification (
     transientStatesOf,
     absorbingStates,
     classify,
-
-    -- * Irreducibility witness
-    type Irreducible,
-    witnessIrreducible,
-    unIrreducible,
 ) where
 
 import Data.Array qualified as Array
@@ -63,10 +58,8 @@ import Data.Maybe (
     fromMaybe,
  )
 import Dtmc.Analysis.Classification.Internal (
-    unIrreducible,
     type Classification (..),
     type CommClass (..),
-    type Irreducible (Irreducible),
  )
 import Dtmc.State (
     FiniteState,
@@ -309,13 +302,3 @@ classify p =
     chainPeriod' = case cs of
         [c] -> classPeriod c
         _ -> Nothing
-
-{- | Return a witness exactly when the matrix is irreducible. The matrix is
-wrapped unchanged.
-
-Time: @O(1)@ after communicating classes are cached.
--}
-witnessIrreducible :: TransitionMatrix state -> Maybe (Irreducible state)
-witnessIrreducible p
-    | irreducible p = Just (Irreducible p)
-    | otherwise = Nothing

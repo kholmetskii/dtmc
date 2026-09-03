@@ -7,10 +7,6 @@ module Dtmc.Analysis.LimitingSpec (
 import Data.Finite (
     Finite,
  )
-import Dtmc.Analysis.Classification (
-    Irreducible,
-    witnessIrreducible,
- )
 import Dtmc.Analysis.Limiting (
     converges,
     cyclicLimits,
@@ -25,6 +21,7 @@ import Dtmc.TestSupport (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    identityMatrix,
     matrixPower,
     mkTransitionMatrix,
     unTransitionMatrix,
@@ -45,12 +42,6 @@ import Test.Hspec (
 
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id
-
-certified :: TransitionMatrix state -> Irreducible state
-certified matrix =
-    case witnessIrreducible matrix of
-        Nothing -> error "test matrix is not irreducible"
-        Just witness -> witness
 
 -- Section 4.2: closed classes {0} and {1,2}, both aperiodic.
 twoClosedClasses :: TransitionMatrix (Finite 3)
@@ -82,6 +73,50 @@ threeCycle =
     checked
         ( mkTransitionMatrix
             (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0] :: S.Sq 3)
+        )
+
+-- Reducible with disjoint recurrent cycles of periods 2 and 3.
+mixedPeriods :: TransitionMatrix (Finite 5)
+mixedPeriods =
+    checked
+        ( mkTransitionMatrix
+            ( S.matrix
+                [ 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                ] ::
+                S.Sq 5
+            )
+        )
+
+-- State 0 is transient and enters the recurrent period-2 class {1,2}.
+withTransientCycle :: TransitionMatrix (Finite 3)
+withTransientCycle =
+    checked
+        ( mkTransitionMatrix
+            (S.matrix [0, 1, 0, 0, 0, 1, 0, 1, 0] :: S.Sq 3)
         )
 
 powerRows :: (FiniteState state) => Natural -> TransitionMatrix state -> [[Double]]
@@ -155,7 +190,7 @@ spec = do
 
     describe "cyclicLimits" $ do
         it "returns one limit per period and reproduces the powers" $
-            case cyclicLimits (certified threeCycle) of
+            case cyclicLimits threeCycle of
                 Right [atZero, atOne, atTwo] -> do
                     atZero `shouldSatisfy` matrixCloseTo (powerRows 3 threeCycle)
                     atOne `shouldSatisfy` matrixCloseTo (powerRows 4 threeCycle)
@@ -163,7 +198,36 @@ spec = do
                 other -> expectationFailure ("expected three limits: " ++ show other)
 
         it "collapses to the ordinary limit when aperiodic" $
-            case (cyclicLimits (certified twoState), limitingMatrix twoState) of
+            case (cyclicLimits twoState, limitingMatrix twoState) of
                 (Right [only], Right (Just rows)) ->
                     only `shouldSatisfy` matrixCloseTo rows
                 other -> expectationFailure ("unexpected result: " ++ show other)
+
+        it "collapses to the ordinary limit for a reducible aperiodic chain" $
+            case (cyclicLimits twoClosedClasses, limitingMatrix twoClosedClasses) of
+                (Right [only], Right (Just rows)) ->
+                    only `shouldSatisfy` matrixCloseTo rows
+                other -> expectationFailure ("unexpected result: " ++ show other)
+
+        it "uses the least common multiple of recurrent class periods" $
+            case cyclicLimits mixedPeriods of
+                Right limits -> do
+                    length limits `shouldBe` 6
+                    and
+                        ( zipWith
+                            matrixCloseTo
+                            [powerRows r mixedPeriods | r <- [0 .. 5]]
+                            limits
+                        )
+                        `shouldBe` True
+                other -> expectationFailure ("unexpected result: " ++ show other)
+
+        it "accounts for the entry phase of transient states" $
+            case cyclicLimits withTransientCycle of
+                Right [atZero, atOne] -> do
+                    atZero `shouldSatisfy` matrixCloseTo (powerRows 100 withTransientCycle)
+                    atOne `shouldSatisfy` matrixCloseTo (powerRows 101 withTransientCycle)
+                other -> expectationFailure ("expected two limits: " ++ show other)
+
+        it "returns one empty limit for the empty chain" $
+            cyclicLimits (identityMatrix @(Finite 0)) `shouldBe` Right [[]]

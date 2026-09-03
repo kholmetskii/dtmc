@@ -8,7 +8,6 @@ import Dtmc.Analysis.Classification (
     absorbingStates,
     classify,
     reachesAny,
-    witnessIrreducible,
  )
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
@@ -19,7 +18,7 @@ import Dtmc.Analysis.Expectation (
 import Dtmc.Analysis.FiniteTime qualified as FT
 import Dtmc.Analysis.HittingTime qualified as Hit
 import Dtmc.Analysis.Stationary (
-    stationaryDistribution,
+    stationaryDistributions,
  )
 import Dtmc.Analysis.VisitCount qualified as Visit
 import Dtmc.Distribution (
@@ -91,13 +90,9 @@ weatherTransition =
 
 weatherStationary :: DistributionVector Weather
 weatherStationary =
-    checked
-        ( stationaryDistribution
-            ( case witnessIrreducible weatherTransition of
-                Nothing -> error "weather transition is not irreducible"
-                Just witness -> witness
-            )
-        )
+    case checked (stationaryDistributions weatherTransition) of
+        [(_, distribution)] -> distribution
+        _ -> error "weather transition does not have a unique stationary distribution"
 
 fruitTransition :: TransitionMatrix FruitState
 fruitTransition =

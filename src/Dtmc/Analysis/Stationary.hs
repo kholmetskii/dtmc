@@ -3,36 +3,30 @@ Module      : Dtmc.Analysis.Stationary
 Description : Stationary distributions of finite chains.
 
 Every finite irreducible DTMC has exactly one stationary distribution,
-including periodic chains: 'stationaryDistribution' computes it from an
-'Irreducible' witness. For a row-stochastic matrix @P@ the result @pi@
-satisfies @transpose(P) pi = pi@ and @sum pi = 1@.
+including periodic chains. A reducible chain has one extremal stationary
+distribution per recurrent class and no canonical choice among them.
+'stationaryDistributions' returns these class-supported distributions. Every
+stationary distribution of the chain is a convex combination of them, and a
+chain with two or more recurrent classes therefore has infinitely many.
 
-A reducible chain has one stationary distribution per recurrent class and no
-canonical choice among them, so 'classStationaryDistributions' returns them
-all. Every stationary distribution of the chain is a convex combination of
-these, and a chain with two or more recurrent classes therefore has
-infinitely many.
+Each recurrent class is solved by Grassmann-Taksar-Heyman state reduction.
+GTH never forms @transpose(P) - I@ and performs no subtraction at all: every
+step adds, multiplies or divides non-negative quantities, so the cancellation
+that ruins a balance solve on a nearly uncoupled chain cannot occur. It costs
+the same @O(m^3)@ as an LU factorisation and returns the stationary vector to
+full relative accuracy.
 
-Both entry points share one solver, the Grassmann-Taksar-Heyman state
-reduction. GTH never forms @transpose(P) - I@ and performs no subtraction at
-all: every step adds, multiplies or divides non-negative quantities, so the
-cancellation that ruins a balance solve on a nearly uncoupled chain cannot
-occur. It costs the same @O(m^3)@ as an LU factorisation and returns the
-stationary vector to full relative accuracy.
-
-Both call sites supply an irreducible block -- 'stationaryDistribution' by its
-witness, 'classStationaryDistributions' because a closed communicating class
-restricted to itself is irreducible -- which is exactly the condition under
-which no elimination step can divide by zero. An 'IllConditionedSystem' is
-therefore unreachable here, unlike in the hitting- and return-time solves that
-share the error type. Results are not clamped or renormalised; a non-finite
-input or solution, and a residual @|pi P - pi|@ above @1e-9@, are still
-reported explicitly.
+Every supplied block is irreducible because a closed communicating class
+restricted to itself is irreducible. This is exactly the condition under which
+no elimination step can divide by zero. An 'IllConditionedSystem' is therefore
+unreachable here, unlike in the hitting- and return-time solves that share the
+error type. Results are not clamped or renormalised; a non-finite input or
+solution, and a residual @|pi P - pi|@ above @1e-9@, are still reported
+explicitly.
 -}
 module Dtmc.Analysis.Stationary (
     LinearSystemError (..),
-    stationaryDistribution,
-    classStationaryDistributions,
+    stationaryDistributions,
 ) where
 
 import Control.Monad.ST (
@@ -49,12 +43,10 @@ import Data.Array.ST (
  )
 import Data.Array.Unboxed qualified as Unboxed
 import Dtmc.Analysis.Classification (
-    Irreducible,
     classClosed,
     classMembers,
     classesOf,
     classify,
-    unIrreducible,
  )
 import Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
@@ -197,24 +189,10 @@ reduceGth n entries = runST $ do
         then Just <$> substitute 1 [1]
         else pure Nothing
 
-{- | The unique stationary distribution of a certified finite irreducible
-chain. The witness cannot exist for an empty chain. Coordinates follow the
-canonical state order of the 'FiniteState' instance.
-
-Time: @O(n^3)@. Space: @O(n^2)@.
--}
-stationaryDistribution ::
-    (FiniteState state) =>
-    Irreducible state ->
-    Either LinearSystemError (DistributionVector state)
-stationaryDistribution witness = do
-    solution <-
-        stationaryOfBlock (S.extract (unTransitionMatrix (unIrreducible witness)))
-    pure (DistributionVector (S.vector (LA.toList solution)))
-
-{- | One stationary distribution per recurrent class, paired with the class it
-lives on. Classes come in the order of 'Dtmc.Analysis.Classification.classify',
-that is by least member.
+{- | The extremal stationary distributions, one per recurrent class and paired
+with the class on which it lives. Classes come in the order of
+'Dtmc.Analysis.Classification.classify', that is by least member. An empty
+chain returns an empty list.
 
 Each distribution is returned over the whole state space, carrying exact zeros
 outside its class. This is correct rather than merely convenient: a recurrent
@@ -222,10 +200,11 @@ class is closed, so a distribution supported on it satisfies @pi P = pi@ for
 the full matrix, and no stationary distribution of a finite chain puts mass on
 a transient state.
 
-Every stationary distribution of the chain is a convex combination of these,
-so the result has exactly one element for an irreducible chain -- equal to
-'stationaryDistribution' of its witness -- and two or more elements exactly
-when the chain has infinitely many stationary distributions.
+Every stationary distribution of the chain is a convex combination of these.
+The result has exactly one element precisely when the stationary distribution
+is unique, including reducible chains with transient states and one recurrent
+class. It has two or more elements exactly when the chain has infinitely many
+stationary distributions.
 
 Each class is solved separately, so a numerical failure names the whole call
 rather than one class.
@@ -233,12 +212,12 @@ rather than one class.
 Time: @O(n^2 + sum_C |C|^3)@, which is at most @O(n^3)@. Result space:
 @O(c n)@ for @c@ recurrent classes.
 -}
-classStationaryDistributions ::
+stationaryDistributions ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     Either LinearSystemError [([state], DistributionVector state)]
-classStationaryDistributions p =
+stationaryDistributions p =
     traverse distributionOn closedClasses
   where
     dim = stateCardinalityInt @state

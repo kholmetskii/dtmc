@@ -12,15 +12,17 @@ the stationary distribution carried by @C@. A transient target has limit
 zero. The limit therefore exists exactly when every recurrent class is
 aperiodic; a periodic class makes the entries oscillate forever.
 
-For an irreducible chain of period @d@ the whole matrix still has @d@
-subsequential limits, one for each residue of @n@ modulo @d@, and
-'cyclicLimits' returns them.
+For any finite chain, let @d@ be the least common multiple of its recurrent
+class periods. The whole matrix has @d@ subsequential limits, one for each
+residue of @n@ modulo @d@, and 'cyclicLimits' returns them. An empty chain uses
+@d = 1@.
 
-Both results assemble already-solved quantities -- eventual hitting
-probabilities and per-class stationary distributions -- rather than powering
-the matrix, so no truncation or convergence threshold is involved. Deciding
-periodicity is combinatorial and exact; the entries inherit the numerical
-behaviour of the underlying solves.
+'limitingMatrix' assembles eventual hitting probabilities and per-class
+stationary distributions without powering the matrix. 'cyclicLimits' applies
+that convergent calculation to @P^d@ and advances each limit by one transition.
+No truncation or convergence threshold is involved. Class periods are decided
+combinatorially; entries inherit the numerical behaviour of the underlying
+solves and matrix products.
 -}
 module Dtmc.Analysis.Limiting (
     LinearSystemError (..),
@@ -29,45 +31,37 @@ module Dtmc.Analysis.Limiting (
     cyclicLimits,
 ) where
 
-import Data.Map.Strict qualified as Map
-import Data.Maybe (
-    fromMaybe,
- )
 import Dtmc.Analysis.Classification (
-    Irreducible,
     classClosed,
     classPeriod,
     classesOf,
     classify,
-    cyclicClasses,
-    unIrreducible,
  )
 import Dtmc.Analysis.HittingTime qualified as Hitting
 import Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
  )
 import Dtmc.Analysis.Stationary (
-    classStationaryDistributions,
-    stationaryDistribution,
+    stationaryDistributions,
  )
 import Dtmc.Distribution.Vector (
     unDistributionVector,
  )
 import Dtmc.State (
+    Cardinality,
     FiniteState,
     finiteStates,
  )
-import Dtmc.State.Internal (
-    stateIndexInt,
- )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    matrixPower,
+    unTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
-
-toIndex :: (FiniteState state) => state -> Int
-toIndex = stateIndexInt
+import Numeric.Natural (
+    Natural,
+ )
 
 {- | Whether @P^n@ converges entrywise, that is whether every recurrent class
 is aperiodic. Transient classes are irrelevant: their columns tend to zero
@@ -105,10 +99,22 @@ limitingMatrix ::
     Either LinearSystemError (Maybe [[Double]])
 limitingMatrix p
     | not (converges p) = Right Nothing
-    | otherwise = do
-        classes <- classStationaryDistributions p
-        contributions <- traverse contribution classes
-        pure (Just (foldr addMatrices zeros contributions))
+    | otherwise = Just <$> convergentLimit p
+
+{- | The limiting matrix of a chain already known to have only aperiodic
+recurrent classes. Keeping this separate lets 'cyclicLimits' apply the same
+class-and-hitting decomposition to @P^d@ without a redundant convergence
+branch.
+-}
+convergentLimit ::
+    forall state.
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    Either LinearSystemError [[Double]]
+convergentLimit p = do
+    classes <- stationaryDistributions p
+    contributions <- traverse contribution classes
+    pure (foldr addMatrices zeros contributions)
   where
     states = finiteStates :: [state]
     dim = length states
@@ -123,40 +129,46 @@ limitingMatrix p
             mass = LA.toList (S.extract (unDistributionVector classDistribution))
         pure [[h * m | m <- mass] | h <- entering]
 
-{- | The @d@ subsequential limits of an irreducible chain of period @d@:
-element @r@ is @lim_(n -> infinity) P^(n d + r)@. An aperiodic chain has
-@d = 1@ and a single element, which is then the ordinary limit.
+{- | The @d@ subsequential limits of any finite chain, where @d@ is the least
+common multiple of its recurrent class periods: element @r@ is
+@lim_(n -> infinity) P^(n d + r)@. When every recurrent class is aperiodic,
+@d = 1@ and the single result is the ordinary limiting matrix. The empty chain
+also returns one empty matrix.
 
-Writing @A_0, ..., A_(d-1)@ for the cyclic classes, entry @(i,j)@ of the
-@r@-th limit is @d pi(j)@ when @j@ lies @r@ steps after @i@ in the cycle,
-that is when the phase of @j@ minus the phase of @i@ is @r@ modulo @d@, and
-exactly zero otherwise. The factor @d@ is there because the mass that
-stationarity spreads over the whole space is concentrated on one cyclic class
-at a time.
+The powered chain @Q = P^d@ has only aperiodic recurrent classes. Its ordinary
+limit is the residue-zero result; right-multiplying successively by @P@ gives
+the remaining residues. This accounts automatically for multiple recurrent
+classes, transient-state hitting probabilities, and entry phases.
 
-Time: @O(n^3)@. Result space: @O(d n^2)@.
+Time: @O(n^3 (d + log(d + 1)))@. Result space: @O(d n^2)@.
 -}
 cyclicLimits ::
+    forall state.
     (FiniteState state) =>
-    Irreducible state ->
+    TransitionMatrix state ->
     Either LinearSystemError [[[Double]]]
-cyclicLimits witness = do
-    stationary <- stationaryDistribution witness
-    let mass = LA.toList (S.extract (unDistributionVector stationary))
-        entry r i j
-            | (phaseOf j - phaseOf i) `mod` period == r =
-                fromIntegral period * (mass !! toIndex j)
-            | otherwise = 0
-    pure
-        [ [[entry r i j | j <- states] | i <- states]
-        | r <- [0 .. period - 1]
-        ]
+cyclicLimits p = do
+    atZero <- convergentLimit (matrixPower commonPeriod p)
+    let initial = S.matrix (concat atZero) :: S.Sq (Cardinality state)
+    pure (successiveLimits commonPeriod initial)
   where
-    states = finiteStates
-    -- A closed class always contains a cycle, so an irreducible chain always
-    -- has a defined period; the fallback is the aperiodic reading and cannot
-    -- be reached through a valid witness.
-    cyclic = fromMaybe [states] (cyclicClasses (unIrreducible witness))
-    period = length cyclic
-    phases = Map.fromList [(s, r) | (r, group) <- zip [0 ..] cyclic, s <- group]
-    phaseOf s = Map.findWithDefault 0 s phases
+    commonPeriod =
+        foldr
+            lcm
+            1
+            [ classPeriodValue
+            | recurrentClass <- classesOf (classify p)
+            , classClosed recurrentClass
+            , Just classPeriodValue <- [classPeriod recurrentClass]
+            ]
+
+    successiveLimits ::
+        Natural ->
+        S.Sq (Cardinality state) ->
+        [[[Double]]]
+    successiveLimits 0 _ = []
+    successiveLimits remaining current =
+        LA.toLists (S.extract current)
+            : successiveLimits
+                (remaining - 1)
+                (current S.<> unTransitionMatrix p)

@@ -8,17 +8,12 @@ module Dtmc.Analysis.StationarySpec (
 import Data.Finite (
     Finite,
  )
-import Dtmc.Analysis.Classification (
-    Irreducible,
-    witnessIrreducible,
- )
 import Dtmc.Analysis.Expectation (
     Expectation (..),
  )
 import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.Stationary (
-    classStationaryDistributions,
-    stationaryDistribution,
+    stationaryDistributions,
  )
 import Dtmc.Distribution (
     probabilityAt,
@@ -78,11 +73,11 @@ instance FiniteState Weather
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id
 
-certified :: TransitionMatrix state -> Irreducible state
-certified matrix =
-    case witnessIrreducible matrix of
-        Nothing -> error "test matrix is not irreducible"
-        Just witness -> witness
+onlyStationary :: (FiniteState state) => TransitionMatrix state -> DistributionVector state
+onlyStationary matrix =
+    case checked (stationaryDistributions matrix) of
+        [(_, distribution)] -> distribution
+        _ -> error "test matrix does not have a unique stationary distribution"
 
 twoState :: TransitionMatrix (Finite 2)
 twoState =
@@ -130,37 +125,35 @@ stationaryLawsHold raw =
     case mkTransitionMatrix @(Finite 3) raw of
         Left err -> counterexample (show err) (property False)
         Right matrix ->
-            case witnessIrreducible matrix of
-                Nothing -> counterexample "positive matrix was reducible" (property False)
-                Just witness ->
-                    case stationaryDistribution witness of
-                        Left err -> counterexample (show err) (property False)
-                        Right distribution ->
-                            conjoin
-                                [ counterexample "pi P /= pi" $
-                                    property
-                                        ( approxDistributionEq
-                                            testTolerance
-                                            (evolveVector distribution matrix)
-                                            distribution
-                                        )
-                                , counterexample "sum pi /= 1" $
-                                    property
-                                        (approxEq testTolerance (sum (entries distribution)) 1)
-                                ]
+            case stationaryDistributions matrix of
+                Left err -> counterexample (show err) (property False)
+                Right [(_, distribution)] ->
+                    conjoin
+                        [ counterexample "pi P /= pi" $
+                            property
+                                ( approxDistributionEq
+                                    testTolerance
+                                    (evolveVector distribution matrix)
+                                    distribution
+                                )
+                        , counterexample "sum pi /= 1" $
+                            property
+                                (approxEq testTolerance (sum (entries distribution)) 1)
+                        ]
+                Right _ -> counterexample "positive matrix was not uniquely stationary" (property False)
 
 spec :: Spec
 spec = do
-    describe "stationaryDistribution" $ do
+    describe "stationaryDistributions" $ do
         it "returns the point mass for a singleton chain" $
-            entries (checked (stationaryDistribution (certified singleton)))
+            entries (onlyStationary singleton)
                 `shouldBe` [1]
 
         it "matches the closed form for a two-state chain" $
             and
                 ( zipWith
                     (approxEq testTolerance)
-                    (entries (checked (stationaryDistribution (certified twoState))))
+                    (entries (onlyStationary twoState))
                     [0.8, 0.2]
                 )
                 `shouldBe` True
@@ -168,13 +161,13 @@ spec = do
         it "is uniform for a periodic three-cycle" $
             and
                 [ approxEq testTolerance actual (1 / 3)
-                | actual <- entries (checked (stationaryDistribution (certified threeCycle)))
+                | actual <- entries (onlyStationary threeCycle)
                 ]
                 `shouldBe` True
 
         it "preserves named-state coordinates" $ do
             let distribution =
-                    checked (stationaryDistribution (certified namedTwoState))
+                    onlyStationary namedTwoState
             approxEq testTolerance (probabilityAt distribution Dry) 0.8
                 `shouldBe` True
             approxEq testTolerance (probabilityAt distribution Wet) 0.2
@@ -200,7 +193,7 @@ spec = do
                                 S.Sq 2
                             )
                         )
-            entries (checked (stationaryDistribution (certified matrix)))
+            entries (onlyStationary matrix)
                 `shouldBe` [0.5, 0.5]
 
         it "solves an asymmetric nearly uncoupled chain" $ do
@@ -221,40 +214,38 @@ spec = do
                                 S.Sq 2
                             )
                         )
-            entries (checked (stationaryDistribution (certified matrix)))
+            entries (onlyStationary matrix)
                 `shouldSatisfy` allCloseTo [0.75, 0.25]
 
-    describe "classStationaryDistributions" $ do
+    describe "multiple recurrent classes" $ do
         it "returns one distribution per recurrent class, by least member" $
-            fmap (map fst) (classStationaryDistributions twoClosedClasses)
+            fmap (map fst) (stationaryDistributions twoClosedClasses)
                 `shouldBe` Right [[0], [1, 2]]
 
         it "matches the closed form of the notes" $
-            case classStationaryDistributions twoClosedClasses of
+            case stationaryDistributions twoClosedClasses of
                 Right [(_, onFirst), (_, onSecond)] -> do
                     entries onFirst `shouldSatisfy` allCloseTo [1, 0, 0]
                     entries onSecond `shouldSatisfy` allCloseTo [0, 5 / 11, 6 / 11]
                 other -> expectationFailure ("unexpected result: " ++ show other)
 
         it "puts exact zero on a transient state" $
-            case classStationaryDistributions withTransient of
+            case stationaryDistributions withTransient of
                 Right [(members, only)] -> do
                     members `shouldBe` [1, 2]
                     take 1 (entries only) `shouldBe` [0]
                     entries only `shouldSatisfy` allCloseTo [0, 5 / 11, 6 / 11]
                 other -> expectationFailure ("unexpected result: " ++ show other)
 
-        it "agrees with the irreducible witness on an irreducible chain" $
-            case ( classStationaryDistributions twoState
-                 , stationaryDistribution (certified twoState)
-                 ) of
-                (Right [(_, viaClasses)], Right viaWitness) ->
-                    entries viaClasses `shouldSatisfy` allCloseTo (entries viaWitness)
+        it "returns one distribution for an irreducible chain" $
+            case stationaryDistributions twoState of
+                Right [(_, only)] ->
+                    entries only `shouldSatisfy` allCloseTo [0.8, 0.2]
                 other -> expectationFailure ("unexpected result: " ++ show other)
 
         it "inverts the mean return time" $
             -- pi_i m_i = 1 for state 1 of the recurrent class {1, 2}
-            case classStationaryDistributions twoClosedClasses of
+            case stationaryDistributions twoClosedClasses of
                 Right [_, (_, onSecond)] ->
                     Return.expectationGivenInitialState twoClosedClasses 1
                         `shouldSatisfy` inverts (entries onSecond !! 1)
@@ -265,7 +256,7 @@ spec = do
                 case mkTransitionMatrix @(Finite 3) raw of
                     Left err -> counterexample (show err) (property False)
                     Right matrix ->
-                        case classStationaryDistributions matrix of
+                        case stationaryDistributions matrix of
                             -- A refused solve is a documented outcome.
                             Left _ -> property True
                             Right results ->

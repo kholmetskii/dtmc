@@ -38,8 +38,6 @@ import Dtmc.Analysis.Classification (
     transientState,
     transientStates,
     transientStatesOf,
-    unIrreducible,
-    witnessIrreducible,
  )
 import Dtmc.State (
     FiniteState,
@@ -549,12 +547,6 @@ spec = do
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False
 
-    describe "witnessIrreducible" $ do
-        it "produces a witness exactly for irreducible chains" $ do
-            fmap (sameMatrix threeCycle . unIrreducible) (witnessIrreducible threeCycle)
-                `shouldBe` Just True
-            (witnessIrreducible sevenState >> Just ()) `shouldBe` Nothing
-
     describe "named finite states" $ do
         it "reports communication and periods with named constructors" $ do
             communicatingClasses namedThreeCycle
@@ -571,19 +563,3 @@ spec = do
             map classMembers (classesOf report)
                 `shouldBe` [[ClassA, ClassB, ClassC]]
             recurrentStatesOf report `shouldBe` [ClassA, ClassB, ClassC]
-
-        it "preserves the state type in irreducibility witnesses" $
-            fmap
-                (sameMatrix namedThreeCycle . unIrreducible)
-                (witnessIrreducible namedThreeCycle)
-                `shouldBe` Just True
-
-sameMatrix ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    TransitionMatrix state ->
-    Bool
-sameMatrix a b =
-    flat a == flat b
-  where
-    flat = LA.toList . LA.flatten . S.extract . unTransitionMatrix
