@@ -42,7 +42,9 @@ mkDistributionMap ::
     [(state, Double)] ->
     Either DistributionError (DistributionMap state)
 mkDistributionMap entries =
-    DistributionMap . Map.fromDistinctAscList . filter ((/= 0) . snd)
+    DistributionMap
+        . Map.fromDistinctAscList
+        . filter ((/= 0) . snd)
         . zip (Map.keys combined)
         <$> first
             DistributionError

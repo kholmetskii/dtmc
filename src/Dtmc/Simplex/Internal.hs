@@ -4,14 +4,12 @@ Description : Construction and repair of probability-simplex values.
 
 Shared simplex construction for distribution and transition-matrix smart
 constructors. Accepted values are made canonical by clamping tolerated bound
-error and normalising the repaired total. This module also provides the
-small-negative repair used before categorical sampling of unchecked or
-numerically derived distributions.
+error and normalising the repaired total.
 -}
 module Dtmc.Simplex.Internal (
+    simplexTolerance,
     canonicaliseSimplex,
     canonicaliseSimplexEntries,
-    snapToSimplex,
 ) where
 
 import Dtmc.Simplex (
@@ -23,15 +21,15 @@ import GHC.TypeNats (
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 
--- Keep construction and sampling repair on one private absolute threshold.
-tolerance :: Double
-tolerance = 1e-9
+-- | Absolute tolerance shared by simplex construction and sampling repair.
+simplexTolerance :: Double
+simplexTolerance = 1e-9
 
 {- | Construct a canonical simplex vector when every coordinate is in
-@[-tolerance, 1 + tolerance]@ and its total is in
-@[1 - tolerance, 1 + tolerance]@. Tolerated negative coordinates are clamped
-to zero, tolerated coordinates above one are clamped to one, and the repaired
-coordinates are divided by their computed total.
+@[-simplexTolerance, 1 + simplexTolerance]@ and its total is in
+@[1 - simplexTolerance, 1 + simplexTolerance]@. Tolerated negative coordinates
+are clamped to zero, tolerated coordinates above one are clamped to one, and
+the repaired coordinates are divided by their computed total.
 
 Reports the first non-finite or bound error before checking the total. An
 empty vector yields @Left (SumOffBy 0)@.
@@ -53,7 +51,7 @@ canonicaliseSimplexEntries entries =
     case firstInvalidEntry 0 entries of
         Just err -> Left err
         Nothing
-            | abs (total - 1.0) <= tolerance ->
+            | abs (total - 1.0) <= simplexTolerance ->
                 Right (map (/ repairedTotal) repaired)
             | otherwise -> Left (SumOffBy total)
   where
@@ -72,32 +70,9 @@ firstInvalidEntry _ [] = Nothing
 firstInvalidEntry index (entry : rest)
     | isNaN entry || isInfinite entry =
         Just (NonFiniteEntry index)
-    | entry < negate tolerance =
+    | entry < negate simplexTolerance =
         Just (NegativeEntry index entry)
-    | entry > 1.0 + tolerance =
+    | entry > 1.0 + simplexTolerance =
         Just (EntryAboveOne index entry)
     | otherwise =
         firstInvalidEntry (index + 1) rest
-
-{- | Replace coordinates in @[-tolerance, 0)@ with zero before categorical
-sampling. Non-negative values are unchanged; the result is not renormalised
-or clamped above one.
-
-Raises an error for a coordinate below @-tolerance@ or a @NaN@ coordinate.
-An empty vector remains empty.
-
-Time and result space: @O(n)@.
--}
-snapToSimplex :: LA.Vector Double -> LA.Vector Double
-snapToSimplex =
-    LA.cmap snap
-  where
-    snap value
-        | value >= 0 = value
-        | value >= negate tolerance = 0
-        | otherwise =
-            error
-                ( "Dtmc.Simplex.Internal.snapToSimplex: probability coordinate "
-                    <> show value
-                    <> " is below -tolerance"
-                )

@@ -30,7 +30,10 @@ newtype DistributionError
 
 The class exposes observations common to every representation. Conversions
 belong to the target representation module, so this abstraction does not
-depend on a particular carrier.
+depend on a particular carrier. A lawful instance has finite, non-negative
+weights summing to one and reports each state at most once. Public operations
+still validate where an unchecked or numerically derived value could otherwise
+cause a backend failure.
 -}
 class Distribution distribution where
     -- | State type carried by the distribution representation.

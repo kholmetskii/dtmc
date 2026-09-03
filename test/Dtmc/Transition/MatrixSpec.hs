@@ -130,8 +130,8 @@ spec = do
         it "canonicalises tolerated error independently in each row" $
             case mkTransitionMatrix @(Finite 2)
                 ( S.matrix
-                    [-5e-10, 1 + 5e-10, 0.5, 0.5 - 5e-10]
-                    :: S.Sq 2
+                    [-5e-10, 1 + 5e-10, 0.5, 0.5 - 5e-10] ::
+                    S.Sq 2
                 ) of
                 Right transitionMatrix -> do
                     let rows =

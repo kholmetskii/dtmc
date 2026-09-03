@@ -100,9 +100,9 @@ spec =
                         let kernel = asTransitionKernel matrix
                          in conjoin
                                 [ let matrixLaw =
-                                            Transition.transitionLaw matrix source
+                                        Transition.transitionLaw matrix source
                                       kernelLaw =
-                                            Transition.transitionLaw kernel source
+                                        Transition.transitionLaw kernel source
                                    in counterexample ("source: " <> show source) $
                                         Distribution.support matrixLaw
                                             == Distribution.support kernelLaw

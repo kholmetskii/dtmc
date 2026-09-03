@@ -48,6 +48,10 @@ Finite-horizon analysis works with both chain representations.
 Infinite-horizon analysis and structural classification currently require a
 finite `TransitionMatrix`.
 
+Simulation functions return `Either SimulationError ...`. Invalid unchecked
+weights are reported without consuming randomness; only successfully validated
+sampling passes the supplied generator to the categorical backend.
+
 ## Example
 
 ```haskell
