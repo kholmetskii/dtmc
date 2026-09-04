@@ -23,6 +23,8 @@ import Dtmc.State (
 import Dtmc.TestSupport
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
     TransitionMatrixError,
     mkTransitionMatrix,
  )

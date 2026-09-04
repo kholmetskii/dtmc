@@ -26,6 +26,8 @@ import Dtmc.Distribution (
  )
 import Dtmc.Distribution.Vector (
     DistributionVector,
+ )
+import Dtmc.Distribution.Vector.HMatrix (
     mkDistributionVector,
  )
 import Dtmc.State (
@@ -33,6 +35,8 @@ import Dtmc.State (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
     mkTransitionMatrix,
  )
 import GHC.Generics (

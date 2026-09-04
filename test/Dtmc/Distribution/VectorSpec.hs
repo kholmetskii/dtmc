@@ -13,6 +13,10 @@ import Dtmc.Distribution (
     DistributionError (..),
  )
 import Dtmc.Distribution.Vector (
+    mkDistributionVectorFromList,
+    toList,
+ )
+import Dtmc.Distribution.Vector.HMatrix (
     mkDistributionVector,
     unDistributionVector,
  )
@@ -56,6 +60,26 @@ instance FiniteState NamedState
 
 spec :: Spec
 spec = do
+    describe "mkDistributionVectorFromList" $ do
+        it "combines duplicates and fills missing states with zero" $
+            case mkDistributionVectorFromList @NamedState
+                [(NamedC, 0.5), (NamedA, 0.25), (NamedA, 0.25)] of
+                Right distribution -> do
+                    toList distribution `shouldBe` [0.5, 0, 0.5]
+                    distributionWeights distribution
+                        `shouldBe` [(NamedA, 0.5), (NamedC, 0.5)]
+                Left err ->
+                    expectationFailure
+                        ("expected acceptance, got " <> show err)
+
+        it "uses the same simplex validation as the sparse representation" $
+            case mkDistributionVectorFromList @NamedState [(NamedA, 0.8)] of
+                Left (DistributionError (SumOffBy total)) ->
+                    total `shouldBe` 0.8
+                result ->
+                    expectationFailure
+                        ("expected DistributionError SumOffBy, got " <> show result)
+
     describe "mkDistributionVector" $ do
         it "rejects an empty vector" $
             case mkDistributionVector @(Finite 0) (S.vector [] :: S.R 0) of

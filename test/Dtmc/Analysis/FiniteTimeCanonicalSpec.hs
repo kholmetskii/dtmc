@@ -17,6 +17,8 @@ import Dtmc.Distribution.Map (
  )
 import Dtmc.Distribution.Vector (
     DistributionVector,
+ )
+import Dtmc.Distribution.Vector.HMatrix (
     mkDistributionVector,
  )
 import Dtmc.TestSupport (
@@ -30,6 +32,8 @@ import Dtmc.Transition.Kernel (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
     mkTransitionMatrix,
  )
 import Numeric.LinearAlgebra.Static qualified as S

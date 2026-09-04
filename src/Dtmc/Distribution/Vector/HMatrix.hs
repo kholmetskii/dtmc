@@ -1,0 +1,47 @@
+{- |
+Module      : Dtmc.Distribution.Vector.HMatrix
+Description : Explicit hmatrix interoperability for dense distributions.
+
+Low-level construction and projection for callers already using @hmatrix@.
+Most users should prefer 'Dtmc.Distribution.Vector.mkDistributionVectorFromList'
+and 'Dtmc.Distribution.Vector.toList', which keep @hmatrix@ out of application
+signatures and build dependencies.
+-}
+module Dtmc.Distribution.Vector.HMatrix (
+    mkDistributionVector,
+    unDistributionVector,
+) where
+
+import Data.Bifunctor (
+    first,
+ )
+import Dtmc.Distribution (
+    DistributionError (DistributionError),
+ )
+import Dtmc.Distribution.Vector.Internal (
+    DistributionVector (DistributionVector),
+    unDistributionVector,
+ )
+import Dtmc.Simplex.Internal (
+    canonicaliseSimplex,
+ )
+import Dtmc.State (
+    Cardinality,
+    FiniteState,
+ )
+import Numeric.LinearAlgebra.Static qualified as S
+
+{- | Construct a state distribution from a statically sized @hmatrix@ vector.
+Tolerated coordinate error is clamped to @[0, 1]@ and the repaired vector is
+normalised before storage. For a state type of cardinality zero, returns
+@Left (DistributionError (SumOffBy 0))@.
+
+Time and result space: @O(n)@ for state cardinality @n@.
+-}
+mkDistributionVector ::
+    (FiniteState state) =>
+    S.R (Cardinality state) ->
+    Either DistributionError (DistributionVector state)
+mkDistributionVector vector = do
+    canonical <- first DistributionError (canonicaliseSimplex vector)
+    pure (DistributionVector canonical)

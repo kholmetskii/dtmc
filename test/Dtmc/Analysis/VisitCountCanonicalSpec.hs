@@ -30,6 +30,8 @@ import Dtmc.Transition.Kernel (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
     mkTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA

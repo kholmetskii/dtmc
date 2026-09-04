@@ -21,6 +21,8 @@ import Dtmc.Transition qualified as Transition
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
     mkTransitionMatrix,
  )
 import Numeric.LinearAlgebra.Static qualified as S

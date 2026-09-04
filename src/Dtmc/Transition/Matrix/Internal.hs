@@ -46,9 +46,11 @@ import Numeric.LinearAlgebra.Static qualified as S
 
 {- | A stored square matrix whose rows and columns follow the canonical order
 of its finite state type. Entry @(i,j)@ is the transition probability from
-state @i@ to state @j@. The public constructor applies tolerant row validation
-and canonicalisation; the internal constructor and arithmetic instances do not
-revalidate.
+state @i@ to state @j@. 'Dtmc.Transition.Matrix.fromKernel' materialises
+already-validated rows, while
+'Dtmc.Transition.Matrix.HMatrix.mkTransitionMatrix' applies tolerant row
+validation and canonicalisation. The internal constructor and arithmetic
+instances do not revalidate.
 
 Each value also carries its support graph as a /lazy/ second argument, so any
 graph-based analyses on the same value share one build. Construct internal

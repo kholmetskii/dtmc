@@ -16,7 +16,7 @@ import Dtmc.Distribution.Map (
     mkDistributionMap,
     toDistributionMap,
  )
-import Dtmc.Distribution.Vector (
+import Dtmc.Distribution.Vector.HMatrix (
     mkDistributionVector,
  )
 import Numeric.LinearAlgebra.Static qualified as S

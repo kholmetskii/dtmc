@@ -3,39 +3,44 @@ Module      : Dtmc.Transition.Matrix
 Description : Row-stochastic matrices over finite state types.
 
 One-step transition probabilities for a DTMC over a 'FiniteState' type.
-'mkTransitionMatrix' validates and canonicalises each row with the simplex
-tolerance; 'mulTransitionMatrix', 'identityMatrix', and 'matrixPower' provide
-multi-step transitions.
+'fromKernel' turns an already-validated finite-state kernel into a dense
+matrix; 'mulTransitionMatrix', 'identityMatrix', and 'matrixPower' provide
+multi-step transitions. Explicit @hmatrix@ interoperability lives in
+"Dtmc.Transition.Matrix.HMatrix".
 -}
 module Dtmc.Transition.Matrix (
+    -- * Representation
     TransitionMatrix,
-    TransitionMatrixError (..),
-    mkTransitionMatrix,
-    unTransitionMatrix,
+
+    -- * Construction and inspection
+    fromKernel,
+    toRows,
+    rowAt,
+
+    -- * Composition
     mulTransitionMatrix,
     identityMatrix,
     matrixPower,
-    rowAt,
 ) where
 
-import Data.Bifunctor (
-    first,
- )
 import Data.Semigroup (
     mtimesDefault,
+ )
+import Dtmc.Distribution.Map.Internal (
+    denseWeights,
  )
 import Dtmc.Distribution.Vector.Internal (
     DistributionVector,
  )
-import Dtmc.Simplex (
-    SimplexError,
- )
-import Dtmc.Simplex.Internal (
-    canonicaliseSimplex,
- )
 import Dtmc.State (
-    Cardinality,
     FiniteState,
+    finiteStates,
+ )
+import Dtmc.Transition (
+    Transition (transitionLaw),
+ )
+import Dtmc.Transition.Kernel (
+    TransitionKernel,
  )
 import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
@@ -49,38 +54,41 @@ import Numeric.Natural (
     Natural,
  )
 
-{- | A row failed simplex validation. Carries its zero-based index and the
-underlying error, whose coordinate index is the zero-based column.
--}
-data TransitionMatrixError
-    = -- | The row index and its simplex failure.
-      InRow Int SimplexError
-    deriving (Eq, Show)
-
-{- | Construct a row-stochastic matrix, stopping at the first invalid row.
-Within each accepted row, tolerated coordinate error is clamped to @[0, 1]@
-and the repaired row is normalised. The support graph remains lazy. The empty
-@0 x 0@ matrix is accepted.
+{- | Materialise a finite-state kernel as a dense transition matrix. Kernel
+rows are already validated 'Dtmc.Distribution.Map.DistributionMap' values, so
+this conversion is total and performs no additional clamping or
+renormalisation. Missing coordinates become exact zeros. The support graph
+remains lazy, and the empty @0 x 0@ matrix is accepted.
 
 Time and result space: @O(n^2)@.
 -}
-mkTransitionMatrix ::
+fromKernel ::
     (FiniteState state) =>
-    S.Sq (Cardinality state) ->
-    Either TransitionMatrixError (TransitionMatrix state)
-mkTransitionMatrix matrix =
-    unsafeTransitionMatrix . S.matrix . concatMap (LA.toList . S.extract)
-        <$> traverse canonicaliseRow (zip [0 ..] (S.toRows matrix))
-  where
-    canonicaliseRow (index, row) =
-        first (InRow index) (canonicaliseSimplex row)
+    TransitionKernel state ->
+    TransitionMatrix state
+fromKernel kernel =
+    unsafeTransitionMatrix $
+        S.matrix
+            [ weight
+            | source <- finiteStates
+            , let distribution = transitionLaw kernel source
+            , weight <- denseWeights finiteStates distribution
+            ]
+
+{- | Return all stored entries as rows in canonical state order. Exact zeros
+are retained. This is a representation-neutral copy of the dense matrix and
+does not force its support graph.
+
+Time and result space: @O(n^2)@.
+-}
+toRows :: (FiniteState state) => TransitionMatrix state -> [[Double]]
+toRows = LA.toLists . S.extract . unTransitionMatrix
 
 {- | Compose two transitions: @mulTransitionMatrix p q@ means take a @p@ step,
 then a @q@ step, and stores the matrix product @P Q@.
 
 The product is not revalidated. Row-stochastic matrices are closed under
-multiplication mathematically, but floating-point rounding can accumulate, so
-the result may be repaired or fail 'mkTransitionMatrix' if checked again.
+multiplication mathematically, but floating-point rounding can accumulate.
 
 Time: @O(n^3)@. Result space: @O(n^2)@; its support graph is built lazily.
 -}

@@ -35,10 +35,8 @@ import Dtmc.State (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
-    unTransitionMatrix,
+    toRows,
  )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -65,8 +63,7 @@ transitionWeight ::
     state ->
     Double
 transitionWeight matrix source destination =
-    S.extract (unTransitionMatrix matrix)
-        `LA.atIndex` (toIndex source, toIndex destination)
+    toRows matrix !! toIndex source !! toIndex destination
 
 iterateNatural :: Natural -> (value -> value) -> value -> value
 iterateNatural steps advance = go steps

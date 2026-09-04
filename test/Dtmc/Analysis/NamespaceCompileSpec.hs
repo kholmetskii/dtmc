@@ -21,10 +21,14 @@ import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.VisitCount qualified as Visit
 import Dtmc.Distribution.Vector (
     DistributionVector,
+ )
+import Dtmc.Distribution.Vector.HMatrix (
     mkDistributionVector,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
     mkTransitionMatrix,
  )
 import Numeric.LinearAlgebra.Static qualified as S

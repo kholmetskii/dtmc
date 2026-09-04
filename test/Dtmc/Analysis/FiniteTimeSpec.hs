@@ -24,6 +24,8 @@ import Dtmc.Distribution (
 import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.Distribution.Vector (
     DistributionVector,
+ )
+import Dtmc.Distribution.Vector.HMatrix (
     mkDistributionVector,
  )
 import Dtmc.Dynamics (
@@ -41,8 +43,10 @@ import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     matrixPower,
-    mkTransitionMatrix,
     rowAt,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
+    mkTransitionMatrix,
     unTransitionMatrix,
  )
 import GHC.Generics (

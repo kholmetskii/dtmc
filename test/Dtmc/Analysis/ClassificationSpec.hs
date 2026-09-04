@@ -47,8 +47,10 @@ import Dtmc.TestSupport (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    toRows,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
     mkTransitionMatrix,
-    unTransitionMatrix,
  )
 import GHC.Generics (
     Generic,
@@ -56,7 +58,6 @@ import GHC.Generics (
 import GHC.TypeNats (
     KnownNat,
  )
-import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (Natural)
 import Test.Hspec (
@@ -232,8 +233,7 @@ fourStateCyclic =
             )
 
 matrixSupport :: (KnownNat n) => TransitionMatrix (Finite n) -> [[Bool]]
-matrixSupport =
-    map (map (> 0)) . LA.toLists . S.extract . unTransitionMatrix
+matrixSupport = map (map (> 0)) . toRows
 
 boolMul :: [[Bool]] -> [[Bool]] -> [[Bool]]
 boolMul a b =
@@ -314,7 +314,7 @@ spec = do
 
         prop "accessibility is reflexive" $
             forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 4) matrix of
                     Right p ->
                         conjoin
                             [ property (accessible p i i)

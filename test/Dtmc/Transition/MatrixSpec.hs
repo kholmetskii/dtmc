@@ -11,7 +11,7 @@ import Data.Finite (
 import Dtmc.Distribution (
     distributionWeights,
  )
-import Dtmc.Distribution.Vector (
+import Dtmc.Distribution.Vector.HMatrix (
     mkDistributionVector,
     unDistributionVector,
  )
@@ -28,14 +28,19 @@ import Dtmc.TestSupport (
     setFirstEntry,
     testTolerance,
  )
+import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
-    TransitionMatrixError (..),
+    fromKernel,
     identityMatrix,
     matrixPower,
-    mkTransitionMatrix,
     mulTransitionMatrix,
     rowAt,
+    toRows,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
+    TransitionMatrixError (..),
+    mkTransitionMatrix,
     unTransitionMatrix,
  )
 import GHC.Generics (
@@ -94,6 +99,30 @@ twoStateSquared =
 
 spec :: Spec
 spec = do
+    describe "fromKernel" $ do
+        let successor state =
+                case state of
+                    PhaseA -> PhaseB
+                    PhaseB -> PhaseC
+                    PhaseC -> PhaseA
+            materialised =
+                fromKernel (Kernel.deterministicKernel successor) ::
+                    TransitionMatrix NamedPhase
+
+        it "materialises a finite deterministic kernel" $
+            approxTransitionMatrixEq 0 materialised namedCycle `shouldBe` True
+
+        it "exposes rows without hmatrix types" $
+            toRows materialised
+                `shouldBe` [[0, 1, 0], [0, 0, 1], [1, 0, 0]]
+
+        it "materialises the empty finite chain" $
+            toRows
+                ( fromKernel (Kernel.deterministicKernel id) ::
+                    TransitionMatrix (Finite 0)
+                )
+                `shouldBe` []
+
     describe "mkTransitionMatrix" $ do
         prop "stores canonical rows close to the accepted input" $
             forAll (genTransitionMatrix @3) $ \matrix ->

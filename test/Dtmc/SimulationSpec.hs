@@ -21,7 +21,7 @@ import Dtmc.Distribution.Map (
     pointMass,
     toDistributionMap,
  )
-import Dtmc.Distribution.Vector (mkDistributionVector)
+import Dtmc.Distribution.Vector.HMatrix (mkDistributionVector)
 import Dtmc.Simulation (
     SimulationError (..),
     sample,
@@ -32,6 +32,8 @@ import Dtmc.State (FiniteState)
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
     mkTransitionMatrix,
  )
 import GHC.Generics (Generic)

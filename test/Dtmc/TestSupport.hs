@@ -44,7 +44,7 @@ import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.VisitCount qualified as Visit
 import Dtmc.Distribution.Vector (
     DistributionVector,
-    unDistributionVector,
+    toList,
  )
 import Dtmc.State (
     Cardinality,
@@ -53,7 +53,7 @@ import Dtmc.State (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
-    unTransitionMatrix,
+    toRows,
  )
 import GHC.TypeNats (
     KnownNat,
@@ -295,7 +295,7 @@ approxTransitionMatrixEq ::
 approxTransitionMatrixEq tolerance left right =
     and (zipWith close (entries left) (entries right))
   where
-    entries = LA.toList . LA.flatten . S.extract . unTransitionMatrix
+    entries = concat . toRows
     close x y = abs (x - y) <= tolerance
 
 approxDistributionEq ::
@@ -307,5 +307,5 @@ approxDistributionEq ::
 approxDistributionEq tolerance left right =
     and (zipWith close (entries left) (entries right))
   where
-    entries = LA.toList . S.extract . unDistributionVector
+    entries = toList
     close x y = abs (x - y) <= tolerance

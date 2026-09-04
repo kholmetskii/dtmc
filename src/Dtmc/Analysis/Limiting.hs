@@ -52,7 +52,7 @@ import Dtmc.Analysis.LinearSystem.Internal (
 import Dtmc.Analysis.Stationary (
     stationaryDistributions,
  )
-import Dtmc.Distribution.Vector (
+import Dtmc.Distribution.Vector.Internal (
     DistributionVector,
     unDistributionVector,
  )
@@ -66,6 +66,8 @@ import Dtmc.State.Internal (
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     matrixPower,
+ )
+import Dtmc.Transition.Matrix.Internal (
     unTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA

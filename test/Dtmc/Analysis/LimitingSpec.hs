@@ -23,6 +23,8 @@ import Dtmc.Transition.Matrix (
     TransitionMatrix,
     identityMatrix,
     matrixPower,
+ )
+import Dtmc.Transition.Matrix.HMatrix (
     mkTransitionMatrix,
     unTransitionMatrix,
  )
