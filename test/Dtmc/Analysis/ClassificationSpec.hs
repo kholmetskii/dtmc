@@ -462,26 +462,34 @@ spec = do
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False
 
-        prop "report fields agree with the standalone queries (random @4)" $
+        prop "report fields agree with their class summaries (random @4)" $
             forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+                case mkTransitionMatrix @(Finite 4) matrix of
                     Right p ->
-                        let c = classify p
-                            firstState = minBound :: Finite 4
+                        let report = classify p
+                            cs = classesOf report
+                            closed = filter classClosed cs
+                            open = filter (not . classClosed) cs
                          in conjoin
                                 [ counterexample "isIrreducible" $
-                                    isIrreducible c === irreducible p
+                                    isIrreducible report === (length cs == 1)
                                 , counterexample "isAperiodic" $
-                                    isAperiodic c === aperiodic p
+                                    isAperiodic report
+                                        === (not (null cs) && all ((== Just 1) . classPeriod) cs)
                                 , counterexample "isErgodic" $
-                                    isErgodic c === (irreducible p && aperiodic p)
+                                    isErgodic report
+                                        === (isIrreducible report && isAperiodic report)
                                 , counterexample "recurrentStatesOf" $
-                                    recurrentStatesOf c === recurrentStates p
+                                    recurrentStatesOf report
+                                        === concatMap classMembers closed
                                 , counterexample "transientStatesOf" $
-                                    transientStatesOf c === transientStates p
+                                    transientStatesOf report
+                                        === concatMap classMembers open
                                 , counterexample "chainPeriod" $
-                                    chainPeriod c
-                                        === (if irreducible p then period p firstState else Nothing)
+                                    chainPeriod report
+                                        === case cs of
+                                            [singleClass] -> classPeriod singleClass
+                                            _ -> Nothing
                                 ]
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False

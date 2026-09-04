@@ -140,10 +140,11 @@ communicates p i j =
 components of the support graph. States within a class and the classes by
 least member are both in ascending order.
 
-Result construction takes @O(n)@ after components are cached.
+This is a focused projection of the complete 'classify' report. Result
+construction takes @O(n)@ after components are cached.
 -}
 communicatingClasses :: (FiniteState state) => TransitionMatrix state -> [[state]]
-communicatingClasses p = map (map toState) (G.components (tmSupport p))
+communicatingClasses = map classMembers . classesOf . classify
 
 {- | Whether every state communicates with every other state. The empty chain
 is not irreducible.
@@ -151,9 +152,12 @@ is not irreducible.
 Time: @O(1)@ after communicating classes are cached.
 -}
 irreducible :: TransitionMatrix state -> Bool
-irreducible p =
-    case G.components (tmSupport p) of
-        [c] -> not (null c)
+irreducible = graphIrreducible . tmSupport
+
+graphIrreducible :: G.Graph -> Bool
+graphIrreducible graph =
+    case G.components graph of
+        [component] -> not (null component)
         _ -> False
 
 {- | The period of @i@:
@@ -177,11 +181,14 @@ definition.
 Time: @O(c)@ for @c@ cached communicating classes.
 -}
 aperiodic :: TransitionMatrix state -> Bool
-aperiodic p =
-    not (null cs) && all ((== Just 1) . G.componentPeriod g) cs
+aperiodic = graphAperiodic . tmSupport
+
+graphAperiodic :: G.Graph -> Bool
+graphAperiodic graph =
+    not (null components)
+        && all ((== Just 1) . G.componentPeriod graph) components
   where
-    g = tmSupport p
-    cs = G.components g
+    components = G.components graph
 
 {- | Partition an irreducible chain of period @d@ into cyclic classes
 @C_0, ..., C_(d-1)@. Every transition from @C_r@ enters
@@ -239,36 +246,25 @@ transientState p i = not (recurrentState p i)
 index. Every non-empty finite DTMC has at least one; the empty chain returns
 the empty list.
 
-Time and result space: @O(n)@ after class closedness is cached.
+This is a focused projection of the complete 'classify' report. Time and
+result space: @O(n)@ after class closedness is cached.
 -}
 recurrentStates :: (FiniteState state) => TransitionMatrix state -> [state]
-recurrentStates p =
-    concatMap (map toState) closedComponents
-  where
-    g = tmSupport p
-    -- Closedness is read per component in O(1) from the cached table (via the
-    -- representative vertex @v@), rather than recomputed by 'G.isClosed'.
-    closedComponents =
-        [component | component@(v : _) <- G.components g, G.inClosedComponent g v]
+recurrentStates = recurrentStatesOf . classify
 
 {- | Members of the non-closed communicating classes, ordered by class and
 state index. The result is empty exactly when every class is closed.
 
-Time and result space: @O(n)@ after class closedness is cached.
+This is a focused projection of the complete 'classify' report. Time and
+result space: @O(n)@ after class closedness is cached.
 -}
 transientStates :: (FiniteState state) => TransitionMatrix state -> [state]
-transientStates p =
-    concatMap (map toState) openComponents
-  where
-    g = tmSupport p
-    openComponents =
-        [ component
-        | component@(v : _) <- G.components g
-        , not (G.inClosedComponent g v)
-        ]
+transientStates = transientStatesOf . classify
 
-{- | Build all exported class, period, recurrence, absorbing-state,
-irreducibility, and aperiodicity summaries from one shared support graph.
+{- | Build the complete class, period, recurrence, absorbing-state,
+irreducibility, and aperiodicity report from one shared support graph. The
+standalone whole-chain queries are focused projections of this report; scalar
+reachability, period, and recurrence queries remain direct graph lookups.
 
 On an unforced matrix, time is @O(n^2 + n log n + E)@ and cached graph plus
 report space is @O(n + E)@.
@@ -295,10 +291,8 @@ classify p =
             }
         | c@(v : _) <- G.components g
         ]
-    irreducible' = case cs of
-        [_] -> True
-        _ -> False
-    aperiodic' = not (null cs) && all ((== Just 1) . classPeriod) cs
+    irreducible' = graphIrreducible g
+    aperiodic' = graphAperiodic g
     chainPeriod' = case cs of
         [c] -> classPeriod c
         _ -> Nothing
