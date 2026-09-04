@@ -8,7 +8,47 @@ on:
 
 jobs:
   test:
-    name: linux / ghc 9.10.3
+    name: linux / ghc ${{ matrix.ghc }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc:
+          - '9.10.3'
+          - '9.12.4'
+          - '9.14.1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LAPACK and BLAS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libblas-dev liblapack-dev
+
+      - uses: haskell-actions/setup@v2
+        id: setup
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: 'latest'
+
+      - name: Cache Cabal packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: linux-ghc-${{ matrix.ghc }}-${{ hashFiles('dtmc.cabal', 'cabal.project', 'cabal.project.freeze') }}
+          restore-keys: |
+            linux-ghc-${{ matrix.ghc }}-
+
+      - name: Build
+        run: cabal build all --enable-tests --ghc-options=-Werror
+
+      - name: Test
+        run: cabal test all --test-show-details=direct --ghc-options=-Werror
+
+  direct-dependency-floors:
+    name: linux / direct dependency floors
     runs-on: ubuntu-latest
 
     steps:
@@ -29,12 +69,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.setup.outputs.cabal-store }}
-          key: linux-ghc-9.10.3-${{ hashFiles('dtmc.cabal', 'cabal.project', 'cabal.project.freeze') }}
+          key: linux-ghc-9.10.3-direct-floors-${{ hashFiles('dtmc.cabal') }}
           restore-keys: |
-            linux-ghc-9.10.3-
+            linux-ghc-9.10.3-direct-floors-
 
-      - name: Build
-        run: cabal build all --enable-tests --ghc-options=-Werror
-
-      - name: Test
-        run: cabal test all --test-show-details=direct --ghc-options=-Werror
+      - name: Build at direct dependency floors
+        run: >-
+          cabal build lib:dtmc
+          --ghc-options=-Werror
+          --constraint='array == 0.5.8.0'
+          --constraint='containers == 0.6.8'
+          --constraint='finite-typelits == 0.2.0.1'
+          --constraint='hmatrix == 0.20.2'
+          --constraint='mwc-random == 0.15.0.1'
+          --constraint='primitive == 0.9.0.0'
