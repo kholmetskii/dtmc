@@ -3,6 +3,12 @@
 A Haskell library for discrete-time Markov chains with type-safe finite models
 and locally finite countable-state models.
 
+Add the library to your Cabal package:
+
+```cabal
+build-depends: dtmc ^>=0.2.0.0
+```
+
 ## Chain representations
 
 ### Finite chains
@@ -16,9 +22,10 @@ Initial distributions can use either:
 - `DistributionVector` for a dense, statically sized representation;
 - `DistributionMap` for a sparse finite-support representation.
 
-Their smart constructors, and `mkTransitionMatrix`, accept floating-point
-error within `1e-9`, then clamp tolerated coordinate error and normalise before
-storing the value. `NaN` and infinite coordinates are rejected explicitly.
+Distribution smart constructors accept floating-point error within `1e-9`,
+then clamp tolerated coordinate error and normalise before storing the value.
+The explicit `hmatrix` matrix constructor applies the same policy row by row.
+`NaN` and infinite coordinates are rejected explicitly.
 
 ### Countable-state chains
 
@@ -40,8 +47,11 @@ The library supports:
 - eventual and competing hitting probabilities for finite chains;
 - expected hitting and return times for finite chains;
 - finite-horizon and infinite-horizon visit-count analysis;
+- occupation and fundamental matrices;
+- canonical decomposition and absorption probabilities and expectations;
 - accessibility, communicating classes, recurrence, and periodicity;
-- stationary distributions for finite irreducible chains;
+- extremal stationary distributions for every recurrent class;
+- ordinary limiting matrices and cyclic subsequential limits;
 - random sampling and finite simulation.
 
 Finite-horizon analysis works with both chain representations.
@@ -60,27 +70,48 @@ sampling passes the supplied generator to the categorical backend.
 {-# LANGUAGE DeriveGeneric #-}
 
 import Dtmc.Analysis.FiniteTime qualified as FT
+import Dtmc.Distribution.Map (DistributionMap, mkDistributionMap)
 import Dtmc.State (FiniteState)
-import Dtmc.Transition.Matrix (TransitionMatrix, mkTransitionMatrix)
+import Dtmc.Transition.Kernel (transitionKernel)
+import Dtmc.Transition.Matrix (TransitionMatrix, fromKernel)
 import GHC.Generics (Generic)
-import qualified Numeric.LinearAlgebra.Static as S
 
 data Weather = Dry | Wet
   deriving (Eq, Ord, Show, Generic, FiniteState)
 
+law :: [(Weather, Double)] -> DistributionMap Weather
+law = either (error . show) id . mkDistributionMap
+
 weather :: TransitionMatrix Weather
 weather =
-  either (error . show) id $
-    mkTransitionMatrix
-      (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+  fromKernel $
+    transitionKernel $ \state ->
+      case state of
+        Dry -> law [(Dry, 0.9), (Wet, 0.1)]
+        Wet -> law [(Dry, 0.4), (Wet, 0.6)]
 
 wetTomorrow :: Double
 wetTomorrow = FT.stepProbability weather Dry Wet
 ```
 
+See the `Dtmc` module on Hackage for a map of the construction, simulation,
+and analysis modules. Analysis modules are intended to be imported qualified
+because several subjects expose concise names such as `probability` and
+`expectation`.
+
+## hmatrix interoperability
+
+The ordinary construction and inspection APIs use state-labelled weights and
+plain lists. Projects already using `hmatrix` can opt into
+`Dtmc.Distribution.Vector.HMatrix` and `Dtmc.Transition.Matrix.HMatrix` for
+statically sized construction and zero-copy projection.
+
+`dtmc` still uses `hmatrix` internally, so building the package requires a
+BLAS/LAPACK implementation even when an application only uses kernels.
+
 ## Building
 
-The project requires GHC, Cabal, and BLAS/LAPACK for `hmatrix`.
+The project requires GHC 9.10 or later, Cabal, and BLAS/LAPACK for `hmatrix`.
 
 ```bash
 cabal build all --enable-tests

@@ -3,10 +3,14 @@ name:               dtmc
 version:            0.2.0.0
 synopsis:           Type-safe discrete-time Markov chains
 description:
-  Finite discrete-time Markov chains with type-level dimensions, plus locally
-  finite countable-state kernels for exact finite-horizon analysis and
-  simulation. Includes validated probability laws, transition models, and
-  exact infinite-horizon total visit-count analysis for finite chains.
+  Type-safe finite discrete-time Markov chains with matrix and kernel
+  representations, plus locally finite countable-state kernels for exact
+  finite-horizon analysis and simulation.
+  .
+  The package provides validated probability laws, finite-time joint and
+  conditional probabilities, hitting and return quantities, visit counts,
+  communicating-class analysis, canonical decomposition, absorption,
+  stationary distributions, and ordinary and cyclic limiting behaviour.
 category:           Math, Probability
 homepage:           https://github.com/kholmetskii/dtmc
 bug-reports:        https://github.com/kholmetskii/dtmc/issues
@@ -14,9 +18,15 @@ license:            BSD-3-Clause
 license-file:       LICENSE
 author:             Arkadii Kholmetskii
 maintainer:         Arkadii Kholmetskii <373321aa@gmail.com>
+copyright:          2026 Arkadii Kholmetskii
 build-type:         Simple
-tested-with:        GHC ==9.10.3
-extra-doc-files:    README.md
+tested-with:
+    GHC ==9.10.3
+  , GHC ==9.12.4
+  , GHC ==9.14.1
+extra-doc-files:
+    README.md
+    CHANGELOG.md
 
 common lang
   default-language: GHC2021
@@ -37,13 +47,16 @@ library
   hs-source-dirs:   src
 
   exposed-modules:
+      Dtmc
       Dtmc.Simplex
       Dtmc.State
       Dtmc.Distribution
       Dtmc.Distribution.Vector
+      Dtmc.Distribution.Vector.HMatrix
       Dtmc.Distribution.Map
       Dtmc.Transition
       Dtmc.Transition.Matrix
+      Dtmc.Transition.Matrix.HMatrix
       Dtmc.Transition.Kernel
       Dtmc.Simulation
       Dtmc.Dynamics
@@ -133,3 +146,8 @@ test-suite spec
 source-repository head
   type:             git
   location:         https://github.com/kholmetskii/dtmc.git
+
+source-repository this
+  type:             git
+  location:         https://github.com/kholmetskii/dtmc.git
+  tag:              v0.2.0.0
