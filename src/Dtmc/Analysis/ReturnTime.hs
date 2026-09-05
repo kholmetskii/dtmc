@@ -3,7 +3,7 @@ Module      : Dtmc.Analysis.ReturnTime
 Description : Exact, bounded, eventual, and expected first-return times.
 
 First-return quantities for DTMCs. For state @i@,
-@T_i = inf { t >= 1 | X_t = i }@, so time zero is never a return. Scalar
+@T_i^+ = inf { t >= 1 | X_t = i }@, so time zero is never a return. Scalar
 exact-time and bounded queries work through any locally finite 'Transition'.
 Eventual and expected queries use a finite 'TransitionMatrix'.
 
@@ -11,6 +11,13 @@ Exact-time and strictly bounded queries use finite recurrences. Eventual
 queries use support classification and checked 'Double' linear solves.
 Expected return times use class stationary distributions and Kac's formula.
 Results are not clamped or renormalised.
+
+Unless stated otherwise, complexity bounds exclude 'FiniteState' method
+costs. Bounds over abstract distributions or transitions also identify the
+excluded typeclass-method costs.
+
+For finite-matrix bounds, @n@ is the state count and @E@ the support-edge
+count.
 -}
 module Dtmc.Analysis.ReturnTime (
     LinearSystemError (..),
@@ -101,8 +108,14 @@ advanceUntilTarget kernel isTarget survivors =
     (hits, remaining) = Map.partitionWithKey (\state _ -> isTarget state) advanced
     hitMass = sum (Map.elems hits)
 
-{- | Exact first-return probability @P(T_i^+ = t | X_0 = i)@ through any
-'Transition'. Time zero is exactly zero; a self-loop returns at time one.
+{- | Compute the exact first-return probability
+@P(T_i^+ = t | X_0 = i)@ through any 'Transition'. Time zero is exactly zero;
+a self-loop returns at time one.
+
+Complexity: excluding 'transitionLaw',
+@O(k (w + e log(u + 1) + u) + 1)@ time, @O(w + u)@ temporary space, and
+@O(1)@ result space, where @k = t@ and @w@, @e@, and @u@ bound per-step
+survivor states, traversed transition edges, and accumulated destinations.
 -}
 exactProbabilityAt ::
     (Transition kernel, Ord (TransitionState kernel)) =>
@@ -124,8 +137,14 @@ exactProbabilityAt time kernel initialState =
                 then returnMass
                 else go (remaining - 1) next
 
-{- | Strict bounded first-return probability @P(T_i^+ < c | X_0 = i)@ through
-any 'Transition'. Bounds @0@ and @1@ are exactly zero.
+{- | Compute the strict bounded first-return probability
+@P(T_i^+ < c | X_0 = i)@ through any 'Transition'. Bounds @0@ and @1@ are
+exactly zero.
+
+Complexity: excluding 'transitionLaw',
+@O(k (w + e log(u + 1) + u) + 1)@ time, @O(w + u)@ temporary space, and
+@O(1)@ result space, where @k = c@ and @w@, @e@, and @u@ bound per-step
+survivor states, traversed transition edges, and accumulated destinations.
 -}
 lowerTailProbability ::
     (Transition kernel, Ord (TransitionState kernel)) =>
@@ -145,8 +164,8 @@ lowerTailProbability bound kernel initialState =
             cumulative = total + returnMass
          in cumulative `seq` go (remaining - 1) next cumulative
 
-{- | First-return probabilities
-@f_i = P(T_i < infinity | X_0 = i)@ in state order. Recurrent states are
+{- | Compute first-return probabilities
+@f_i = P(T_i^+ < infinity | X_0 = i)@ in state order. Recurrent states are
 exactly @1@ from support classification.
 
 For all transient states, one fundamental-matrix solve computes
@@ -154,7 +173,9 @@ For all transient states, one fundamental-matrix solve computes
 rounding and are not clamped to @[0,1]@. Returns 'Left' if the transient system
 fails the numerical contract.
 
-Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
+Complexity: @O(n^3)@ worst-case time, @O(n^2)@ temporary space,
+@O(n + E)@ retained graph-cache space, and @O(n)@ result space for @n@
+states and @E@ support edges.
 -}
 eventualProbabilitiesByState ::
     forall state.
@@ -188,13 +209,19 @@ eventualProbabilitiesByState p = do
     transientIdx = map toIndex transient
     matrix = S.extract (unTransitionMatrix p)
 
-{- | The probability of returning to one state after at least one transition.
-A recurrent-state query returns exactly @1@ without forcing the
-fundamental-matrix solve. The first transient query costs @O(n^3)@ worst case;
-partial application shares that solve, making later lookups @O(1)@.
+{- | Compute the probability of returning to one state after at least one
+transition. A recurrent-state query returns exactly @1@ without forcing the
+fundamental-matrix solve. Partial application shares the all-state transient
+solve.
 
-Transient queries inherit the numerical behavior and errors of
+Transient queries inherit the numerical behaviour and errors of
 @eventualProbabilitiesByState@.
+
+Complexity: the first transient query takes @O(n^3)@ worst-case time and
+@O(n^2)@ temporary space and may retain an @O(n)@ all-state result; later
+lookups take @O(1)@ time and space. A recurrent query avoids the solve. The
+matrix may retain @O(n + E)@ graph-cache space, and the scalar result occupies
+@O(1)@ space.
 -}
 eventualProbabilityGivenInitialState ::
     forall state.
@@ -210,16 +237,21 @@ eventualProbabilityGivenInitialState p =
   where
     probabilities = S.extract <$> eventualProbabilitiesByState p
 
-{- | The expected first-return time for one state. A transient state returns
-'InfiniteExpectation' without a numerical solve. For a recurrent state @i@,
-Kac's formula gives @E_i T_i^+ = 1 / pi_i@, where @pi@ is the stationary
-distribution of its closed communicating class.
+{- | Compute the expected first-return time for one state. A transient state
+returns 'InfiniteExpectation' without a numerical solve. For a recurrent
+state @i@, Kac's formula gives @E_i T_i^+ = 1 / pi_i@, where @pi@ is the
+stationary distribution of its closed communicating class.
 
-The first recurrent query computes the stationary distributions of all closed
-classes in @O(n^3)@ worst-case time and @O(n^2)@ temporary space. Partial
-application shares that table, making later lookups @O(1)@. A transient query
-does not force the table. Numerical failures are those of
-'stationaryDistributions'.
+Partial application shares the stationary distributions and resulting
+all-state table. A transient query does not force that table. Numerical
+failures are those of 'stationaryDistributions' or a non-positive or
+non-finite recurrent stationary probability.
+
+Complexity: the first recurrent query takes @O(n^3)@ worst-case time and
+@O(n^2)@ temporary space and may retain an @O(n)@ all-state result; later
+lookups take @O(1)@ time and space. A transient query avoids the stationary
+solves. The matrix may retain @O(n + E)@ graph-cache space, and the scalar
+result occupies @O(1)@ space.
 -}
 expectationGivenInitialState ::
     forall state.
@@ -235,9 +267,12 @@ expectationGivenInitialState p =
   where
     recurrentExpectations = recurrentReturnExpectations p
 
-{- | Expected return times for all recurrent states from one set of
+{- | Compute expected return times for all recurrent states from one set of
 class-stationary solves. The array also contains infinity at transient
 coordinates, although callers decide transience structurally before lookup.
+
+Complexity: @O(n^3)@ worst-case time, @O(n^2)@ temporary space,
+@O(n + E)@ retained graph-cache space, and @O(n)@ result space.
 -}
 recurrentReturnExpectations ::
     forall state.
@@ -289,8 +324,8 @@ upperTailProbability time kernel initialState =
         let (next, _) = advanceUntilTarget kernel isInitial survivors
          in next `seq` go (remaining - 1) next
 
-{- | Probability of a finite-threshold event in the first-return time
-@T_i = inf { t >= 1 | X_t = i }@.
+{- | Compute the probability of a finite-threshold event in the first-return
+time @T_i^+ = inf { t >= 1 | X_t = i }@.
 
 'EqualTo' and the lower tails reuse the direct exact/bounded recurrences.
 'GreaterThan' and 'AtLeast' use surviving mass directly, include the atom at
@@ -302,6 +337,14 @@ The initial state is sampled from the supplied distribution; each path then
 measures return to its own sampled state. The query works through any locally
 finite 'Transition'. Results use ordinary 'Double' arithmetic without
 clamping or renormalisation.
+
+For the complexity bounds, @s@ is the initial stored support size, @k@ the
+event threshold, and @w@, @e@, and @u@ are per-step upper bounds on survivor
+states, traversed transition edges, and accumulated destinations.
+
+Complexity: excluding 'distributionWeights' and 'transitionLaw',
+@O(s (k (w + e log(u + 1) + u) + 1))@ time, @O(s + w + u)@ temporary
+space, and @O(1)@ result space.
 -}
 probability ::
     ( Distribution distribution
@@ -316,8 +359,17 @@ probability ::
 probability event kernel initial =
     probabilityUnder initial (probabilityGivenInitialState event kernel)
 
-{- | Probability of a finite-threshold first-return event conditioned on
-@X_0 = i@. The return target is that same initial state @i@.
+{- | Compute the probability of a finite-threshold first-return event
+conditioned on @X_0 = i@. The return target is that same initial state, and
+time zero is not a return.
+
+For the complexity bounds, @k@ is the event threshold and @w@, @e@, and @u@
+are per-step upper bounds on survivor states, traversed transition edges, and
+accumulated destinations.
+
+Complexity: excluding 'transitionLaw',
+@O(k (w + e log(u + 1) + u) + 1)@ time, @O(w + u)@ temporary space, and
+@O(1)@ result space.
 -}
 probabilityGivenInitialState ::
     (Transition kernel, Ord (TransitionState kernel)) =>
@@ -334,8 +386,15 @@ probabilityGivenInitialState event kernel initialState =
         AtLeast 0 -> 1
         AtLeast time -> upperTailProbability (time - 1) kernel initialState
 
-{- | Probability under an arbitrary initial distribution of eventually
-returning to the sampled initial state after at least one transition.
+{- | Compute, under an arbitrary initial distribution, the probability of
+eventually returning to the sampled initial state after at least one
+transition. Recurrent states contribute exactly one; transient-state values
+come from one shared checked fundamental-matrix solve.
+
+Complexity: excluding 'distributionWeights', @O(n^3 + s)@ worst-case time,
+@O(n^2 + s)@ temporary space, and @O(1)@ result space for @n@ states and
+initial stored support size @s@. The matrix may retain @O(n + E)@ graph-cache
+space.
 -}
 eventualProbability ::
     ( FiniteState state
@@ -348,8 +407,15 @@ eventualProbability ::
 eventualProbability matrix initial =
     probabilityUnderEither initial (eventualProbabilityGivenInitialState matrix)
 
-{- | Expected first-return time under an arbitrary initial distribution. The
-result is infinite when a transient state has positive initial probability.
+{- | Compute the expected first-return time under an arbitrary initial
+distribution. The result is infinite when a transient state has positive
+initial probability. Otherwise recurrent-state expectations use shared class
+stationary distributions and Kac's formula.
+
+Complexity: excluding 'distributionWeights', @O(n^3 + s)@ worst-case time,
+@O(n^2 + s)@ temporary space, and @O(1)@ result space for @n@ states and
+initial stored support size @s@. The matrix may retain @O(n + E)@ graph-cache
+space.
 -}
 expectation ::
     ( FiniteState state

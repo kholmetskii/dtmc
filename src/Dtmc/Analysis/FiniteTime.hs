@@ -41,7 +41,7 @@ import Numeric.Natural (
 observations denotes their conjunction; list order has no meaning.
 -}
 data Observation state
-    = At Natural state
+    = At Natural state -- ^ Require the supplied state at the specified time.
     deriving (Eq, Show)
 
 -- | Why a conditional probability query has no defined value.
@@ -50,8 +50,11 @@ data ConditionalProbabilityError
       ZeroProbabilityCondition
     deriving (Eq, Show)
 
-{- | One-step transition probability @P(X_1 = j | X_0 = i)@ through any
-locally finite 'Transition'.
+{- | Return the one-step transition probability
+@P(X_1 = j | X_0 = i)@ through any locally finite 'Transition'.
+
+Complexity: excluding 'transitionLaw', @O(log(s + 1))@ time and @O(1)@
+temporary and result space for returned law support size @s@.
 -}
 stepProbability ::
     (Transition kernel, Ord (TransitionState kernel)) =>
@@ -62,8 +65,16 @@ stepProbability ::
 stepProbability kernel source =
     probabilityAt (transitionLaw kernel source)
 
-{- | The @k@-step transition probability @P(X_k = j | X_0 = i)@. At @k = 0@
-this is the Kronecker delta.
+{- | Return the @k@-step transition probability @P(X_k = j | X_0 = i)@. At
+@k = 0@ this is the Kronecker delta.
+
+For the complexity bounds, @w@, @e@, and @u@ are per-step upper bounds on
+stored source states, traversed transition edges, and accumulated destination
+states, and @r@ bounds the final stored support.
+
+Complexity: excluding 'transitionLaw',
+@O(k (w + e log(u + 1) + u) + log(r + 1) + 1)@ time, @O(w + u)@ temporary
+space, and @O(1)@ result space.
 -}
 nStepProbability ::
     (Transition kernel, Ord (TransitionState kernel)) =>
@@ -75,11 +86,25 @@ nStepProbability ::
 nStepProbability steps kernel source =
     probabilityAt (evolveN steps (pointMass source) kernel)
 
-{- | Probability of a conjunction of timed observations. Observation order
-has no meaning, duplicates collapse, and an empty conjunction is exactly one.
+{- | Compute the probability of a conjunction of timed observations.
+Observation order has no meaning, duplicates collapse, and an empty
+conjunction is exactly one. Contradictory observations at one time give
+exactly zero without inspecting the initial distribution or kernel.
 
 A state probability is represented by a singleton observation. A consecutive
 path is represented by observations at times zero, one, and so on.
+
+For the complexity bounds, @m@ is the supplied observation count, @q@ the
+normalised count, @k@ the greatest observed time, and @s_0@ the initial stored
+support size. Across all propagation steps and observation gaps, @w@, @e@,
+and @u@ bound stored source states, traversed transition edges, and
+accumulated destination states, while @r@ bounds support at each lookup. Let
+@C = w + e log(u + 1) + u@.
+
+Complexity: excluding the initial 'distributionWeights' call and all
+'transitionLaw' evaluations,
+@O(m log(m + 1) + s_0 + k C + q log(r + 1) + 1)@ time,
+@O(m + w + u)@ temporary space, and @O(1)@ result space.
 -}
 probability ::
     ( Distribution distribution
@@ -108,10 +133,21 @@ probability initial kernel observations =
             state
             * gaps (time, state) more
 
-{- | Conditional probability @P(E | C)@ for two conjunctions of timed
+{- | Compute conditional probability @P(E | C)@ for two conjunctions of timed
 observations. An exactly zero-probability condition returns
-'ZeroProbabilityCondition'; otherwise the result is the ordinary 'Double'
-quotient of joint probabilities.
+'ZeroProbabilityCondition' without evaluating the numerator; otherwise the
+result is the ordinary 'Double' quotient of the joint and condition
+probabilities.
+
+For the complexity bounds, use the parameters from 'probability' across both
+probability evaluations: @m@ is the total number of pairs processed, @q@ the
+total normalised count, and @k@ the total number of propagation steps.
+Let @C = w + e log(u + 1) + u@.
+
+Complexity: excluding up to two initial 'distributionWeights' calls and all
+'transitionLaw' evaluations,
+@O(m log(m + 1) + s_0 + k C + q log(r + 1) + 1)@ time,
+@O(m + w + u)@ temporary space, and @O(1)@ result space.
 -}
 probabilityGiven ::
     ( Distribution distribution

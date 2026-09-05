@@ -11,6 +11,13 @@ spaces. Eventual, competing, and expected queries use a finite
 Exact-time and strictly bounded queries use finite recurrences. Eventual,
 competing, and expected queries use support reachability and checked 'Double'
 linear solves. Results are not clamped or renormalised.
+
+Unless stated otherwise, complexity bounds exclude 'FiniteState' method
+costs. Bounds over abstract distributions, transitions, or target predicates
+also identify the excluded typeclass-method and predicate costs.
+
+For finite-matrix bounds, @n@ is the state count and @E@ the support-edge
+count.
 -}
 module Dtmc.Analysis.HittingTime (
     LinearSystemError (..),
@@ -111,10 +118,15 @@ advanceUntilTarget kernel isTarget survivors =
     (hits, remaining) = Map.partitionWithKey (\state _ -> isTarget state) advanced
     hitMass = sum (Map.elems hits)
 
-{- | Exact scalar hitting-time probability @P(H_A = t | X_0 = i)@ through any
-'Transition'. The target set is represented by a membership predicate, which
-also works when the state space is infinite. Hitting includes time zero, and
-newly hit mass is removed after every step.
+{- | Compute the exact scalar hitting-time probability
+@P(H_A = t | X_0 = i)@ through any 'Transition'. The target set is represented
+by a membership predicate, which also works when the state space is infinite.
+Hitting includes time zero, and newly hit mass is removed after every step.
+
+Complexity: excluding 'transitionLaw' and predicate evaluation,
+@O(k (w + e log(u + 1) + u) + 1)@ time, @O(w + u)@ temporary space, and
+@O(1)@ result space, where @k = t@ and @w@, @e@, and @u@ bound per-step
+survivor states, traversed transition edges, and accumulated destinations.
 -}
 exactProbabilityAt ::
     ( Transition kernel
@@ -138,9 +150,14 @@ exactProbabilityAt time kernel isTarget initialState
                 then hitMass
                 else go (remaining - 1) next
 
-{- | Strict bounded scalar hitting probability @P(H_A < c | X_0 = i)@ through
-any 'Transition'. At @c = 0@ the result is zero; at a positive bound an
-initial target gives one.
+{- | Compute the strict bounded scalar hitting probability
+@P(H_A < c | X_0 = i)@ through any 'Transition'. At @c = 0@ the result is
+zero; at a positive bound an initial target gives one.
+
+Complexity: excluding 'transitionLaw' and predicate evaluation,
+@O(k (w + e log(u + 1) + u) + 1)@ time, @O(w + u)@ temporary space, and
+@O(1)@ result space, where @k = c@ and @w@, @e@, and @u@ bound per-step
+survivor states, traversed transition edges, and accumulated destinations.
 -}
 lowerTailProbability ::
     ( Transition kernel
@@ -163,7 +180,7 @@ lowerTailProbability bound kernel isTarget initialState
             cumulative = total + hitMass
          in cumulative `seq` go (remaining - 1) next cumulative
 
-{- | Hitting probabilities
+{- | Compute hitting probabilities
 @h_i = P(H_A < infinity | X_0 = i)@ in state order. Target order and
 duplicates are ignored; an empty target set gives an all-zero vector.
 
@@ -172,8 +189,11 @@ The result is the minimal non-negative solution of @h_i = 1@ on @A@ and
 states from which @A@ is unreachable are exactly @0@. Remaining entries solve
 @(I - P[D,D])x = P[D,A]1@ and inherit floating-point error.
 
-Returns 'Left' if the interior solve fails the numerical contract. Worst-case
-time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
+Returns 'Left' if the interior solve fails the numerical contract.
+
+Complexity: @O(n^3 + a)@ worst-case time, @O(n^2 + a)@ temporary space,
+@O(n + E)@ retained graph-cache space, and @O(n)@ result space for @n@
+states, @E@ support edges, and @a@ supplied targets.
 -}
 eventualProbabilitiesByState ::
     (FiniteState state) =>
@@ -185,13 +205,18 @@ eventualProbabilitiesByState p targets =
     -- boundary (@H_B = infinity@), so it reuses the same single solve.
     raceProbabilitiesByState p targets []
 
-{- | The probability of ever hitting the target set from one state. This has
-the same edge cases, numerical behavior, and errors as
+{- | Compute the probability of ever hitting the target set from one state.
+This has the same edge cases, numerical behaviour, and errors as
 @eventualProbabilitiesByState@.
 
 Partially applying the matrix and target set shares one lazy all-state solve:
-the first forced query costs @O(n^3)@ worst case and later lookups cost
-@O(1)@.
+the first forced query computes the table, and later lookups read it directly.
+
+Complexity: the first forced query takes @O(n^3 + a)@ worst-case time and
+@O(n^2 + a)@ temporary space for @n@ states and @a@ supplied targets. It may
+retain an @O(n)@ all-state result and @O(n + E)@ graph cache; subsequent
+shared lookups take @O(1)@ time and space. The scalar result occupies
+@O(1)@ space.
 -}
 eventualProbabilityGivenInitialState ::
     forall state.
@@ -205,7 +230,7 @@ eventualProbabilityGivenInitialState p targets =
   where
     probabilities = S.extract <$> eventualProbabilitiesByState p targets
 
-{- | Competing hitting probabilities
+{- | Compute competing hitting probabilities
 @h_i = P(H_A < H_B | X_0 = i)@ in state order, for a successful boundary @A@
 (first argument) and a competing boundary @B@ (second argument). Hitting times
 include time zero, @H_A = inf { t >= 0 | X_t in A }@ and likewise for @B@, and
@@ -244,7 +269,10 @@ transition matrix the system is nonsingular in exact arithmetic, but may still
 be too ill-conditioned for a reliable 'Double' result. The all-state result
 performs at most one linear solve.
 
-Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
+Complexity: @O(n^3 + a + b)@ worst-case time and @O(n^2 + a + b)@
+temporary space for @n@ states and boundary-list lengths @a@ and @b@. The
+matrix retains @O(n + E)@ graph-cache space, and the result occupies @O(n)@
+space.
 -}
 raceProbabilitiesByState ::
     forall state.
@@ -301,14 +329,19 @@ raceProbabilitiesByState p successful competing = do
     interiorIdx = [i | i <- [0 .. dim - 1], not (inEffective i), canReach i]
     matrix = S.extract (unTransitionMatrix p)
 
-{- | The probability of hitting the successful boundary strictly before the
-competing boundary from one state, @P(H_A < H_B | X_0 = i)@. This has the same
-overlap, empty-set, structural, numerical, and error behaviour as
+{- | Compute the probability of hitting the successful boundary strictly
+before the competing boundary from one state, @P(H_A < H_B | X_0 = i)@. This
+has the same overlap, empty-set, structural, numerical, and error behaviour as
 @raceProbabilitiesByState@.
 
 Partially applying the matrix and both boundaries shares one lazy all-state
-solve: the first forced query costs @O(n^3)@ worst case and later lookups cost
-@O(1)@.
+solve.
+
+Complexity: the first forced query takes @O(n^3 + a + b)@ worst-case time and
+@O(n^2 + a + b)@ temporary space for @n@ states and boundary-list lengths
+@a@ and @b@. It may retain an @O(n)@ all-state result and @O(n + E)@ graph
+cache; subsequent shared lookups take @O(1)@ time and space. The scalar result
+occupies @O(1)@ space.
 -}
 raceProbabilityGivenInitialState ::
     forall state.
@@ -324,18 +357,21 @@ raceProbabilityGivenInitialState p successful competing =
     probabilities =
         S.extract <$> raceProbabilitiesByState p successful competing
 
-{- | Expected hitting times @E(H_A | X_0 = i)@ in state order. Targets have
-exact expectation zero. A non-target state is 'InfiniteExpectation' exactly
-when the target is not hit with probability one; this is decided from support
-reachability, not a floating-point comparison. An empty target set therefore
-gives 'InfiniteExpectation' for every state.
+{- | Compute expected hitting times @E(H_A | X_0 = i)@ in state order.
+Targets have exact expectation zero. A non-target state has
+'InfiniteExpectation' exactly when the target is not hit with probability
+one; this is decided from support reachability, not a floating-point
+comparison. An empty target set therefore gives 'InfiniteExpectation' for
+every state.
 
 Finite entries are the solution of
 @eta_i = 1 + sum_(j not in A) P(i,j) eta_j@. They inherit solver rounding and
 are not clamped. Returns 'Left' if the finite-state system fails the numerical
 contract.
 
-Worst-case time: @O(n^3)@; temporary space: @O(n^2)@; result space: @O(n)@.
+Complexity: @O(n^3 + a)@ worst-case time, @O(n^2 + a)@ temporary space,
+@O(n + E)@ retained graph-cache space, and @O(n)@ result space for @n@
+states, @E@ support edges, and @a@ supplied targets.
 -}
 expectationsByState ::
     forall state.
@@ -385,11 +421,17 @@ expectationsByState p targets = do
         [i | i <- [0 .. dim - 1], not (inTarget i), not (doomedMask Unboxed.! i)]
     matrix = S.extract (unTransitionMatrix p)
 
-{- | The expected time to hit the target set from one state. This has the same
-edge cases, numerical behavior, and errors as @expectationsByState@.
+{- | Compute the expected time to hit the target set from one state. This has
+the same edge cases, numerical behaviour, and errors as @expectationsByState@.
 
 Partial application shares one lazy all-state table: the first forced query
-costs @O(n^3)@ worst case and later lookups cost @O(1)@.
+computes the table, and later lookups read it directly.
+
+Complexity: the first forced query takes @O(n^3 + a)@ worst-case time and
+@O(n^2 + a)@ temporary space for @n@ states and @a@ supplied targets. It may
+retain an @O(n)@ all-state result and @O(n + E)@ graph cache; subsequent
+shared lookups take @O(1)@ time and space. The scalar result occupies
+@O(1)@ space.
 -}
 expectationGivenInitialState ::
     forall state.
@@ -402,7 +444,7 @@ expectationGivenInitialState p targets =
     \i -> (Array.! toIndex i) <$> table
   where
     -- Back the shared table with a boxed array so each state query is O(1)
-    -- (list @!!@ was O(index)); the single solve is still shared across queries.
+    -- List indexing was linear; the array keeps shared queries constant-time.
     table =
         Array.listArray (0, dim - 1) <$> expectationsByState p targets
     dim = stateCardinalityInt @state
@@ -429,8 +471,8 @@ upperTailProbability time kernel isTarget initialState
         let (next, _) = advanceUntilTarget kernel isTarget survivors
          in next `seq` go (remaining - 1) next
 
-{- | Probability under an arbitrary initial distribution of a finite-threshold
-event in the hitting time
+{- | Compute, under an arbitrary initial distribution, the probability of a
+finite-threshold event in the hitting time
 @H_A = inf { t >= 0 | X_t in A }@. The initial distribution supplies the
 probability measure @P_mu@.
 
@@ -440,8 +482,16 @@ a cumulative probability from one. Consequently upper tails include the atom
 at infinity and avoid cancellation when the surviving probability is small.
 'AtLeast' @0@ is exactly one.
 
-This function works through any locally finite 'Transition'. Results use ordinary 'Double'
-arithmetic without clamping or renormalisation.
+This function works through any locally finite 'Transition'. Results use
+ordinary 'Double' arithmetic without clamping or renormalisation.
+
+For the complexity bounds, @s@ is the initial stored support size, @k@ the
+event threshold, and @w@, @e@, and @u@ are per-step upper bounds on survivor
+states, traversed transition edges, and accumulated destinations.
+
+Complexity: excluding 'distributionWeights', 'transitionLaw', and predicate
+evaluation, @O(s (k (w + e log(u + 1) + u) + 1))@ time,
+@O(s + w + u)@ temporary space, and @O(1)@ result space.
 -}
 probability ::
     ( Distribution distribution
@@ -457,8 +507,17 @@ probability ::
 probability event kernel isTarget initial =
     probabilityUnder initial (probabilityGivenInitialState event kernel isTarget)
 
-{- | Probability of a finite-threshold hitting-time event conditioned on
-@X_0 = i@ for the supplied initial state @i@.
+{- | Compute the probability of a finite-threshold hitting-time event
+conditioned on @X_0 = i@. Hitting includes time zero and follows the event
+boundary behaviour documented by 'probability'.
+
+For the complexity bounds, @k@ is the event threshold and @w@, @e@, and @u@
+are per-step upper bounds on survivor states, traversed transition edges, and
+accumulated destinations.
+
+Complexity: excluding 'transitionLaw' and predicate evaluation,
+@O(k (w + e log(u + 1) + u) + 1)@ time, @O(w + u)@ temporary space, and
+@O(1)@ result space.
 -}
 probabilityGivenInitialState ::
     ( Transition kernel
@@ -483,8 +542,15 @@ probabilityGivenInitialState event kernel isTarget initialState =
         AtLeast time ->
             upperTailProbability (time - 1) kernel isTarget initialState
 
-{- | Probability under an arbitrary initial distribution of ever hitting the
-target set. This finite-matrix query returns a checked linear-system result.
+{- | Compute, under an arbitrary initial distribution, the probability of ever
+hitting the target set. Target order and duplicates do not affect the result;
+an empty target set gives zero. Numerical failures come from the checked
+all-state linear solve.
+
+Complexity: excluding 'distributionWeights', @O(n^3 + a + s)@ worst-case
+time, @O(n^2 + a + s)@ temporary space, and @O(1)@ result space for @n@
+states, @a@ supplied targets, and initial stored support size @s@. The matrix
+may retain @O(n + E)@ graph-cache space.
 -}
 eventualProbability ::
     ( FiniteState state
@@ -498,8 +564,15 @@ eventualProbability ::
 eventualProbability matrix targets initial =
     probabilityUnderEither initial (eventualProbabilityGivenInitialState matrix targets)
 
-{- | Probability under an arbitrary initial distribution of hitting the
-successful boundary strictly before the competing boundary. Overlap ties lose.
+{- | Compute, under an arbitrary initial distribution, the probability of
+hitting the successful boundary strictly before the competing boundary.
+Overlap ties lose, and empty-boundary behaviour matches
+'raceProbabilityGivenInitialState'.
+
+Complexity: excluding 'distributionWeights', @O(n^3 + a + b + s)@
+worst-case time, @O(n^2 + a + b + s)@ temporary space, and @O(1)@ result
+space for @n@ states, boundary-list lengths @a@ and @b@, and initial stored
+support size @s@. The matrix may retain @O(n + E)@ graph-cache space.
 -}
 raceProbability ::
     ( FiniteState state
@@ -514,9 +587,15 @@ raceProbability ::
 raceProbability matrix successful competing initial =
     probabilityUnderEither initial (raceProbabilityGivenInitialState matrix successful competing)
 
-{- | Expected hitting time under an arbitrary initial distribution. It is
-'InfiniteExpectation' exactly when a state of positive initial probability
-does not hit the target almost surely.
+{- | Compute the expected hitting time under an arbitrary initial
+distribution. It is 'InfiniteExpectation' exactly when a state of positive
+initial probability does not hit the target almost surely. Numerical failures
+come from the checked all-state linear solve.
+
+Complexity: excluding 'distributionWeights', @O(n^3 + a + s)@ worst-case
+time, @O(n^2 + a + s)@ temporary space, and @O(1)@ result space for @n@
+states, @a@ supplied targets, and initial stored support size @s@. The matrix
+may retain @O(n + E)@ graph-cache space.
 -}
 expectation ::
     ( FiniteState state
