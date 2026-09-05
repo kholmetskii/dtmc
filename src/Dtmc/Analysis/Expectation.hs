@@ -15,10 +15,10 @@ module Dtmc.Analysis.Expectation (
 non-finite, or @NaN@ values. Library functions use 'InfiniteExpectation' for a
 structural mathematical infinity, not floating-point overflow. Derived
 ordering places every 'FiniteExpectation' before 'InfiniteExpectation'; finite
-comparisons inherit the behavior of 'Double', including @NaN@.
+comparisons inherit the behaviour of 'Double', including @NaN@.
 -}
 data Expectation
-    = -- | A mathematically non-negative finite expectation, subject to rounding.
+    = -- | A finite expectation represented as a 'Double', without validation.
       FiniteExpectation Double
     | -- | A mathematically infinite expectation.
       InfiniteExpectation

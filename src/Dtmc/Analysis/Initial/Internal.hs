@@ -6,6 +6,8 @@ Description : Mixing state-conditioned analysis results under an initial law.
 
 Private helpers for turning quantities conditioned on @X_0 = i@ into the
 corresponding quantity under an arbitrary finite-support initial distribution.
+Weights and query results are combined with ordinary 'Double' arithmetic;
+these helpers do not validate, clamp, or renormalise them.
 -}
 module Dtmc.Analysis.Initial.Internal (
     probabilityUnder,
@@ -23,6 +25,12 @@ import Dtmc.Distribution (
     Distribution (..),
  )
 
+{- | Compute the initial-law mixture of state-conditioned probabilities.
+Every stored state is queried, and an empty weight list sums to zero.
+
+Complexity: excluding 'distributionWeights' and query evaluations, @O(s)@
+time, @O(s)@ temporary space, and @O(1)@ result space for @s@ stored weights.
+-}
 probabilityUnder ::
     (Distribution distribution) =>
     distribution ->
@@ -34,6 +42,15 @@ probabilityUnder initial query =
         | (state, weight) <- distributionWeights initial
         ]
 
+{- | Compute the initial-law mixture of fallible state-conditioned
+probabilities. Queries are evaluated in stored order, and the first 'Left'
+is returned without evaluating later queries. On success, values are combined
+with ordinary 'Double' arithmetic.
+
+Complexity: excluding 'distributionWeights' and query evaluations, @O(s)@
+worst-case time, @O(s)@ temporary space, and @O(1)@ result space for @s@
+stored weights.
+-}
 probabilityUnderEither ::
     (Distribution distribution) =>
     distribution ->
@@ -45,6 +62,18 @@ probabilityUnderEither initial query =
             (\(state, weight) -> (weight *) <$> query state)
             (distributionWeights initial)
 
+{- | Compute the initial-law mixture of fallible non-negative expectations.
+A positive-weight 'InfiniteExpectation' makes the result infinite; a
+zero-weight infinity is ignored. After the result becomes infinite, remaining
+weights are traversed without evaluating their queries. Before that point,
+the first query error is returned.
+
+Finite values use ordinary 'Double' arithmetic without validation.
+
+Complexity: excluding 'distributionWeights' and query evaluations, @O(s)@
+worst-case time, @O(s)@ temporary space, and @O(1)@ result space for @s@
+stored weights.
+-}
 expectationUnderEither ::
     (Distribution distribution) =>
     distribution ->

@@ -10,18 +10,19 @@ module Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
 ) where
 
-{- | A numerical linear system could not be accepted safely.
+{- | Why a numerical linear-system result could not be accepted safely.
 
 The reciprocal condition estimate and relative residual are dimensionless.
 Smaller reciprocal condition estimates indicate greater sensitivity; smaller
 relative residuals indicate a better computed solution.
 -}
 data LinearSystemError
-    = -- | A solver reported that the coefficient matrix is singular.
+    = -- | A required solve or decomposition has no usable unique result.
       SingularSystem
     | -- | The coefficient matrix is too sensitive for the numerical contract.
       IllConditionedSystem
         { reciprocalConditionEstimate :: Double
+        -- ^ The backend's estimated reciprocal condition number.
         }
     | -- | A coefficient or right-hand-side entry was @NaN@ or infinite.
       NonFiniteSystem
@@ -30,6 +31,8 @@ data LinearSystemError
     | -- | The computed solution did not satisfy the equations closely enough.
       ResidualTooLarge
         { relativeResidual :: Double
+        -- ^ The scaled residual of the computed solution.
         , residualLimit :: Double
+        -- ^ The largest scaled residual accepted by the solver.
         }
     deriving (Eq, Show)

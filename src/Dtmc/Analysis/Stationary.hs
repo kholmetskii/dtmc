@@ -11,10 +11,9 @@ chain with two or more recurrent classes therefore has infinitely many.
 
 Each recurrent class is solved by Grassmann-Taksar-Heyman state reduction.
 GTH never forms @transpose(P) - I@ and performs no subtraction at all: every
-step adds, multiplies or divides non-negative quantities, so the cancellation
-that ruins a balance solve on a nearly uncoupled chain cannot occur. It costs
-the same @O(m^3)@ as an LU factorisation and returns the stationary vector to
-full relative accuracy.
+step adds, multiplies, or divides non-negative quantities, avoiding the
+cancellation that damages a balance solve on a nearly uncoupled chain. It has
+the same @O(m^3)@ asymptotic cost as an LU factorisation.
 
 Every supplied block is irreducible because a closed communicating class
 restricted to itself is irreducible. This is exactly the condition under which
@@ -22,7 +21,8 @@ no elimination step can divide by zero. An 'IllConditionedSystem' is therefore
 unreachable here, unlike in the hitting- and return-time solves that share the
 error type. Results are not clamped or renormalised; a non-finite input or
 solution, and a residual @|pi P - pi|@ above @1e-9@, are still reported
-explicitly.
+explicitly. Complexity bounds exclude 'FiniteState' method costs. For the
+top-level bound, @n@ is the state count and @E@ the support-edge count.
 -}
 module Dtmc.Analysis.Stationary (
     LinearSystemError (..),
@@ -76,8 +76,9 @@ import Numeric.LinearAlgebra.Static qualified as S
 toIndex :: (FiniteState state) => state -> Int
 toIndex = stateIndexInt
 
-{- | The stationary vector of a non-empty irreducible stochastic block, in the
-block's own ordering, by Grassmann-Taksar-Heyman state reduction.
+{- | Compute the stationary vector of a non-empty irreducible stochastic
+block, in the block's own ordering, by Grassmann-Taksar-Heyman state
+reduction.
 
 The reduction removes states one at a time. Censoring the chain on
 @{1, ..., k-1}@ -- watching it only when it is outside @k@ -- leaves a Markov
@@ -98,11 +99,14 @@ factors, @x(k)@ being the expected number of visits to @k@ per visit to the
 first state in the chain censored on @{1, ..., k}@ -- non-negative, so it does
 not cancel either. Normalising gives @pi@.
 
-An irreducible block makes @S > 0@ at every step, since the censored chain is
+An irreducible block makes @S > 0@ at every step because the censored chain is
 again irreducible and its last state must be able to leave. A reducible block
-reaches @S = 0@ and is reported as 'SingularSystem'.
+that reaches @S = 0@ is reported as 'SingularSystem'. Non-finite inputs,
+weights, or solutions and an excessive stationarity residual produce the
+corresponding 'LinearSystemError'.
 
-Time: @O(m^3)@ for an @m x m@ block. Space: @O(m^2)@.
+Complexity: @O(m^3)@ time, @O(m^2)@ temporary space, and @O(m)@ result
+space for an @m x m@ block.
 -}
 stationaryOfBlock ::
     LA.Matrix Double ->
@@ -142,9 +146,15 @@ isFinite value = not (isNaN value || isInfinite value)
 newFlatArray :: (Int, Int) -> [Double] -> ST s (STUArray s Int Double)
 newFlatArray = newListArray
 
-{- | The unnormalised GTH weights of an @n x n@ block given row-major, or
-'Nothing' when an elimination step finds no way out of the state it is
-removing.
+{- | Compute the unnormalised GTH weights of an @n x n@ block supplied in
+row-major order. Return 'Nothing' when an elimination step finds no positive
+way out of the state being removed.
+
+The caller must supply exactly @n^2@ entries. This helper performs no
+finiteness, stochasticity, or irreducibility validation.
+
+Complexity: @O(n^3)@ time, @O(n^2)@ temporary space, and @O(n)@ result
+space.
 -}
 reduceGth :: Int -> [Double] -> Maybe [Double]
 reduceGth n entries = runST $ do
@@ -191,8 +201,8 @@ reduceGth n entries = runST $ do
         then Just <$> substitute 1 [1]
         else pure Nothing
 
-{- | The extremal stationary distributions, one per recurrent class and paired
-with the class on which it lives. Classes come in the order of
+{- | Compute the extremal stationary distributions, one per recurrent class
+and paired with the class on which each lives. Classes come in the order of
 'Dtmc.Analysis.Classification.classify', that is by least member. An empty
 chain returns an empty list.
 
@@ -208,11 +218,12 @@ is unique, including reducible chains with transient states and one recurrent
 class. It has two or more elements exactly when the chain has infinitely many
 stationary distributions.
 
-Each class is solved separately, so a numerical failure names the whole call
-rather than one class.
+Each class is solved separately. The first numerical failure aborts the
+traversal, although the error does not identify its class.
 
-Time: @O(n^2 + sum_C |C|^3)@, which is at most @O(n^3)@. Result space:
-@O(c n)@ for @c@ recurrent classes.
+Complexity: @O(n^2 + sum_C |C|^3)@ time, at most @O(n^3)@, and @O(n^2)@
+temporary space. Result space is @O(c n)@ for @c@ recurrent classes. The
+matrix may retain @O(n + E)@ graph-cache space.
 -}
 stationaryDistributions ::
     forall state.

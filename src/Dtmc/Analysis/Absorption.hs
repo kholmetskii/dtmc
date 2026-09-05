@@ -26,6 +26,11 @@ same as the probability of ever visiting @k@: a recurrent class with more
 than one state can be entered at one member and later reach another, which
 'Dtmc.Analysis.HittingTime.eventualProbability' counts and @B@ does not. The
 two agree only after summing over a whole recurrent class.
+
+Unless stated otherwise, complexity bounds exclude 'FiniteState' method
+costs. For those bounds, @n@ is the state count, @E@ the support-edge count,
+@t@ the transient-state count, and @s@ an initial distribution's stored
+support size.
 -}
 module Dtmc.Analysis.Absorption (
     LinearSystemError (..),
@@ -80,14 +85,17 @@ import Numeric.LinearAlgebra.Static qualified as S
 toIndex :: (FiniteState state) => state -> Int
 toIndex = stateIndexInt
 
-{- | The transient and recurrent states, each in the canonical order of the
-'FiniteState' instance. This is the ordering that puts the matrix in block
-form, and the row and column ordering of 'fundamentalMatrix'.
+{- | Return the transient and recurrent states, each in the canonical order
+of the 'FiniteState' instance. This ordering puts the matrix in block form
+and indexes the rows and columns of 'fundamentalMatrix'.
 
 Membership is decided from the support graph, so the split is exact and
 involves no floating-point comparison.
 
-Time: @O(n)@ after graph facts are cached.
+Complexity: with shared graph facts cached, @O(n)@ time and @O(n)@ temporary
+and result space. On an unforced matrix, the first full evaluation takes
+@O(n^2 + (n + E) log(n + 1))@ time, @O(n^2 + n + E)@ temporary space, and
+retains @O(n + E)@ graph-cache space.
 -}
 canonicalOrder ::
     (FiniteState state) =>
@@ -96,8 +104,8 @@ canonicalOrder ::
 canonicalOrder p =
     (transientStates p, recurrentStates p)
 
-{- | The fundamental matrix @G = (I - Q)^-1@ of the transient block, together
-with the transient states that index its rows and columns.
+{- | Compute the fundamental matrix @G = (I - Q)^-1@ of the transient block,
+together with the transient states that index its rows and columns.
 
 Entry @(i,j)@ is @E(V_j | X_0 = i)@, the expected number of visits to
 transient @j@ from transient @i@. Every entry is finite, so the result uses
@@ -110,7 +118,10 @@ Otherwise the numerical behaviour and errors of the shared @(I - Q)@ solver
 apply; @rho(Q) < 1@ holds in exact arithmetic because every transient state
 reaches a recurrent one.
 
-Time: @O(n^2 + t^3)@ for @t@ transient states. Result space: @O(t^2)@.
+Complexity: including first-time graph classification,
+@O(n^2 + (n + E) log(n + 1) + t^3)@ time,
+@O(n^2 + n + E + t^2)@ temporary space, @O(n + E)@ retained graph-cache
+space, and @O(t^2)@ result space.
 -}
 fundamentalMatrix ::
     (FiniteState state) =>
@@ -126,9 +137,9 @@ fundamentalMatrix p
     transientIdx = map toIndex transient
     matrix = S.extract (unTransitionMatrix p)
 
-{- | Absorption probabilities into one recurrent state, in canonical state
-order: coordinate @i@ is the probability that the first recurrent state
-visited is the supplied target, started from @i@.
+{- | Compute absorption probabilities into one recurrent state in canonical
+state order. Coordinate @i@ is the probability that the supplied target is
+the first recurrent state visited when starting from @i@.
 
 Boundary values are exact and taken without a solve:
 
@@ -139,7 +150,11 @@ Boundary values are exact and taken without a solve:
 Transient coordinates are the corresponding column of @B = G R'@ and inherit
 the numerical behaviour and errors of 'fundamentalMatrix'.
 
-Time: @O(n^2 + t^3)@. Result space: @O(n)@.
+Complexity: including first-time graph classification,
+@O(n^2 + (n + E) log(n + 1) + t^3)@ worst-case time,
+@O(n^2 + n + E + t^2)@ temporary space, @O(n + E)@ retained graph-cache
+space, and @O(n)@ result space. A non-recurrent target avoids the numerical
+solve.
 -}
 probabilityByState ::
     forall state.
@@ -181,10 +196,14 @@ probabilityByState p target
             [(i, True) | i <- transientIdx]
     arrived i = if i == targetIdx then 1 else 0
 
-{- | The probability under an arbitrary initial distribution that the first
-recurrent state visited is the supplied target. The result is the
-initial-distribution mixture of the state-conditioned absorption
-probabilities.
+{- | Compute, under an arbitrary initial distribution, the probability that
+the supplied target is the first recurrent state visited. The result is the
+initial-law mixture of the state-conditioned absorption probabilities. A
+non-recurrent target gives exactly zero without a numerical solve.
+
+Complexity: excluding 'distributionWeights', @O(n^3 + s)@ worst-case time,
+@O(n^2 + s)@ temporary space, and @O(1)@ result space. The matrix may retain
+@O(n + E)@ graph-cache space.
 -}
 probability ::
     ( FiniteState state
@@ -198,8 +217,17 @@ probability ::
 probability p target initial =
     probabilityUnderEither initial (probabilityGivenInitialState p target)
 
-{- | Probability that the first recurrent state visited is the supplied
-target, conditioned on @X_0 = i@.
+{- | Compute the probability that the supplied target is the first recurrent
+state visited, conditioned on @X_0 = i@. A recurrent initial state is already
+absorbed at time zero.
+
+Partial application shares one lazy all-state table. A non-recurrent target
+produces exact zeros without a numerical solve.
+
+Complexity: the first forced query takes @O(n^3)@ worst-case time and
+@O(n^2)@ temporary space and may retain an @O(n)@ all-state result and
+@O(n + E)@ graph cache. Subsequent shared lookups take @O(1)@ time and
+space; the scalar result occupies @O(1)@ space.
 -}
 probabilityGivenInitialState ::
     (FiniteState state) =>
@@ -212,8 +240,14 @@ probabilityGivenInitialState p target =
   where
     values = S.extract <$> probabilityByState p target
 
-{- | Expected number of transitions until absorption under an arbitrary
-initial distribution.
+{- | Compute the expected number of transitions until the chain first enters
+the recurrent states under an arbitrary initial distribution. The value is
+mathematically finite for every valid finite chain; numerical failures come
+from the checked transient-state solve.
+
+Complexity: excluding 'distributionWeights', @O(n^3 + s)@ worst-case time,
+@O(n^2 + s)@ temporary space, and @O(1)@ result space. The matrix may retain
+@O(n + E)@ graph-cache space.
 -}
 expectation ::
     ( FiniteState state
@@ -226,8 +260,17 @@ expectation ::
 expectation p initial =
     expectationUnderEither initial (expectationGivenInitialState p)
 
-{- | Expected number of transitions until absorption conditioned on
-@X_0 = i@.
+{- | Compute the expected number of transitions until the chain first enters
+the recurrent states, conditioned on @X_0 = i@. A recurrent initial state has
+expectation zero; every transient state has a mathematically finite value.
+
+Partial application shares the lazy all-state result of the checked
+transient-state solve.
+
+Complexity: the first forced query takes @O(n^3)@ worst-case time and
+@O(n^2)@ temporary space and may retain an @O(n)@ all-state result and
+@O(n + E)@ graph cache. Subsequent shared lookups take @O(1)@ time and
+space; the scalar result occupies @O(1)@ space.
 -}
 expectationGivenInitialState ::
     (FiniteState state) =>

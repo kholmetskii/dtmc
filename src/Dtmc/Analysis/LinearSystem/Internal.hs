@@ -61,7 +61,9 @@ Returns a 'LinearSystemError' when the input or result is non-finite, the
 backend reports singularity, the reciprocal condition estimate is below
 @1e-12@, or the scaled infinity-norm residual exceeds @1e-9@.
 
-Time: @O(n^3 + n^2 r)@. Space: @O(n^2 + nr)@.
+Complexity: @O(n^3 + n^2 r)@ time, @O(n^2 + n r)@ temporary space, and
+@O(n r)@ result space for an @n x n@ coefficient matrix and @r@ right-hand
+sides.
 -}
 solveLinearSystem ::
     LA.Matrix Double ->
@@ -92,24 +94,28 @@ solveLinearSystem coefficient rightHandSide
   where
     reciprocalCondition = LA.rcond coefficient
 
-{- | The block of @m@ selected by the row and column indices. Their order and
-multiplicity are preserved; an empty list produces a zero-sized dimension.
+{- | Extract the block of @m@ selected by the row and column indices. Their
+order and multiplicity are preserved; an empty list produces a zero-sized
+dimension.
 
 Row indices must be in @{0 .. rows(m)-1}@ and column indices in
 @{0 .. cols(m)-1}@; otherwise the backend raises an error.
 
-Time and result space: @O(RC)@ for @R@ selected rows and @C@ selected columns.
+Complexity: @O(R + C + R C)@ time, @O(R + C)@ temporary space, and
+@O(R C)@ result space for @R@ selected rows and @C@ selected columns.
 -}
 subMatrix :: [Int] -> [Int] -> LA.Matrix Double -> LA.Matrix Double
 subMatrix rowIdx colIdx m =
     m LA.?? (LA.Pos (LA.idxs rowIdx), LA.Pos (LA.idxs colIdx))
 
-{- | The vector of row sums of @m@, i.e. @m@ applied to a vector of ones. For
-a block @P[D, A]@ of a transition matrix this is the one-step probability
-of transitioning from each state in @D@ directly into @A@. Results use
-ordinary floating-point summation and are not clamped to @[0, 1]@.
+{- | Compute the vector of row sums of @m@, equivalently @m@ applied to a
+vector of ones. For a block @P[D, A]@ of a transition matrix, this is the
+one-step probability of transitioning from each state in @D@ directly into
+@A@. Results use ordinary floating-point summation and are not clamped to
+@[0, 1]@.
 
-Time: @O(RC)@. Result space: @O(R)@.
+Complexity: @O(R C + R + C)@ time, @O(C)@ temporary space, and @O(R)@
+result space for an @R x C@ matrix.
 -}
 rowSums :: LA.Matrix Double -> LA.Vector Double
 rowSums m = m LA.#> LA.konst 1 (LA.cols m)
@@ -118,13 +124,14 @@ rowSums m = m LA.#> LA.konst 1 (LA.cols m)
 must be @n x r@, and all entries must be finite; incompatible dimensions
 raise a backend error.
 
-Returns a 'LinearSystemError' when the input or result is non-finite, the backend
-reports singularity, the reciprocal condition estimate is below @1e-12@, or
-the scaled infinity-norm residual exceeds @1e-9@. Current DTMC callers choose
-@Q@ with spectral radius below one, which guarantees invertibility in exact
-arithmetic, but does not guarantee a reliable 'Double' result.
+Returns a 'LinearSystemError' when the input or result is non-finite, the
+backend reports singularity, the reciprocal condition estimate is below
+@1e-12@, or the scaled infinity-norm residual exceeds @1e-9@. Current DTMC
+callers choose @Q@ with spectral radius below one, which guarantees
+invertibility in exact arithmetic but not a reliable 'Double' result.
 
-Time: @O(n^3 + n^2 r)@. Space: @O(n^2 + nr)@.
+Complexity: @O(n^3 + n^2 r)@ time, @O(n^2 + n r)@ temporary space, and
+@O(n r)@ result space for @r@ right-hand sides.
 -}
 solveIminusQ ::
     LA.Matrix Double ->
@@ -136,10 +143,11 @@ solveIminusQ q rightHandSide
   where
     coefficient = LA.ident (LA.rows q) - q
 
-{- | 'solveIminusQ' for a vector of length @n@. It has the same shape,
-singularity, and floating-point behaviour.
+{- | Solve @(I - Q) x = b@ for a vector of length @n@. This has the same
+shape requirements, numerical behaviour, and errors as 'solveIminusQ'.
 
-Time: @O(n^3)@. Space: @O(n^2)@.
+Complexity: @O(n^3)@ time, @O(n^2)@ temporary space, and @O(n)@ result
+space.
 -}
 solveIminusQVector ::
     LA.Matrix Double ->
@@ -152,10 +160,10 @@ solveIminusQVector q b =
 transient-to-transient transition block with spectral radius below one, this
 is the fundamental matrix @sum_{k=0}^infinity Q^k@.
 
-Requires a non-empty square matrix with finite entries and inherits the
+This requires a non-empty square matrix with finite entries and inherits the
 validation and error behaviour of 'solveIminusQ'.
 
-Time: @O(n^3)@. Space: @O(n^2)@.
+Complexity: @O(n^3)@ time and @O(n^2)@ temporary and result space.
 -}
 fundamental :: LA.Matrix Double -> Either LinearSystemError (LA.Matrix Double)
 fundamental q =
