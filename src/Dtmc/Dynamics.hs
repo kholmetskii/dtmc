@@ -46,14 +46,15 @@ import Dtmc.Transition.Matrix.Internal (
 import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (Natural)
 
-{- | The next-state distribution @mu' = transpose(P) mu@.
+{- | Compute the next-state distribution @mu' = transpose(P) mu@.
 
 Exact probability inputs produce a probability distribution. The result is
 wrapped without validation, clamping, or renormalisation, so error from custom
 or numerically derived inputs and floating-point rounding is preserved and may
 make a subsequent validation fail.
 
-Time: @O(n^2)@. Result space: @O(n)@.
+Complexity: @O(n^2)@ time, @O(n^2)@ temporary space in the worst case, and
+@O(n)@ result space for state cardinality @n@.
 -}
 evolveVector ::
     (FiniteState state) =>
@@ -63,14 +64,16 @@ evolveVector ::
 evolveVector (DistributionVector v) p =
     DistributionVector (S.tr (unTransitionMatrix p) S.#> v)
 
-{- | The distribution after @k@ transitions, computed as
+{- | Compute the distribution after @k@ transitions as
 @evolveVector mu (power k p)@. Exponent zero is the original distribution
 mathematically.
 
-This powers the matrix rather than iterating 'evolveVector', so the two calculations
-may differ by floating-point rounding. The result is not revalidated.
+This powers the matrix rather than iterating 'evolveVector', so the two
+calculations may differ by floating-point rounding. The result is not
+revalidated.
 
-Time: @O(n^2 + n^3 log(k + 1))@.
+Complexity: @O(n^2 + n^3 log(k + 1))@ time, @O(n^2)@ temporary space, and
+@O(n)@ result space.
 -}
 evolveVectorN ::
     (FiniteState state) =>
@@ -86,7 +89,13 @@ step. The result uses t'DistributionMap' because a general kernel does not
 provide a finite global state enumeration. It is not revalidated, clamped, or
 renormalised.
 
-Time is @O(e log r)@ for @e@ traversed support edges and @r@ result states.
+For the complexity bounds, @s@ is the number of source states, @e@ the number
+of traversed support edges, @u@ the number of distinct destinations
+encountered, and @r@ the number retained after exact-zero removal.
+
+Complexity: excluding 'distributionWeights' and 'transitionLaw' evaluation,
+@O(s + e log(u + 1) + u)@ time, @O(s + u)@ temporary space, and @O(r)@ result
+space.
 -}
 evolve ::
     ( Distribution distribution
@@ -107,6 +116,15 @@ evolve distribution kernel =
 {- | Apply 'evolve' exactly @k@ times. At @k = 0@ the initial law is converted
 to an equivalent t'DistributionMap' without revalidation. No state-space
 enumeration or truncation is performed.
+
+For a positive step count, let @s@, @e@, and @u@ be upper bounds per step on
+the source states, traversed support edges, and distinct destinations
+encountered; let @r@ be the final support size.
+
+Complexity: excluding the initial 'distributionWeights' call and all
+'transitionLaw' evaluations, @O(k (s + e log(u + 1) + u))@ time,
+@O(s + u)@ temporary space, and @O(r)@ result space. At @k = 0@, the cost is
+that of 'Dtmc.Distribution.Map.fromDistribution'.
 -}
 evolveN ::
     ( Distribution distribution

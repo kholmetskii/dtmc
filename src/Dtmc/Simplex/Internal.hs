@@ -21,7 +21,7 @@ import GHC.TypeNats (
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.LinearAlgebra.Static qualified as S
 
--- | Absolute tolerance shared by simplex construction and sampling repair.
+-- | The absolute tolerance shared by simplex construction and sampling repair.
 simplexTolerance :: Double
 simplexTolerance = 1e-9
 
@@ -34,7 +34,7 @@ the repaired coordinates are divided by their computed total.
 Reports the first non-finite or bound error before checking the total. An
 empty vector yields @Left (SumOffBy 0)@.
 
-Time: @O(n)@. Space: @O(n)@ for dynamic-vector conversion.
+Complexity: @O(n)@ time and @O(n)@ temporary and result space.
 -}
 canonicaliseSimplex :: (KnownNat n) => S.R n -> Either SimplexError (S.R n)
 canonicaliseSimplex vector =
@@ -44,7 +44,9 @@ canonicaliseSimplex vector =
 error ordering as 'canonicaliseSimplex'. Entry indices refer to the supplied
 list order.
 
-An empty list yields @Left (SumOffBy 0)@. Time and result space: @O(n)@.
+An empty list yields @Left (SumOffBy 0)@.
+
+Complexity: @O(n)@ time and @O(n)@ temporary and result space.
 -}
 canonicaliseSimplexEntries :: [Double] -> Either SimplexError [Double]
 canonicaliseSimplexEntries entries =

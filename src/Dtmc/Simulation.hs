@@ -62,7 +62,8 @@ Returns 'Left' for empty support, non-finite weights or totals, weights below
 @-1e-9@, or a non-positive repaired total. Validation happens before the
 generator is advanced.
 
-Time and temporary space: @O(s)@ for stored support size @s@.
+Complexity: excluding 'distributionWeights', @O(s + 1)@ time and @O(s)@
+temporary space for stored support size @s@; result space is @O(1)@.
 -}
 sample ::
     (Distribution distribution, PrimMonad m) =>
@@ -108,9 +109,13 @@ atMay values index =
         [] -> Nothing
         value : _ -> Just value
 
-{- | Sample one transition from a state through any 'Transition'. Passing
-each result back with the same generator advances one trajectory. The finite
-transition law inherits the checked repair behavior of 'sample'.
+{- | Sample one transition from a state through any 'Transition'. Passing each
+result back with the same generator advances one trajectory. The returned
+finite-support law inherits the checked repair behaviour of 'sample'.
+
+Complexity: excluding 'transitionLaw' and 'distributionWeights', @O(s + 1)@
+time and @O(s)@ temporary space for stored support size @s@; result space is
+@O(1)@.
 -}
 step ::
     (PrimMonad m, Transition kernel) =>
@@ -126,6 +131,12 @@ return the trajectory including its initial state, with length @k + 1@. Stop
 at the first invalid transition law and return its 'SimulationError'. At
 @k = 0@, return the initial state without inspecting the kernel or advancing
 the generator.
+
+Let @s@ bound the stored support size of every transition law encountered.
+
+Complexity: excluding 'transitionLaw' and 'distributionWeights',
+@O(k (s + 1) + 1)@ time, @O(k + s + 1)@ temporary space, and @O(k + 1)@
+result space.
 -}
 simulate ::
     (PrimMonad m, Transition kernel) =>
