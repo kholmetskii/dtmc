@@ -49,7 +49,7 @@ matrix, stopping at the first invalid row. Within each accepted row, tolerated
 coordinate error is clamped to @[0, 1]@ and the repaired row is normalised.
 The support graph remains lazy. The empty @0 x 0@ matrix is accepted.
 
-Time and result space: @O(n^2)@.
+Complexity: @O(n^2)@ time and @O(n^2)@ temporary and result space.
 -}
 mkTransitionMatrix ::
     (FiniteState state) =>

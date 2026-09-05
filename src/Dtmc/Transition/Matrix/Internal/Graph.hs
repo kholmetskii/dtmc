@@ -1,6 +1,6 @@
 {- |
 Module      : Dtmc.Transition.Matrix.Internal.Graph
-Description : Support-graph combinatorics: reachability, components, recurrence, period, phase.
+Description : Support-graph reachability, components, periods, and phases.
 
 A small DTMC-specific layer over "Data.Graph". It knows nothing about
 probabilities: vertices are the integers @{0 .. n-1}@ and edges are the
@@ -12,6 +12,10 @@ actually visited instead of requiring matrix row or column scans.
 
 Unless stated otherwise, every vertex argument must be in @{0 .. V-1}@.
 Passing an out-of-range vertex may raise an array-bounds error.
+
+Query complexities assume that the required forward or reverse adjacency
+array has already been forced. The first query after 'fromAdjacency' also pays
+the documented cost of building that array.
 -}
 module Dtmc.Transition.Matrix.Internal.Graph (
     Graph,
@@ -48,14 +52,17 @@ transposed graph and therefore contains incoming neighbours. Both describe
 the same logical edge set.
 
 Strongly connected components, the component lookup table, the
-closed-component table, and the per-vertex period/phase tables are lazy
-derived fields. The
-component structure comes from 'DG.scc'; the period/phase tables come from one
-BFS per component. All are computed on first use.
+closed-component table, and the per-vertex period and phase tables are lazy
+derived fields. The component structure comes from 'DG.scc'; the period and
+phase tables come from one BFS per component. Each field is computed on first
+use.
 -}
 data Graph = Graph
     { graphDim :: Int
-    -- ^ Number of vertices @V@.
+    {- ^ Number of vertices @V@.
+
+    Complexity: @O(1)@ time and @O(1)@ space.
+    -}
     , graphSuccessors :: DG.Graph
     -- ^ Original graph: the row for @u@ contains every @v@ with @u -> v@.
     , graphPredecessors :: DG.Graph
@@ -65,11 +72,11 @@ data Graph = Graph
     , graphComponentOf :: Array.Array Int [Int]
     -- ^ Constant-time vertex-to-component lookup after SCC construction.
     , graphComponentId :: Unboxed.UArray Int Int
-    {- ^ Constant-time vertex-to-component-/index/ lookup: two vertices share a
-    strongly connected component (communicate) iff they map to the same index.
-    Backs 'sameComponent'. The table is also used while deriving component
-    closedness; retaining it here adds @O(V)@ unboxed storage and makes
-    same-component queries @O(1)@.
+    {- ^ Constant-time vertex-to-component-index lookup: two vertices share a
+    strongly connected component (communicate) iff they map to the same
+    index. Backs 'sameComponent'. The table is also used while deriving
+    component closedness; retaining it here adds @O(V)@ unboxed storage and
+    makes same-component queries @O(1)@.
     -}
     , graphClosedComponentTable :: Unboxed.UArray Int Bool
     {- ^ Per-vertex closedness of its component: @True@ iff the vertex's
@@ -98,8 +105,10 @@ are not validated: missing pairs act as 'False', and repeated 'True' entries
 create duplicate edges. A negative dimension raises an error; an out-of-range
 endpoint may fail when a lazy field is forced.
 
-Reading the @V^2@ entries takes @O(V^2)@ time. The resulting graph occupies
-@O(V + E)@ space.
+Complexity: @O(1)@ initial time and @O(1)@ initial space. For @A@ supplied
+entries, forcing the forward adjacency array takes @O(V + A)@ time and
+@O(V + E)@ result space; first forcing the transpose takes a further
+@O(V + E)@ time and @O(V + E)@ result space. For a complete input, @A = V^2@.
 -}
 fromAdjacency :: Int -> [((Int, Int), Bool)] -> Graph
 fromAdjacency dim entries
@@ -190,34 +199,36 @@ vertexBounds dim = (0, dim - 1)
 vertices :: Graph -> [Int]
 vertices graph = [0 .. graphDim graph - 1]
 
-{- | Direct one-step edge test.
+{- | Test whether a direct edge leads from @from@ to @to@.
 
-Time: @O(outDegree(u))@ because a 'Data.Graph' row is a list. Algorithms
-should normally enumerate the row instead of repeatedly calling 'hasEdge'.
+Algorithms should normally enumerate an adjacency row instead of repeatedly
+calling 'hasEdge'.
+
+Complexity: @O(outDegree(from))@ time and @O(1)@ space because a 'Data.Graph'
+row is a list.
 -}
 hasEdge :: Graph -> Int -> Int -> Bool
 hasEdge graph from to = to `elem` (graphSuccessors graph Array.! from)
 
-{- | Whether @to@ is reachable from @from@ in zero or more steps.
+{- | Test whether @to@ is reachable from @from@ in zero or more steps.
 
 This delegates to 'DG.path' and performs a graph search rather than
 retaining a quadratic transitive closure.
 
-Time: @O(V + E)@ worst case per query. Space: @O(V)@ traversal state.
+Complexity: @O(V + E)@ worst-case time and @O(V)@ traversal space per query.
 -}
 reachable :: Graph -> Int -> Int -> Bool
 reachable graph = DG.path (graphSuccessors graph)
 
-{- | Whether @from@ can reach any of the supplied targets in zero or more
-steps.
+{- | Test whether @from@ can reach any supplied target in zero or more steps.
 
 Targets are materialised as a Boolean membership array. The lazy reachable
 stream is then consumed until it encounters a target, so the traversal can
 terminate early.
 
-Time: @O(V + T + E_r)@ worst case, where @T@ is the number of supplied
-targets and @E_r@ is the portion of the graph examined before termination.
-Space: @O(V)@.
+Complexity: @O(V + T + E_r)@ worst-case time, where @T@ is the number of
+supplied targets and @E_r@ is the portion of the graph examined before
+termination; @O(V)@ space.
 -}
 reachesAny :: Graph -> Int -> [Int] -> Bool
 reachesAny _ _ [] = False
@@ -234,7 +245,7 @@ reachesAny graph from targets =
 
     reachableVertices = DG.reachable (graphSuccessors graph) from
 
-{- | Reverse reachability from a seed set inside the subgraph induced by
+{- | Return the vertices that can reach a seed inside the subgraph induced by
 @allowed@.
 
 The allowed predicate is evaluated once per vertex. The transpose is
@@ -242,8 +253,8 @@ filtered to the induced subgraph, after which 'DG.dfs' performs one
 multi-source traversal. A Boolean result mask restores ascending output
 order without an @O(R log R)@ comparison sort.
 
-Time: @O(V + E)@, excluding the cost of the @V@ predicate calls.
-Space: @O(V + E)@ for the filtered adjacency lists and traversal state.
+Complexity: @O(V + E)@ time, excluding the cost of the @V@ predicate calls,
+and @O(V + E)@ space for the filtered adjacency lists and traversal state.
 -}
 backwardReachable :: Graph -> (Int -> Bool) -> [Int] -> [Int]
 backwardReachable graph allowed seeds =
@@ -286,11 +297,12 @@ backwardReachable graph allowed seeds =
             (vertexBounds dim)
             [(vertex, True) | vertex <- reached]
 
-{- | Strongly connected components. Vertices within each component are in
-ascending order, and components are ordered by their least vertex.
+{- | Return the strongly connected components. Vertices within each component
+are in ascending order, and components are ordered by their least vertex.
 
-The 'DG.scc' graph phase is @O(V + E)@. Normalising the stable public output
-order adds @O(V log V)@ worst-case sorting work.
+Complexity: first full evaluation takes @O(V + E + V log V)@ time and @O(V)@
+temporary and result space. Later projections take @O(1)@ time and @O(1)@
+space before traversal of the cached result.
 -}
 components :: Graph -> [[Int]]
 components = graphSccs
@@ -302,9 +314,10 @@ normaliseComponents =
     componentKey [] = -1
     componentKey (first : _) = first
 
-{- | The strongly connected component containing a vertex.
+{- | Return the strongly connected component containing a vertex.
 
-Time: @O(1)@ after the one-off SCC and lookup-table construction.
+Complexity: the first query takes @O(V + E + V log V)@ time and @O(V)@ cache
+space; subsequent queries take @O(1)@ time and @O(1)@ space.
 -}
 componentOf :: Graph -> Int -> [Int]
 componentOf graph vertex
@@ -312,11 +325,12 @@ componentOf graph vertex
         error "Dtmc.Transition.Matrix.Internal.Graph.componentOf: vertex out of bounds"
     | otherwise = graphComponentOf graph Array.! vertex
 
-{- | Whether two vertices lie in the same strongly connected component -- i.e.
-communicate. A constant-time comparison of their cached component indices,
-replacing two reachability searches.
+{- | Test whether two vertices lie in the same strongly connected component;
+that is, whether they communicate. This compares their cached component
+indices instead of performing two reachability searches.
 
-Time: @O(1)@ after the one-off SCC construction.
+Complexity: the first query takes @O(V + E + V log V)@ time and @O(V)@ cache
+space; subsequent queries take @O(1)@ time and @O(1)@ space.
 -}
 sameComponent :: Graph -> Int -> Int -> Bool
 sameComponent graph a b
@@ -327,12 +341,12 @@ sameComponent graph a b
   where
     outOfRange v = v < 0 || v >= graphDim graph
 
-{- | Whether a vertex set is closed: no direct edge leaves it.
+{- | Test whether a vertex set is closed: no direct edge leaves it.
 
 Duplicates are ignored, and the empty set is closed.
 
-Time: @O(V + S + E_C)@, where @S@ is the supplied list length and @E_C@ is
-the total out-degree of its vertices. Space: @O(V)@ for set membership.
+Complexity: @O(V + S + E_C)@ time, where @S@ is the supplied list length and
+@E_C@ is the total out-degree of its vertices; @O(V)@ space for membership.
 -}
 isClosed :: Graph -> [Int] -> Bool
 isClosed graph suppliedVertices =
@@ -357,17 +371,18 @@ isClosed graph suppliedVertices =
             (member Unboxed.!)
             (graphSuccessors graph Array.! from)
 
-{- | Whether the vertex lies in a closed strongly connected component -- one
-that is a sink of the condensation, with no edge leaving it. (In finite-chain
-terms this is exactly recurrence, but that reading belongs to the
-Markov-vocabulary layer, not to this graph module.)
+{- | Test whether a vertex lies in a closed strongly connected component: a
+sink of the condensation with no outgoing edge. In finite-chain terms, this
+is exactly recurrence, but that interpretation belongs to the Markov-chain
+layer rather than this graph module.
 
 This is the specialised, precomputed form of
 @'isClosed' g ('componentOf' g v)@: the open/closed status of every component
-is settled once in a single @O(V + E)@ pass over all edges and cached, so each
-query is a constant-time array read.
+is settled once by a pass over all edges and cached, so each later query is a
+constant-time array read.
 
-Time: @O(1)@ after the one-off pass. Space: @O(1)@ per query.
+Complexity: the first query takes @O((V + E) log V)@ time and @O(V)@ cache
+space; subsequent queries take @O(1)@ time and @O(1)@ space.
 -}
 inClosedComponent :: Graph -> Int -> Bool
 inClosedComponent graph vertex
@@ -375,25 +390,28 @@ inClosedComponent graph vertex
         error "Dtmc.Transition.Matrix.Internal.Graph.inClosedComponent: vertex out of bounds"
     | otherwise = graphClosedComponentTable graph Unboxed.! vertex
 
-{- | Period of a strongly connected component: the gcd of the lengths of all
-its closed walks. 'Nothing' denotes an empty component or a singleton with
-no self-loop.
+{- | Return the period of a strongly connected component: the gcd of the
+lengths of all its closed walks. 'Nothing' denotes an empty component or a
+singleton with no self-loop.
 
 The input is expected to be a genuine strongly connected component; the value
 returned is the period of the component containing its first vertex, read from
 the precomputed 'graphPeriodOf' table.
 
-Time: @O(1)@ after the one-off @O(V + E)@ phasing pass. Space: @O(1)@.
+Complexity: an empty input takes @O(1)@ time and @O(1)@ space. The first
+non-empty query takes @O((V + E) log V)@ time and @O(V)@ cache space;
+subsequent queries take @O(1)@ time and @O(1)@ space.
 -}
 componentPeriod :: Graph -> [Int] -> Maybe Natural
 componentPeriod _ [] = Nothing
 componentPeriod graph (root : _) = periodOf graph root
 
-{- | Period of the strongly connected component containing the vertex
-(@Nothing@ when that component has no cycles), read from the precomputed
-table.
+{- | Return the period of the strongly connected component containing the
+vertex. Returns 'Nothing' when that component has no cycles. The value is read
+from the precomputed table.
 
-Time: @O(1)@ after the one-off phasing pass. Space: @O(1)@ per query.
+Complexity: the first query takes @O((V + E) log V)@ time and @O(V)@ cache
+space; subsequent queries take @O(1)@ time and @O(1)@ space.
 -}
 periodOf :: Graph -> Int -> Maybe Natural
 periodOf graph vertex
@@ -401,16 +419,17 @@ periodOf graph vertex
         error "Dtmc.Transition.Matrix.Internal.Graph.periodOf: vertex out of bounds"
     | otherwise = graphPeriodOf graph Array.! vertex
 
-{- | Phase of the vertex within its strongly connected component: its BFS level
-from the component's least vertex, modulo the component's period @d@. Every
-edge @u -> v@ /internal to a component/ satisfies
-@phaseOf v == (phaseOf u + 1) `mod` d@ -- so grouping a component's vertices
-by phase yields its cyclic (periodicity) classes -- whereas an edge leaving a
-component relates two independent phasings and carries no such relation. A
-component of period @d@ has phases in @{0 .. d-1}@; a vertex whose component
-has no cycles has phase @0@.
+{- | Return the phase of a vertex within its strongly connected component: its
+BFS level from the component's least vertex, modulo the component's period
+@d@. Every edge @u -> v@ /internal to a component/ satisfies
+@phaseOf v == (phaseOf u + 1) `mod` d@. Therefore, grouping a component's
+vertices by phase yields its cyclic classes. An edge leaving a component
+relates two independent phasings and carries no such relation. A component of
+period @d@ has phases in @{0 .. d-1}@; a vertex whose component has no cycles
+has phase @0@.
 
-Time: @O(1)@ after the one-off phasing pass. Space: @O(1)@ per query.
+Complexity: the first query takes @O((V + E) log V)@ time and @O(V)@ cache
+space; subsequent queries take @O(1)@ time and @O(1)@ space.
 -}
 phaseOf :: Graph -> Int -> Int
 phaseOf graph vertex

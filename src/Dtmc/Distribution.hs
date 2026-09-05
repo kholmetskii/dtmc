@@ -42,6 +42,8 @@ class Distribution distribution where
     {- | Read the stored probability of one state, returning exactly zero when
     the representation does not store that state. The value is returned
     without clamping or revalidation.
+
+    Complexity: implementation-dependent.
     -}
     probabilityAt ::
         (Ord (DistributionState distribution)) =>
@@ -52,14 +54,18 @@ class Distribution distribution where
     {- | Return canonical ascending state weights. Exact-zero weights are
     omitted. Custom instances and numerically derived values are returned
     without revalidation.
+
+    Complexity: implementation-dependent.
     -}
     distributionWeights ::
         distribution ->
         [(DistributionState distribution, Double)]
 
-    {- | States with strictly positive stored weight, in ascending order.
-    Non-positive coordinates from custom instances or unchecked numerical
-    operations are not mathematical support.
+    {- | Return states with strictly positive stored weight, in ascending
+    order. Non-positive coordinates from custom instances or unchecked
+    numerical operations are not mathematical support.
+
+    Complexity: implementation-dependent.
     -}
     support :: distribution -> [DistributionState distribution]
     support distribution =

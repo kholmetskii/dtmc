@@ -29,7 +29,8 @@ import Numeric.LinearAlgebra.Static qualified as S
 of its finite state type. The internal constructor performs no validation.
 -}
 newtype DistributionVector state
-    = DistributionVector (S.R (Cardinality state))
+    = -- | Wrap an unchecked statically sized probability vector.
+      DistributionVector (S.R (Cardinality state))
 
 -- Nominal role prevents coercion between distinct state types, including
 -- state types with the same cardinality.
@@ -37,8 +38,10 @@ type role DistributionVector nominal
 
 deriving instance (FiniteState state) => Show (DistributionVector state)
 
-{- | Return the stored probability vector unchanged. This is an @O(1)@
-projection and performs no copy, validation, clamping, or renormalisation.
+{- | Return the stored probability vector unchanged. This performs no copy,
+validation, clamping, or renormalisation.
+
+Complexity: @O(1)@ time and @O(1)@ space.
 -}
 unDistributionVector ::
     DistributionVector state ->

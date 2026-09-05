@@ -34,17 +34,25 @@ import GHC.TypeNats (
     natVal,
  )
 
--- | The number of states as a runtime 'Int'.
+{- | Return the number of states as a runtime 'Int'.
+
+Complexity: @O(1)@ time and @O(1)@ space.
+-}
 stateCardinalityInt :: forall state. (FiniteState state) => Int
 stateCardinalityInt =
     fromIntegral (natVal (Proxy @(Cardinality state)))
 
--- | The canonical zero-based integer index of a state.
+{- | Return the canonical zero-based integer index of a state.
+
+Complexity: the cost of 'stateIndex' plus @O(1)@ time and @O(1)@ space.
+-}
 stateIndexInt :: (FiniteState state) => state -> Int
 stateIndexInt = fromIntegral . getFinite . stateIndex
 
 {- | Recover the state at a runtime integer index. Returns 'Nothing' rather
 than wrapping a negative or out-of-range integer modulo the state count.
+
+Complexity: the cost of 'stateAt' plus @O(1)@ time and @O(1)@ space.
 -}
 stateFromInt :: forall state. (FiniteState state) => Int -> Maybe state
 stateFromInt index

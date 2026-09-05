@@ -29,13 +29,13 @@ import Dtmc.Simplex.Internal (
     canonicaliseSimplexEntries,
  )
 
-{- | Combine duplicate states, remove entries whose combined weight is exactly
-zero, and construct a canonical finite-support probability law. Tolerated
-coordinate error is clamped to @[0, 1]@, the repaired weights are normalised,
-and any weights repaired to zero are omitted. Input order is irrelevant.
+{- | Construct a canonical finite-support probability law. Duplicate states
+are combined, entries whose combined weight is exactly zero are removed, and
+input order is ignored. Tolerated coordinate error is clamped to @[0, 1]@;
+the repaired weights are normalised, and weights repaired to zero are omitted.
 
-Time: @O(m log m)@ for @m@ supplied entries. Space: @O(s)@ for @s@ distinct
-states.
+Complexity: @O(m log m)@ time for @m@ supplied entries, with @O(s)@ temporary
+and result space for @s@ distinct states.
 -}
 mkDistributionMap ::
     (Ord state) =>
@@ -52,7 +52,10 @@ mkDistributionMap entries =
   where
     combined = Map.filter (/= 0) (Map.fromListWith (+) entries)
 
--- | The point mass concentrated on one state. This is valid by construction.
+{- | Construct the point mass concentrated on one state.
+
+Complexity: @O(1)@ time and @O(1)@ result space.
+-}
 pointMass :: state -> DistributionMap state
 pointMass state = DistributionMap (Map.singleton state 1)
 
@@ -60,7 +63,8 @@ pointMass state = DistributionMap (Map.singleton state 1)
 renormalisation. Exact-zero coordinates are already omitted by the
 'distributionWeights' contract.
 
-Time and result space: @O(s)@ for stored support size @s@.
+Complexity: the cost of 'distributionWeights', plus @O(s)@ time and @O(s)@
+temporary and result space for @s@ returned weights.
 -}
 toDistributionMap ::
     (Distribution distribution) =>

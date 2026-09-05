@@ -11,7 +11,7 @@
 
 {- |
 Module      : Dtmc.State
-Description : Compile-time indexing for finite named state types.
+Description : Canonical indexing for finite named state types.
 
 'FiniteState' identifies a globally finite state type with a canonical total
 indexing by @'Finite' ('Cardinality' state)@. The generic implementation
@@ -19,7 +19,10 @@ supports enumeration types whose constructors have no fields. Enable
 @DeriveAnyClass@ and @DeriveGeneric@, then derive both 'Generic' and
 'FiniteState':
 
-@data Weather = Dry | Wet | Storm deriving (Eq, Ord, Show, Generic, FiniteState)@
+@
+data Weather = Dry | Wet | Storm
+    deriving (Eq, Ord, Show, Generic, FiniteState)
+@
 
 After deriving 'Generic', declaring an empty @instance FiniteState Weather@
 is a more explicit way to select the same generic defaults.
@@ -70,10 +73,10 @@ import GHC.TypeNats (
     type (+),
  )
 
-{- | Number of inhabitants of a finite state type. For 'Finite' this is its
-existing type-level bound; for another type it is derived from its 'Generic'
-representation. Users cannot override this closed family independently of
-that representation.
+{- | The number of inhabitants of a finite state type. For 'Finite', this is
+its existing type-level bound; for every other type, it is derived from its
+'Generic' representation. Users cannot override this closed family
+independently of that representation.
 
 A generic constructor carrying any fields reduces to a custom 'TypeError'.
 -}
@@ -98,13 +101,22 @@ to satisfy them, but their 'Cardinality' still comes from the supported
 empty and 'stateAt' has an uninhabited 'Finite 0' domain.
 -}
 class (Ord state, KnownNat (Cardinality state)) => FiniteState state where
-    -- | Every state exactly once, in canonical index order.
+    {- | Return every state exactly once, in canonical index order.
+
+    Complexity: implementation-dependent.
+    -}
     finiteStates :: [state]
 
-    -- | Convert a state to its total, statically bounded index.
+    {- | Convert a state to its total, statically bounded index.
+
+    Complexity: implementation-dependent.
+    -}
     stateIndex :: state -> Finite (Cardinality state)
 
-    -- | Recover the state at a statically bounded index.
+    {- | Recover the state at a statically bounded index.
+
+    Complexity: implementation-dependent.
+    -}
     stateAt :: Finite (Cardinality state) -> state
 
     default finiteStates ::
@@ -141,9 +153,9 @@ instance FiniteState Bool
 
 instance FiniteState Ordering
 
-{- | Type-level cardinality of a 'Generic' representation. This advanced
-helper underlies 'Cardinality'; ordinary users should work through
-'FiniteState' instead.
+{- | The type-level cardinality of a 'Generic' representation. This advanced
+helper underlies 'Cardinality'; ordinary users should use 'FiniteState'
+instead.
 -}
 type family GenericCardinality (representation :: Type -> Type) :: Nat where
     GenericCardinality (M1 D metadata representation) =
@@ -158,6 +170,8 @@ type family GenericCardinality (representation :: Type -> Type) :: Nat where
             )
     GenericCardinality V1 = 0
 
+-- Generic machinery implementing the canonical state/index bijection for
+-- fieldless enumeration representations.
 class GenericFiniteState representation where
     genericStates :: [representation value]
     genericIndex :: representation value -> Integer
@@ -215,7 +229,7 @@ instance
     genericIndex _ = unsupportedConstructorFields
     genericAt _ = unsupportedConstructorFields
 
--- Required only to complete an instance that its 'TypeError' makes unusable.
+-- Required only to complete an instance made unusable by its 'TypeError'.
 unsupportedConstructorFields :: value
 unsupportedConstructorFields =
     error "Dtmc.State: constructors with fields are unsupported"

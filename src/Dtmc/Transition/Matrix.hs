@@ -60,7 +60,8 @@ this conversion is total and performs no additional clamping or
 renormalisation. Missing coordinates become exact zeros. The support graph
 remains lazy, and the empty @0 x 0@ matrix is accepted.
 
-Time and result space: @O(n^2)@.
+Complexity: excluding evaluation of 'finiteStates' and the kernel laws,
+@O(n^2)@ time and @O(n^2)@ temporary and result space.
 -}
 fromKernel ::
     (FiniteState state) =>
@@ -79,7 +80,7 @@ fromKernel kernel =
 are retained. This is a representation-neutral copy of the dense matrix and
 does not force its support graph.
 
-Time and result space: @O(n^2)@.
+Complexity: @O(n^2)@ time and @O(n^2)@ temporary and result space.
 -}
 toRows :: (FiniteState state) => TransitionMatrix state -> [[Double]]
 toRows = LA.toLists . S.extract . unTransitionMatrix
@@ -90,7 +91,8 @@ then a @q@ step, and stores the matrix product @P Q@.
 The product is not revalidated. Row-stochastic matrices are closed under
 multiplication mathematically, but floating-point rounding can accumulate.
 
-Time: @O(n^3)@. Result space: @O(n^2)@; its support graph is built lazily.
+Complexity: @O(n^3)@ worst-case time and @O(n^2)@ temporary and result space.
+The support graph is built lazily.
 -}
 mulTransitionMatrix ::
     (FiniteState state) =>
@@ -99,22 +101,25 @@ mulTransitionMatrix ::
     TransitionMatrix state
 mulTransitionMatrix = (<>)
 
-{- | The @n x n@ identity: the zero-step transition that leaves every state
-unchanged. For @n = 0@ this is the empty matrix.
+{- | Return the @n x n@ identity: the zero-step transition that leaves every
+state unchanged. For @n = 0@ this is the empty matrix.
 
-Time and result space: @O(n^2)@.
+Complexity: @O(1)@ construction time and @O(1)@ construction space. Forcing
+the dense entries or support graph takes @O(n^2)@ time and @O(n^2)@ temporary
+space; the support graph itself occupies @O(n)@ space.
 -}
 identityMatrix :: (FiniteState state) => TransitionMatrix state
 identityMatrix = mempty
 
-{- | The @k@-step transition matrix @p^k@. Exponent zero returns
+{- | Compute the @k@-step transition matrix @p^k@. Exponent zero returns
 'identityMatrix'; positive exponents use repeated squaring through
 'Data.Semigroup.mtimesDefault'.
 
 Chapman-Kolmogorov gives @p^(m+n) = p^m p^n@ mathematically; computed matrices
 may differ by floating-point rounding and are not revalidated.
 
-Time: @O(n^2 + n^3 log(k + 1))@.
+Complexity: @O(n^2 + n^3 log(k + 1))@ time and @O(n^2)@ temporary and result
+space.
 -}
 matrixPower ::
     (FiniteState state) =>
@@ -123,9 +128,13 @@ matrixPower ::
     TransitionMatrix state
 matrixPower = mtimesDefault
 
-{- | The stored row for a state: its next-state distribution. 'FiniteState'
-indexing makes the lookup total. The row is wrapped without revalidation, so
-any floating-point drift from matrix arithmetic is preserved.
+{- | Return the stored row for a state: its next-state distribution.
+'FiniteState' indexing makes the lookup total. The row is wrapped without
+revalidation, so any floating-point drift from matrix arithmetic is
+preserved.
+
+Complexity: excluding 'Dtmc.State.stateIndex', @O(n^2)@ worst-case time and
+@O(n^2)@ result space for state cardinality @n@.
 -}
 rowAt ::
     (FiniteState state) =>

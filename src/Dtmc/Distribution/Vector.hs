@@ -40,8 +40,9 @@ error is clamped to @[0, 1]@, and the repaired weights are normalised before
 storage. Input order is irrelevant. For a state type of cardinality zero,
 returns @Left (DistributionError (SumOffBy 0))@.
 
-Time: @O(m log m + n + s)@ for @m@ supplied entries, @s@ distinct states,
-and state cardinality @n@. Result space: @O(n + s)@.
+Complexity: excluding evaluation of 'finiteStates', @O(m log m + n + s)@
+time for @m@ supplied entries, @s@ distinct states, and state cardinality
+@n@, with @O(n + s)@ temporary space and @O(n)@ result space.
 -}
 fromList ::
     (FiniteState state) =>
@@ -56,7 +57,8 @@ fromList entries = do
 {- | Return every stored coordinate in canonical state order, including exact
 zeros. This is a representation-neutral copy of the dense vector.
 
-Time and result space: @O(n)@ for state cardinality @n@.
+Complexity: @O(n)@ time and @O(n)@ temporary and result space for state
+cardinality @n@.
 -}
 toList :: (FiniteState state) => DistributionVector state -> [Double]
 toList = LA.toList . S.extract . unDistributionVector

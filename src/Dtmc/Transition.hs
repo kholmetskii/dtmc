@@ -25,7 +25,10 @@ class Transition transition where
     -- | State type governed by this transition representation.
     type TransitionState transition
 
-    -- | Validated finite-support law of the next state.
+    {- | Return the validated finite-support law of the next state.
+
+    Complexity: implementation-dependent.
+    -}
     transitionLaw ::
         transition ->
         TransitionState transition ->

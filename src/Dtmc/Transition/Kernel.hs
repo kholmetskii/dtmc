@@ -31,15 +31,20 @@ instance Transition (TransitionKernel state) where
 
     transitionLaw (TransitionKernel kernel) = kernel
 
-{- | Build a kernel from a function returning an already-validated map-backed
-law. No global traversal is required or attempted.
+{- | Construct a kernel from a function that returns an already validated,
+map-backed law. No global state-space traversal is required or attempted.
+
+Complexity: @O(1)@ time and @O(1)@ space.
 -}
 transitionKernel ::
     (state -> DistributionMap state) ->
     TransitionKernel state
 transitionKernel = TransitionKernel
 
--- | Build the deterministic kernel that maps each state to one successor.
+{- | Construct the deterministic kernel that maps each state to one successor.
+
+Complexity: @O(1)@ time and @O(1)@ space.
+-}
 deterministicKernel :: (state -> state) -> TransitionKernel state
 deterministicKernel successor =
     transitionKernel (pointMass . successor)

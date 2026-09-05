@@ -24,23 +24,28 @@ import Dtmc.Distribution (
 internal constructor performs no validation.
 -}
 newtype DistributionMap state
-    = DistributionMap (Map state Double)
+    = -- | Wrap an unchecked state-to-weight map.
+      DistributionMap (Map state Double)
 
 type role DistributionMap nominal
 
 deriving instance (Eq state) => Eq (DistributionMap state)
 deriving instance (Show state) => Show (DistributionMap state)
 
--- | Return the canonical state-to-weight map without copying or validation.
+{- | Return the canonical state-to-weight map without copying or validation.
+
+Complexity: @O(1)@ time and @O(1)@ space.
+-}
 unDistributionMap :: DistributionMap state -> Map state Double
 unDistributionMap (DistributionMap weights) = weights
 
-{- | Read a map-backed distribution over a supplied ascending state list,
-inserting exact zeros for absent states. Stored states absent from the supplied
-list are ignored; lawful 'Dtmc.State.FiniteState' enumerations contain every
-value of their state type.
+{- | Return the weights of a map-backed distribution over a supplied ascending
+state list, inserting exact zeros for absent states. Stored states absent from
+the supplied list are ignored; lawful 'Dtmc.State.FiniteState' enumerations
+contain every value of their state type.
 
-Time: @O(n + s)@ for @n@ requested states and stored support size @s@.
+Complexity: @O(n + s)@ time for @n@ requested states and stored support size
+@s@, with @O(s)@ temporary space and @O(n)@ result space.
 -}
 denseWeights :: (Ord state) => [state] -> DistributionMap state -> [Double]
 denseWeights states = align states . Map.toAscList . unDistributionMap

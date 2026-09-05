@@ -65,20 +65,24 @@ data TransitionMatrix state
 -- state types with the same cardinality.
 type role TransitionMatrix nominal
 
-{- | Return the stored matrix unchanged. This is an @O(1)@ projection and does
-not force the support graph.
+{- | Return the stored matrix unchanged without forcing the support graph.
+
+Complexity: @O(1)@ time and @O(1)@ space.
 -}
 unTransitionMatrix ::
     TransitionMatrix state ->
     S.Sq (Cardinality state)
 unTransitionMatrix (TransitionMatrix matrix _) = matrix
 
-{- | The lazy support graph, with edge @i -> j@ exactly when the stored entry
-is strictly positive. No tolerance is applied: a tiny positive rounding value
-creates an edge, while zero or a negative value does not.
+{- | Return the lazy support graph, with edge @i -> j@ exactly when the stored
+entry is strictly positive. No tolerance is applied: a tiny positive rounding
+value creates an edge, while zero or a negative value does not.
 
-The projection is @O(1)@. The first analysis that builds adjacency scans all
-@n^2@ entries; the result is shared by later analyses of the same value.
+The result is shared by later analyses of the same value.
+
+Complexity: @O(1)@ projection time and @O(1)@ projection space. The first
+analysis that forces the graph takes @O(n^2)@ time and @O(n^2)@ temporary
+space; the resulting graph occupies @O(n + E)@ space for @E@ support edges.
 -}
 tmSupport :: TransitionMatrix state -> Graph
 tmSupport (TransitionMatrix _ support) = support
@@ -95,7 +99,9 @@ instance (FiniteState state) => Show (TransitionMatrix state) where
 row-stochastic, finiteness, or simplex validation; internal callers must
 establish the required invariant.
 
-Construction is @O(1)@ before the graph is forced.
+Complexity: @O(1)@ construction time and @O(1)@ construction space. Forcing
+the support graph takes @O(n^2)@ time and @O(n^2)@ temporary space; the graph
+occupies @O(n + E)@ space for @E@ support edges.
 -}
 unsafeTransitionMatrix ::
     (FiniteState state) =>
@@ -106,6 +112,9 @@ unsafeTransitionMatrix matrix =
 
 {- | Wrap one stored matrix row as a distribution vector without revalidation.
 The finite-state index makes the lookup total.
+
+Complexity: excluding 'Dtmc.State.stateIndex', @O(n^2)@ worst-case time and
+@O(n^2)@ result space for state cardinality @n@.
 -}
 matrixRowAt ::
     (FiniteState state) =>

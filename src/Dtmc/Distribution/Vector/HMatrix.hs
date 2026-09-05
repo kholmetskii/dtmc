@@ -36,7 +36,8 @@ Tolerated coordinate error is clamped to @[0, 1]@ and the repaired vector is
 normalised before storage. For a state type of cardinality zero, returns
 @Left (DistributionError (SumOffBy 0))@.
 
-Time and result space: @O(n)@ for state cardinality @n@.
+Complexity: @O(n)@ time and @O(n)@ temporary and result space for state
+cardinality @n@.
 -}
 mkDistributionVector ::
     (FiniteState state) =>
