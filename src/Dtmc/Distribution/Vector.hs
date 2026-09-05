@@ -4,13 +4,13 @@ Description : Dense probability vectors over finite state types.
 
 t'DistributionVector' stores a probability law over a 'FiniteState' type in a
 statically sized vector. Coordinates follow its canonical state order.
-'mkDistributionVectorFromList' checks and canonicalises the simplex invariant
-with the @1e-9@ tolerance documented by 'Dtmc.Simplex.SimplexError'. Explicit
-@hmatrix@ interoperability lives in "Dtmc.Distribution.Vector.HMatrix".
+'fromList' checks and canonicalises the simplex invariant with the @1e-9@
+tolerance documented by 'Dtmc.Simplex.SimplexError'. Explicit @hmatrix@
+interoperability lives in "Dtmc.Distribution.Vector.HMatrix".
 -}
 module Dtmc.Distribution.Vector (
     DistributionVector,
-    mkDistributionVectorFromList,
+    fromList,
     toList,
 ) where
 
@@ -43,11 +43,11 @@ returns @Left (DistributionError (SumOffBy 0))@.
 Time: @O(m log m + n + s)@ for @m@ supplied entries, @s@ distinct states,
 and state cardinality @n@. Result space: @O(n + s)@.
 -}
-mkDistributionVectorFromList ::
+fromList ::
     (FiniteState state) =>
     [(state, Double)] ->
     Either DistributionError (DistributionVector state)
-mkDistributionVectorFromList entries = do
+fromList entries = do
     distribution <- mkDistributionMap entries
     pure $
         DistributionVector $

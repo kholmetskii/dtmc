@@ -3,8 +3,8 @@ Module      : Dtmc.Distribution.Vector.HMatrix
 Description : Explicit hmatrix interoperability for dense distributions.
 
 Low-level construction and projection for callers already using @hmatrix@.
-Most users should prefer 'Dtmc.Distribution.Vector.mkDistributionVectorFromList'
-and 'Dtmc.Distribution.Vector.toList', which keep @hmatrix@ out of application
+Most users should prefer 'Dtmc.Distribution.Vector.fromList' and
+'Dtmc.Distribution.Vector.toList', which keep @hmatrix@ out of application
 signatures and build dependencies.
 -}
 module Dtmc.Distribution.Vector.HMatrix (
