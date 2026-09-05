@@ -42,7 +42,7 @@ import Dtmc.TestSupport (
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
-    matrixPower,
+    power,
     rowAt,
  )
 import Dtmc.Transition.Matrix.HMatrix (
@@ -110,7 +110,7 @@ asTransitionKernel ::
 asTransitionKernel matrix =
     Kernel.transitionKernel $ \source ->
         checked $
-            DistributionMap.mkDistributionMap
+            DistributionMap.fromList
                 [ (destination, stepProbability matrix source destination)
                 | destination <- Dtmc.State.finiteStates
                 ]
@@ -121,7 +121,7 @@ kernelChain = asTransitionKernel chain
 mapInitial :: DistributionMap.DistributionMap (Finite 3)
 mapInitial =
     checked $
-        DistributionMap.mkDistributionMap
+        DistributionMap.fromList
             [ (state, probabilityAt initial state)
             | state <- Dtmc.State.finiteStates
             ]
@@ -130,7 +130,7 @@ simpleRandomWalk :: Kernel.TransitionKernel Integer
 simpleRandomWalk =
     Kernel.transitionKernel $ \state ->
         checked
-            (DistributionMap.mkDistributionMap [(state - 1, 0.5), (state + 1, 0.5)])
+            (DistributionMap.fromList [(state - 1, 0.5), (state + 1, 0.5)])
 
 closeTo :: Double -> Double -> Bool
 closeTo = approxEq testTolerance
@@ -295,17 +295,17 @@ spec = do
                 , j <- finites :: [Finite 2]
                 ]
 
-        prop "agrees with the corresponding matrixPower entry" $
+        prop "agrees with the corresponding power entry" $
             forAll (genTransitionMatrix @3) $ \matrix ->
                 case mkTransitionMatrix @(Finite 3) matrix of
                     Right p ->
-                        let power = S.extract (unTransitionMatrix (matrixPower 4 p))
+                        let fourStep = S.extract (unTransitionMatrix (power 4 p))
                          in conjoin
                                 [ property $
                                     approxEq
                                         testTolerance
                                         (nStepProbability 4 p i j)
-                                        ( power
+                                        ( fourStep
                                             `LA.atIndex` ( fromIntegral (getFinite i)
                                                          , fromIntegral (getFinite j)
                                                          )

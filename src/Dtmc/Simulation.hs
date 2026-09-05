@@ -12,7 +12,7 @@ module Dtmc.Simulation (
     SimulationError (..),
     sample,
     step,
-    simulateN,
+    simulate,
 ) where
 
 import Control.Monad.Primitive (
@@ -127,14 +127,14 @@ at the first invalid transition law and return its 'SimulationError'. At
 @k = 0@, return the initial state without inspecting the kernel or advancing
 the generator.
 -}
-simulateN ::
+simulate ::
     (PrimMonad m, Transition kernel) =>
     Natural ->
     kernel ->
     TransitionState kernel ->
     MWC.Gen (PrimState m) ->
     m (Either SimulationError [TransitionState kernel])
-simulateN transitions kernel initial generator =
+simulate transitions kernel initial generator =
     go transitions initial [initial]
   where
     go 0 _ reversed = pure (Right (reverse reversed))

@@ -17,9 +17,7 @@ module Dtmc.Distribution.Vector (
 import Dtmc.Distribution (
     DistributionError,
  )
-import Dtmc.Distribution.Map (
-    mkDistributionMap,
- )
+import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.Distribution.Map.Internal (
     denseWeights,
  )
@@ -49,7 +47,7 @@ fromList ::
     [(state, Double)] ->
     Either DistributionError (DistributionVector state)
 fromList entries = do
-    distribution <- mkDistributionMap entries
+    distribution <- DistributionMap.fromList entries
     pure $
         DistributionVector $
             S.vector (denseWeights finiteStates distribution)

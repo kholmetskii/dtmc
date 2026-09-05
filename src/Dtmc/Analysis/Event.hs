@@ -9,7 +9,7 @@ a general event algebra.
 -}
 module Dtmc.Analysis.Event (
     DiscreteEvent (..),
-    matchesDiscreteEvent,
+    matches,
     includesInfiniteOutcome,
 ) where
 
@@ -45,8 +45,8 @@ data DiscreteEvent
 literal closed comparison semantics and performs no probability calculation.
 For the separate infinite outcome, use 'includesInfiniteOutcome'.
 -}
-matchesDiscreteEvent :: DiscreteEvent -> Natural -> Bool
-matchesDiscreteEvent event value =
+matches :: DiscreteEvent -> Natural -> Bool
+matches event value =
     case event of
         EqualTo threshold -> value == threshold
         LessThan threshold -> value < threshold

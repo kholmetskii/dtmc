@@ -19,7 +19,7 @@ module Dtmc.Transition.Matrix.Internal (
 ) where
 
 import Dtmc.Distribution.Map (
-    toDistributionMap,
+    fromDistribution,
  )
 import Dtmc.Distribution.Vector.Internal (
     DistributionVector (DistributionVector),
@@ -131,7 +131,7 @@ instance (FiniteState state) => Transition (TransitionMatrix state) where
     type TransitionState (TransitionMatrix state) = state
 
     transitionLaw matrix =
-        toDistributionMap . matrixRowAt matrix
+        fromDistribution . matrixRowAt matrix
 
 -- Use strict positivity without tolerance so graph queries reflect the stored
 -- matrix exactly; keep construction here so the cache cannot become stale.

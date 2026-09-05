@@ -5,7 +5,7 @@ module Dtmc.Analysis.EventSpec (
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
     includesInfiniteOutcome,
-    matchesDiscreteEvent,
+    matches,
  )
 import Numeric.Natural (
     Natural,
@@ -29,37 +29,37 @@ asNatural (NonNegative value) = fromInteger value
 
 spec :: Spec
 spec = do
-    describe "matchesDiscreteEvent" $ do
+    describe "matches" $ do
         it "implements every comparison at and around its threshold" $ do
             let values = [2, 3, 4]
-            map (matchesDiscreteEvent (EqualTo 3)) values
+            map (matches (EqualTo 3)) values
                 `shouldBe` [False, True, False]
-            map (matchesDiscreteEvent (LessThan 3)) values
+            map (matches (LessThan 3)) values
                 `shouldBe` [True, False, False]
-            map (matchesDiscreteEvent (AtMost 3)) values
+            map (matches (AtMost 3)) values
                 `shouldBe` [True, True, False]
-            map (matchesDiscreteEvent (GreaterThan 3)) values
+            map (matches (GreaterThan 3)) values
                 `shouldBe` [False, False, True]
-            map (matchesDiscreteEvent (AtLeast 3)) values
+            map (matches (AtLeast 3)) values
                 `shouldBe` [False, True, True]
 
         it "has the structural zero-threshold boundaries" $ do
-            matchesDiscreteEvent (LessThan 0) 0 `shouldBe` False
-            matchesDiscreteEvent (AtMost 0) 0 `shouldBe` True
-            matchesDiscreteEvent (GreaterThan 0) 0 `shouldBe` False
-            matchesDiscreteEvent (AtLeast 0) 0 `shouldBe` True
+            matches (LessThan 0) 0 `shouldBe` False
+            matches (AtMost 0) 0 `shouldBe` True
+            matches (GreaterThan 0) 0 `shouldBe` False
+            matches (AtLeast 0) 0 `shouldBe` True
 
         prop "AtMost n is LessThan (n + 1)" $ \rawThreshold rawValue ->
             let threshold = asNatural rawThreshold
                 value = asNatural rawValue
-             in matchesDiscreteEvent (AtMost threshold) value
-                    == matchesDiscreteEvent (LessThan (threshold + 1)) value
+             in matches (AtMost threshold) value
+                    == matches (LessThan (threshold + 1)) value
 
         prop "AtLeast (n + 1) is GreaterThan n" $ \rawThreshold rawValue ->
             let threshold = asNatural rawThreshold
                 value = asNatural rawValue
-             in matchesDiscreteEvent (AtLeast (threshold + 1)) value
-                    == matchesDiscreteEvent (GreaterThan threshold) value
+             in matches (AtLeast (threshold + 1)) value
+                    == matches (GreaterThan threshold) value
 
         prop "upper and lower complements partition every finite value" $
             \rawThreshold rawValue ->
@@ -67,10 +67,10 @@ spec = do
                     value = asNatural rawValue
                  in property $
                         and
-                            [ matchesDiscreteEvent (GreaterThan threshold) value
-                                /= matchesDiscreteEvent (AtMost threshold) value
-                            , matchesDiscreteEvent (AtLeast threshold) value
-                                /= matchesDiscreteEvent (LessThan threshold) value
+                            [ matches (GreaterThan threshold) value
+                                /= matches (AtMost threshold) value
+                            , matches (AtLeast threshold) value
+                                /= matches (LessThan threshold) value
                             ]
 
     describe "includesInfiniteOutcome" $ do

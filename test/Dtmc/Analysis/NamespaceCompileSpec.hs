@@ -10,7 +10,7 @@ import Data.Finite (
 import Dtmc.Analysis.Absorption qualified as Absorption
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
-    matchesDiscreteEvent,
+    matches,
  )
 import Dtmc.Analysis.Expectation (
     Expectation (..),
@@ -112,7 +112,7 @@ spec = do
                 , Visit.boundedExpectationGivenInitialState 2 0 matrix (== 1) `seq` ()
                 ]
                 `shouldBe` 11
-            matchesDiscreteEvent (AtMost 1) 1 `shouldBe` True
+            matches (AtMost 1) 1 `shouldBe` True
 
         it "distinguishes distribution and initial-state forms" $ do
             Hit.probability (EqualTo 1) matrix (== 1) mixedInitial

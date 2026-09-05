@@ -68,7 +68,7 @@ asTransitionKernel ::
 asTransitionKernel matrix =
     Kernel.transitionKernel $ \source ->
         checked $
-            DistributionMap.mkDistributionMap
+            DistributionMap.fromList
                 [ (destination, stepProbability matrix source destination)
                 | destination <- finites
                 ]
@@ -84,7 +84,7 @@ spec =
             let kernel =
                     Kernel.transitionKernel $ \source ->
                         checked $
-                            DistributionMap.mkDistributionMap
+                            DistributionMap.fromList
                                 [(source, 0.25), (source + 1, 0.75 :: Double)]
              in Distribution.distributionWeights (Transition.transitionLaw kernel (4 :: Int))
                     `shouldBe` [(4, 0.25), (5, 0.75)]

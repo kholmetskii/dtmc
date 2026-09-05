@@ -20,7 +20,7 @@ simpleRandomWalk :: Kernel.TransitionKernel Integer
 simpleRandomWalk =
     Kernel.transitionKernel $ \state ->
         checked
-            (DistributionMap.mkDistributionMap [(state - 1, 0.5), (state + 1, 0.5)])
+            (DistributionMap.fromList [(state - 1, 0.5), (state + 1, 0.5)])
 
 spec :: Spec
 spec =
@@ -29,7 +29,7 @@ spec =
             let kernel =
                     Kernel.transitionKernel $ \source ->
                         checked $
-                            DistributionMap.mkDistributionMap
+                            DistributionMap.fromList
                                 [(source - 1, 0.4), (source + 1, 0.6 :: Double)]
              in Distribution.distributionWeights (Transition.transitionLaw kernel (10 :: Integer))
                     `shouldBe` [(9, 0.4), (11, 0.6)]

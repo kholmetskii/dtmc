@@ -53,7 +53,7 @@ import Dtmc.Analysis.Classification.Internal (
  )
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
-    matchesDiscreteEvent,
+    matches,
  )
 import Dtmc.Analysis.Expectation (
     Expectation (..),
@@ -502,7 +502,7 @@ boundedProbability bound event initial transition isVisited =
     sum
         [ weight
         | (count, weight) <- distributionWeights law
-        , matchesDiscreteEvent event count
+        , matches event count
         ]
   where
     law = boundedLaw bound initial transition isVisited

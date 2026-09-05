@@ -70,7 +70,7 @@ sampling passes the supplied generator to the categorical backend.
 {-# LANGUAGE DeriveGeneric #-}
 
 import Dtmc.Analysis.FiniteTime qualified as FT
-import Dtmc.Distribution.Map (DistributionMap, mkDistributionMap)
+import Dtmc.Distribution.Map (DistributionMap, fromList)
 import Dtmc.State (FiniteState)
 import Dtmc.Transition.Kernel (transitionKernel)
 import Dtmc.Transition.Matrix (TransitionMatrix, fromKernel)
@@ -80,7 +80,7 @@ data Weather = Dry | Wet
   deriving (Eq, Ord, Show, Generic, FiniteState)
 
 law :: [(Weather, Double)] -> DistributionMap Weather
-law = either (error . show) id . mkDistributionMap
+law = either (error . show) id . fromList
 
 weather :: TransitionMatrix Weather
 weather =

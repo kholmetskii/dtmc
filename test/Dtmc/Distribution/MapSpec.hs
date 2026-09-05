@@ -9,9 +9,9 @@ import Dtmc.Distribution (
  )
 import Dtmc.Distribution.Map (
     DistributionMap,
-    mkDistributionMap,
+    fromList,
     pointMass,
-    unDistributionMap,
+    toMap,
  )
 import Dtmc.Simplex (
     SimplexError (..),
@@ -34,11 +34,11 @@ spec =
         it "combines duplicates and stores canonical ascending entries" $ do
             let distribution =
                     either (error . show) id $
-                        mkDistributionMap
+                        fromList
                             [('b', 0.2), ('a', 0.5), ('b', 0.3), ('c', 0)]
             distributionWeights distribution `shouldBe` [('a', 0.5), ('b', 0.5)]
             support distribution `shouldBe` ['a', 'b']
-            Map.toAscList (unDistributionMap distribution)
+            Map.toAscList (toMap distribution)
                 `shouldBe` [('a', 0.5), ('b', 0.5)]
 
         it "returns zero for an absent state" $
@@ -46,28 +46,28 @@ spec =
                 `shouldBe` 0
 
         it "rejects an empty law" $
-            (mkDistributionMap [] :: Either DistributionError (DistributionMap Int))
+            (fromList [] :: Either DistributionError (DistributionMap Int))
                 `shouldSatisfy` either (const True) (const False)
 
         it "uses the shared error type" $
-            mkDistributionMap ([] :: [(Int, Double)])
+            fromList ([] :: [(Int, Double)])
                 `shouldBe` Left (DistributionError (SumOffBy 0))
 
         it "removes weights repaired to zero" $
-            case mkDistributionMap [('a', -1e-17), ('b', 1)] of
+            case fromList [('a', -1e-17), ('b', 1)] of
                 Right distribution ->
-                    Map.toAscList (unDistributionMap distribution)
+                    Map.toAscList (toMap distribution)
                         `shouldBe` [('b', 1)]
                 Left err ->
                     expectationFailure
                         ("expected acceptance, got " <> show err)
 
         it "normalises an accepted combined total near one" $
-            case mkDistributionMap [('a', 0.5), ('b', 0.5 - 5e-10)] of
+            case fromList [('a', 0.5), ('b', 0.5 - 5e-10)] of
                 Right distribution ->
                     approxEq
                         1e-12
-                        (sum (Map.elems (unDistributionMap distribution)))
+                        (sum (Map.elems (toMap distribution)))
                         1
                         `shouldBe` True
                 Left err ->
@@ -75,7 +75,7 @@ spec =
                         ("expected acceptance, got " <> show err)
 
         it "reports a non-finite combined weight by ascending state index" $
-            case mkDistributionMap [('b', 1), ('a', 0 / 0), ('a', 0)] of
+            case fromList [('b', 1), ('a', 0 / 0), ('a', 0)] of
                 Left err ->
                     err `shouldBe` DistributionError (NonFiniteEntry 0)
                 Right _ ->

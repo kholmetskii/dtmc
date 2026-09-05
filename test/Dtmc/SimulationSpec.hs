@@ -19,13 +19,13 @@ import Dtmc.Distribution (
  )
 import Dtmc.Distribution.Map (
     pointMass,
-    toDistributionMap,
+    fromDistribution,
  )
 import Dtmc.Distribution.Vector.HMatrix (mkDistributionVector)
 import Dtmc.Simulation (
     SimulationError (..),
     sample,
-    simulateN,
+    simulate,
     step,
  )
 import Dtmc.State (FiniteState)
@@ -170,7 +170,7 @@ zeroStepAndGeneratorState = runST $ do
     generator <- MWC.create
     before <- MWC.save generator
     result <-
-        simulateN
+        simulate
             0
             ( error "zero-step simulation evaluated its kernel" ::
                 TransitionMatrix (Finite 3)
@@ -183,7 +183,7 @@ zeroStepAndGeneratorState = runST $ do
 emptyKernel :: Kernel.TransitionKernel Int
 emptyKernel =
     Kernel.transitionKernel
-        (const (toDistributionMap (UncheckedDistribution [])))
+        (const (fromDistribution (UncheckedDistribution [])))
 
 spec :: Spec
 spec = do
@@ -251,18 +251,18 @@ spec = do
                 )
                 `shouldBe` Left EmptySupport
 
-    describe "simulateN" $ do
+    describe "simulate" $ do
         it "simulates a finite matrix through the shared interface" $
             let trajectory = runST $ do
                     generator <- MWC.create
-                    checkedSimulation (simulateN 4 cyclicThree 0 generator)
+                    checkedSimulation (simulate 4 cyclicThree 0 generator)
              in trajectory `shouldBe` [0, 1, 2, 0, 1]
 
         it "returns the initial state plus the requested kernel transitions" $
             let trajectory = runST $ do
                     generator <- MWC.create
                     checkedSimulation
-                        ( simulateN
+                        ( simulate
                             4
                             ( Kernel.deterministicKernel
                                 (\state -> (state + 1) `mod` (3 :: Int))
@@ -281,6 +281,6 @@ spec = do
             runST
                 ( do
                     generator <- MWC.create
-                    simulateN 3 emptyKernel 0 generator
+                    simulate 3 emptyKernel 0 generator
                 )
                 `shouldBe` Left EmptySupport

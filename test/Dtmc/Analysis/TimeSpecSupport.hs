@@ -35,7 +35,7 @@ import Dtmc.TestSupport
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
-    identityMatrix,
+    identity,
  )
 import Dtmc.Transition.Matrix.HMatrix (
     mkTransitionMatrix,
@@ -84,7 +84,7 @@ asTransitionKernel ::
 asTransitionKernel matrix =
     Kernel.transitionKernel $ \source ->
         either (error . show) id $
-            DistributionMap.mkDistributionMap
+            DistributionMap.fromList
                 [ (destination, FT.stepProbability matrix source destination)
                 | destination <- finiteStates
                 ]
@@ -93,7 +93,7 @@ simpleRandomWalk :: Kernel.TransitionKernel Integer
 simpleRandomWalk =
     Kernel.transitionKernel $ \state ->
         either (error . show) id $
-            DistributionMap.mkDistributionMap [(state - 1, 0.5), (state + 1, 0.5)]
+            DistributionMap.fromList [(state - 1, 0.5), (state + 1, 0.5)]
 
 -- Gambler's ruin on {0..4}: win 1 with probability p, lose 1 with
 -- probability 1-p; 0 (ruin) and 4 (goal) are absorbing.
@@ -377,7 +377,7 @@ hittingTimeSpec = do
 
     describe "bounded hitting times" $ do
         it "returns an empty result for the empty chain" $
-            entries ((hitProbabilityByState . LessThan) 3 (identityMatrix @(Finite 0)) [])
+            entries ((hitProbabilityByState . LessThan) 3 (identity @(Finite 0)) [])
                 `shouldBe` []
 
         it "places all time-zero mass on the target" $
@@ -677,7 +677,7 @@ returnTimeSpec :: Spec
 returnTimeSpec = do
     describe "bounded first-return times" $ do
         it "returns an empty result for the empty chain" $
-            entries ((returnProbabilityByState . LessThan) 3 (identityMatrix @(Finite 0)))
+            entries ((returnProbabilityByState . LessThan) 3 (identity @(Finite 0)))
                 `shouldBe` []
 
         it "has no return mass at time zero" $

@@ -12,7 +12,7 @@ import Data.Finite (
 import Dtmc.Analysis.FiniteTime qualified as FT
 import Dtmc.Analysis.ProbabilityOracle qualified as Oracle
 import Dtmc.Distribution.Map (
-    mkDistributionMap,
+    fromList,
     pointMass,
  )
 import Dtmc.Distribution.Vector (
@@ -66,7 +66,7 @@ simpleRandomWalk :: TransitionKernel Integer
 simpleRandomWalk =
     transitionKernel $ \state ->
         checked
-            ( mkDistributionMap
+            ( fromList
                 [(state - 1, 0.5), (state + 1, 0.5)]
             )
 

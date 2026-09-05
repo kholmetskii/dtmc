@@ -21,8 +21,8 @@ import Dtmc.TestSupport (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
-    identityMatrix,
-    matrixPower,
+    identity,
+    power,
  )
 import Dtmc.Transition.Matrix.HMatrix (
     mkTransitionMatrix,
@@ -160,7 +160,7 @@ unequalPhases =
 
 powerRows :: (FiniteState state) => Natural -> TransitionMatrix state -> [[Double]]
 powerRows steps p =
-    LA.toLists (S.extract (unTransitionMatrix (matrixPower steps p)))
+    LA.toLists (S.extract (unTransitionMatrix (power steps p)))
 
 matrixCloseTo :: [[Double]] -> [[Double]] -> Bool
 matrixCloseTo expected actual =
@@ -288,4 +288,4 @@ spec = do
                 other -> expectationFailure ("expected two limits: " ++ show other)
 
         it "returns one empty limit for the empty chain" $
-            cyclicLimits (identityMatrix @(Finite 0)) `shouldBe` Right [[]]
+            cyclicLimits (identity @(Finite 0)) `shouldBe` Right [[]]

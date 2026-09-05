@@ -124,7 +124,7 @@ simpleRandomWalk :: TransitionKernel Integer
 simpleRandomWalk =
     transitionKernel $ \state ->
         checked
-            ( DistributionMap.mkDistributionMap
+            ( DistributionMap.fromList
                 [(state - 1, 0.5), (state + 1, 0.5)]
             )
 

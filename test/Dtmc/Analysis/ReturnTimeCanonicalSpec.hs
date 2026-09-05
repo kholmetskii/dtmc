@@ -21,7 +21,7 @@ import Dtmc.Analysis.Expectation (
 import Dtmc.Analysis.ProbabilityOracle qualified as Oracle
 import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Distribution.Map (
-    mkDistributionMap,
+    fromList,
  )
 import Dtmc.TestSupport
 import Dtmc.Transition.Kernel (
@@ -74,7 +74,7 @@ simpleRandomWalk :: TransitionKernel Integer
 simpleRandomWalk =
     transitionKernel $ \state ->
         checked
-            (mkDistributionMap [(state - 1, 0.5), (state + 1, 0.5)])
+            (fromList [(state - 1, 0.5), (state + 1, 0.5)])
 
 tinySurvival :: Double
 tinySurvival = 1e-12
@@ -85,10 +85,10 @@ tinyReturnKernel =
         case state of
             0 ->
                 checked
-                    ( mkDistributionMap
+                    ( fromList
                         [(0, 1 - tinySurvival), (1, tinySurvival)]
                     )
-            _ -> checked (mkDistributionMap [(state, 1)])
+            _ -> checked (fromList [(state, 1)])
 
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id

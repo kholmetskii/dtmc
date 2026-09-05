@@ -111,7 +111,7 @@ kernelChain :: Kernel.TransitionKernel (Finite 3)
 kernelChain =
     Kernel.transitionKernel $ \source ->
         checked $
-            DistributionMap.mkDistributionMap
+            DistributionMap.fromList
                 [ (destination, stepProbability finiteChain source destination)
                 | destination <- finites
                 ]
@@ -119,14 +119,14 @@ kernelChain =
 mapInitial :: DistributionMap.DistributionMap (Finite 3)
 mapInitial =
     checked $
-        DistributionMap.mkDistributionMap
+        DistributionMap.fromList
             [(state, probabilityAt finiteInitial state) | state <- finites]
 
 simpleRandomWalk :: Kernel.TransitionKernel Integer
 simpleRandomWalk =
     Kernel.transitionKernel $ \state ->
         checked
-            (DistributionMap.mkDistributionMap [(state - 1, 0.5), (state + 1, 0.5)])
+            (DistributionMap.fromList [(state - 1, 0.5), (state + 1, 0.5)])
 
 closeTo :: Double -> Double -> Bool
 closeTo = approxEq testTolerance

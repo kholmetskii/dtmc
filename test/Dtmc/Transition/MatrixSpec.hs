@@ -32,9 +32,9 @@ import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
     fromKernel,
-    identityMatrix,
-    matrixPower,
-    mulTransitionMatrix,
+    identity,
+    power,
+    compose,
     rowAt,
     toRows,
  )
@@ -212,7 +212,7 @@ spec = do
                                 ("expected InRow 0 NegativeEntry 0, got " <> show result)
                                 False
 
-    describe "mulTransitionMatrix" $ do
+    describe "compose" $ do
         prop "is closed under multiplication"
             $ forAll
                 ((,) <$> genTransitionMatrix @3 <*> genTransitionMatrix @3)
@@ -221,7 +221,7 @@ spec = do
                     (Right leftMatrix, Right rightMatrix) ->
                         case mkTransitionMatrix @(Finite 3)
                             ( unTransitionMatrix
-                                (mulTransitionMatrix leftMatrix rightMatrix)
+                                (compose leftMatrix rightMatrix)
                             ) of
                             Right _ ->
                                 property True
@@ -306,28 +306,28 @@ spec = do
             approxTransitionMatrixEq
                 1e-12
                 (mempty :: TransitionMatrix (Finite 2))
-                identityMatrix
+                identity
                 `shouldBe` True
 
-    describe "matrixPower" $ do
+    describe "power" $ do
         it "returns the identity at exponent zero" $
             approxTransitionMatrixEq
                 1e-12
-                (matrixPower 0 twoState)
-                identityMatrix
+                (power 0 twoState)
+                identity
                 `shouldBe` True
 
         it "returns the matrix itself at exponent one" $
             approxTransitionMatrixEq
                 1e-12
-                (matrixPower 1 twoState)
+                (power 1 twoState)
                 twoState
                 `shouldBe` True
 
         it "matches a hand-computed square" $
             approxTransitionMatrixEq
                 1e-9
-                (matrixPower 2 twoState)
+                (power 2 twoState)
                 twoStateSquared
                 `shouldBe` True
 
@@ -338,7 +338,7 @@ spec = do
                         Right p ->
                             case mkTransitionMatrix @(Finite 3)
                                 ( unTransitionMatrix
-                                    (matrixPower (fromIntegral k) p)
+                                    (power (fromIntegral k) p)
                                 ) of
                                 Right _ ->
                                     property True
@@ -364,9 +364,9 @@ spec = do
                         property $
                             approxTransitionMatrixEq
                                 1e-9
-                                (matrixPower (fromIntegral (m + n)) p)
-                                ( matrixPower (fromIntegral m) p
-                                    <> matrixPower (fromIntegral n) p
+                                (power (fromIntegral (m + n)) p)
+                                ( power (fromIntegral m) p
+                                    <> power (fromIntegral n) p
                                 )
                     Left err ->
                         counterexample
@@ -414,16 +414,16 @@ spec = do
                 `shouldBe` [(PhaseB, 1)]
 
         it "preserves the named state type through powers" $
-            distributionWeights (rowAt (matrixPower 2 namedCycle) PhaseA)
+            distributionWeights (rowAt (power 2 namedCycle) PhaseA)
                 `shouldBe` [(PhaseC, 1)]
 
         it "provides a named identity matrix" $
-            distributionWeights (rowAt (identityMatrix @NamedPhase) PhaseB)
+            distributionWeights (rowAt (identity @NamedPhase) PhaseB)
                 `shouldBe` [(PhaseB, 1)]
 
         it "composes matrices without changing their named state type" $
             approxTransitionMatrixEq
                 0
-                (namedCycle <> identityMatrix)
+                (namedCycle <> identity)
                 namedCycle
                 `shouldBe` True

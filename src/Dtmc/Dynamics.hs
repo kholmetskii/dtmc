@@ -18,7 +18,7 @@ import Dtmc.Distribution (
     Distribution (..),
  )
 import Dtmc.Distribution.Map (
-    toDistributionMap,
+    fromDistribution,
  )
 import Dtmc.Distribution.Map.Internal (
     DistributionMap (DistributionMap),
@@ -37,7 +37,7 @@ import Dtmc.Transition (
     Transition (..),
  )
 import Dtmc.Transition.Matrix (
-    matrixPower,
+    power,
  )
 import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
@@ -64,7 +64,7 @@ evolveVector (DistributionVector v) p =
     DistributionVector (S.tr (unTransitionMatrix p) S.#> v)
 
 {- | The distribution after @k@ transitions, computed as
-@evolveVector mu (matrixPower k p)@. Exponent zero is the original distribution
+@evolveVector mu (power k p)@. Exponent zero is the original distribution
 mathematically.
 
 This powers the matrix rather than iterating 'evolveVector', so the two calculations
@@ -79,7 +79,7 @@ evolveVectorN ::
     TransitionMatrix state ->
     DistributionVector state
 evolveVectorN k mu p =
-    evolveVector mu (matrixPower k p)
+    evolveVector mu (power k p)
 
 {- | Push any finite-support 'Distribution' through one locally finite kernel
 step. The result uses t'DistributionMap' because a general kernel does not
@@ -100,7 +100,7 @@ evolve ::
 evolve distribution kernel =
     DistributionMap
         ( pushSparseWeights
-            (unDistributionMap (toDistributionMap distribution))
+            (unDistributionMap (fromDistribution distribution))
             kernel
         )
 
@@ -118,7 +118,7 @@ evolveN ::
     distribution ->
     kernel ->
     DistributionMap (TransitionState kernel)
-evolveN steps initial kernel = go steps (toDistributionMap initial)
+evolveN steps initial kernel = go steps (fromDistribution initial)
   where
     go 0 distribution = distribution
     go remaining distribution =

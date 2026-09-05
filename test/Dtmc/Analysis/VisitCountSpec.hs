@@ -121,7 +121,7 @@ recurrentVisitChain =
 
 mixedInitial :: DistributionMap.DistributionMap (Finite 2)
 mixedInitial =
-    checked (DistributionMap.mkDistributionMap [(0, 0.25), (1, 0.75)])
+    checked (DistributionMap.fromList [(0, 0.25), (1, 0.75)])
 
 asKernel ::
     TransitionMatrix (Finite 2) ->
@@ -129,7 +129,7 @@ asKernel ::
 asKernel matrix =
     Kernel.transitionKernel $ \source ->
         checked $
-            DistributionMap.mkDistributionMap
+            DistributionMap.fromList
                 [ (destination, FT.stepProbability matrix source destination)
                 | destination <- finites
                 ]
@@ -138,7 +138,7 @@ simpleRandomWalk :: Kernel.TransitionKernel Integer
 simpleRandomWalk =
     Kernel.transitionKernel $ \state ->
         checked $
-            DistributionMap.mkDistributionMap
+            DistributionMap.fromList
                 [(state - 1, 0.5), (state + 1, 0.5)]
 
 closeTo :: Double -> Double -> Bool

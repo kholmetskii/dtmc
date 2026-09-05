@@ -65,7 +65,7 @@ import Dtmc.State.Internal (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
-    matrixPower,
+    power,
  )
 import Dtmc.Transition.Matrix.Internal (
     unTransitionMatrix,
@@ -269,7 +269,7 @@ cyclicLimits p
   where
     dim = stateCardinalityInt @state
     original = S.extract (unTransitionMatrix p)
-    powered = matrixPower commonPeriod p
+    powered = power commonPeriod p
     commonPeriod =
         foldr
             lcm

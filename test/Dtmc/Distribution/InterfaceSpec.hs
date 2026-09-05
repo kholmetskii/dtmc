@@ -13,8 +13,8 @@ import Dtmc.Distribution (
  )
 import Dtmc.Distribution.Map (
     DistributionMap,
-    mkDistributionMap,
-    toDistributionMap,
+    fromList,
+    fromDistribution,
  )
 import Dtmc.Distribution.Vector.HMatrix (
     mkDistributionVector,
@@ -37,7 +37,7 @@ spec =
                 either
                     (error . show)
                     id
-                    ( mkDistributionMap [(0, 0.2), (2, 0.8)] ::
+                    ( fromList [(0, 0.2), (2, 0.8)] ::
                         Either DistributionError (DistributionMap (Finite 3))
                     )
 
@@ -46,9 +46,9 @@ spec =
             support vector `shouldBe` support mapDistribution
 
         it "converts both representations to the same canonical map" $ do
-            toDistributionMap vector `shouldBe` mapDistribution
-            toDistributionMap mapDistribution `shouldBe` mapDistribution
+            fromDistribution vector `shouldBe` mapDistribution
+            fromDistribution mapDistribution `shouldBe` mapDistribution
 
         it "converts a dense law without changing its weights" $
-            distributionWeights (toDistributionMap vector)
+            distributionWeights (fromDistribution vector)
                 `shouldBe` [(0, 0.2), (2, 0.8)]

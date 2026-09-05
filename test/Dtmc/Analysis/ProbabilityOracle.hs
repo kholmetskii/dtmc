@@ -26,7 +26,7 @@ import Data.Map.Strict qualified as Map
 import Dtmc.Analysis.Event (
     DiscreteEvent (..),
     includesInfiniteOutcome,
-    matchesDiscreteEvent,
+    matches,
  )
 import Dtmc.State (
     FiniteState,
@@ -134,10 +134,10 @@ observationProbability horizon initial matrix observations =
     sum
         [ weight
         | WeightedPath path weight <- weightedTrajectories horizon initial matrix
-        , all (matches path) observations
+        , all (matchesAt path) observations
         ]
   where
-    matches path (time, expected) =
+    matchesAt path (time, expected) =
         path !! fromIntegral time == expected
 
 lawFromFirstOccurrence ::
@@ -234,7 +234,7 @@ lawProbability event law
         sum
             [ mass
             | (value, mass) <- Map.toList (lawFiniteMasses law)
-            , matchesDiscreteEvent event value
+            , matches event value
             ]
     unresolvedContribution
         | includesInfiniteOutcome event = lawUnresolvedMass law
