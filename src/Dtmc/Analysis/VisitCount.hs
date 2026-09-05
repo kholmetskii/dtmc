@@ -7,7 +7,7 @@ Description : Finite- and infinite-horizon visit-count analysis.
 
 Exact analysis of visit counts. The bounded functions count visits to a state
 predicate before a strict time bound and work through any locally finite
-'Transition'. The total-count functions analyze visits to one state over the
+'Transition'. The total-count functions analyse visits to one state over the
 entire path of a finite 'TransitionMatrix'. Both notions include the initial
 state at time zero.
 
@@ -17,6 +17,10 @@ probability of ever hitting @i@ and the probability of returning to @i@. The
 implementation uses exact graph classification for zero and infinite cases,
 and checked 'Double' linear solves for the remaining probabilities. It does
 not simulate, truncate an infinite series, clamp, or renormalise results.
+
+Unless a declaration states otherwise, complexity bounds exclude
+'FiniteState' method costs. Bounds for operations over abstract distributions
+or transitions also identify excluded typeclass-method and predicate costs.
 -}
 module Dtmc.Analysis.VisitCount (
     LinearSystemError (..),
@@ -104,8 +108,12 @@ import Numeric.Natural (
 toIndex :: (FiniteState state) => state -> Int
 toIndex = stateIndexInt
 
-{- | A Boolean mask of the states from which at least one seed is reachable.
-The reverse support graph is traversed once for the whole seed set.
+{- | Build a Boolean mask of the states from which at least one seed is
+reachable. The reverse support graph is traversed once for the whole seed set.
+
+Complexity: excluding shared support-graph construction, @O(n + E + s)@ time,
+@O(n + E + s)@ temporary space, and @O(n)@ result space for @n@ states, @E@
+support edges, and @s@ supplied seeds.
 -}
 backwardReachabilityMask ::
     forall state.
@@ -122,7 +130,7 @@ backwardReachabilityMask matrix seeds =
         | state <- backwardReachable matrix (const True) seeds
         ]
 
-{- | Probabilities of exactly @n@ total visits in canonical state order.
+{- | Compute probabilities of exactly @n@ total visits in canonical state order.
 The count is the first argument and the target is the third; coordinate @j@ is
 @P(V_i = n | X_0 = j)@.
 
@@ -137,8 +145,11 @@ Recurrence is decided from the support graph, not by comparing a computed
 return probability with one.
 
 Structural zero cases avoid a linear solve. Other cases inherit the numerical
-behavior and errors of the state-conditioned eventual hitting and return
+behaviour and errors of the state-conditioned eventual hitting and return
 queries.
+
+Complexity: @O(m^3 + log(n + 1))@ worst-case time, @O(m^2)@ temporary
+space, and @O(m)@ result space for @m@ states.
 -}
 exactProbabilitiesByState ::
     forall state.
@@ -166,14 +177,18 @@ exactProbabilitiesByState count matrix target
     mapProbabilities transform =
         S.vector . map transform . LA.toList . S.extract
 
-{- | Probabilities of infinitely many visits in canonical initial-state order.
+{- | Compute probabilities of infinitely many visits in canonical initial-state
+order.
 For target @i@, coordinate @j@ is @P(V_i = infinity | X_0 = j)@. A recurrent
 target returns its hitting probabilities; a transient target returns an exact
 zero vector without a linear solve.
 
 Recurrence is decided from the support graph. The recurrent case inherits the
-numerical behavior and errors of
+numerical behaviour and errors of
 'Dtmc.Analysis.HittingTime.eventualProbabilityGivenInitialState'.
+
+Complexity: @O(n^3)@ worst-case time, @O(n^2)@ temporary space, and @O(n)@
+result space.
 -}
 infiniteProbabilitiesByState ::
     forall state.
@@ -189,9 +204,14 @@ infiniteProbabilitiesByState matrix target
                 finiteStates
     | otherwise = Right (S.vector [0 | _ <- finiteStates @state])
 
-{- | Probability of infinitely many visits from one initial state. Argument
-order is matrix, target, then initial state. Partially applying the matrix and
-target shares the all-state computation.
+{- | Compute the probability of infinitely many visits from one initial state.
+Argument order is matrix, target, then initial state. Partially applying the
+matrix and target shares the all-state computation.
+
+Complexity: the first forced query takes @O(n^3)@ worst-case time,
+@O(n^2)@ temporary space, and may retain an @O(n)@ all-state cache;
+subsequent shared lookups take @O(1)@ time. The scalar result occupies
+@O(1)@ space.
 -}
 infiniteProbabilityGivenInitialState ::
     (FiniteState state) =>
@@ -204,15 +224,19 @@ infiniteProbabilityGivenInitialState matrix target =
   where
     probabilities = S.extract <$> infiniteProbabilitiesByState matrix target
 
-{- | Expected total visits to the target in canonical initial-state order.
+{- | Compute expected total visits to the target in canonical initial-state
+order.
 
 For a transient target @i@, coordinate @j@ is
 @h_ji / (1 - f_i)@. For a recurrent target it is zero when @i@ is
 unreachable from @j@ and 'InfiniteExpectation' otherwise. The recurrent case
 is decided entirely from the support graph and requires no linear solve.
 
-Transient results inherit the numerical behavior and errors of
+Transient results inherit the numerical behaviour and errors of
 the state-conditioned eventual hitting and return queries.
+
+Complexity: @O(n^3)@ worst-case time, @O(n^2)@ temporary space, and @O(n)@
+result space.
 -}
 totalExpectationsByState ::
     forall state.
@@ -241,9 +265,14 @@ totalExpectationsByState matrix target
   where
     reachingTarget = backwardReachabilityMask matrix [target]
 
-{- | Expected total visits to the target from one initial state. Argument
-order is matrix, target, then initial state. Partially applying the matrix and
-target shares the all-state computation.
+{- | Compute expected total visits to the target from one initial state.
+Argument order is matrix, target, then initial state. Partially applying the
+matrix and target shares the all-state computation.
+
+Complexity: the first forced query takes @O(n^3)@ worst-case time,
+@O(n^2)@ temporary space, and may retain an @O(n)@ all-state cache;
+subsequent shared list lookups take @O(n)@ worst-case time and @O(1)@
+temporary space. The scalar result occupies @O(1)@ space.
 -}
 totalExpectationGivenInitialState ::
     (FiniteState state) =>
@@ -264,7 +293,7 @@ iterateNatural steps advance = go steps
         let next = advance value
          in next `seq` go (remaining - 1) next
 
-{- | Distribution of
+{- | Construct the distribution of
 @N_A(c) = sum_(t = 0)^(c - 1) 1_A(X_t)@, the number of visits to the supplied
 state predicate strictly before time @c@.
 
@@ -276,6 +305,18 @@ result is supported on counts from zero through the bound.
 The result is computed from the exact finite reachable support of the joint
 process @(X_t, N_A(t + 1))@. Ordinary 'Double' arithmetic is preserved without
 clamping or renormalisation.
+
+For the complexity bounds, @k@ is the time bound, @s@ the initial stored
+support size, @j@ an upper bound on live or accumulated joint
+@(state, count)@ pairs, @e@ an upper bound on transition edges traversed per
+step, and @r@ an upper bound on count keys accumulated before final zero
+removal. The returned support contains at most @r@ counts.
+
+Complexity: excluding the initial 'distributionWeights' call,
+'transitionLaw', and predicate evaluation,
+@O(s log(s + 1) + k (j + e log(j + 1)) + j log(r + 1) + r)@ time,
+@O(j + r)@ temporary space, and @O(r)@ result space. At @k = 0@ the function
+takes @O(1)@ time and space and does not inspect its other arguments.
 -}
 boundedLaw ::
     ( Distribution distribution
@@ -323,11 +364,21 @@ boundedLaw bound initial transition isVisited
                 (\counts (_, count) weight -> Map.insertWith (+) count weight counts)
                 Map.empty
 
-{- | Expected number of visits before the strict time bound. Using
+{- | Compute the expected number of visits before the strict time bound. Using
 @E(N_A(c)) = sum_(t = 0)^(c - 1) P(X_t in A)@, this evolves only the state
 marginal rather than constructing the joint count distribution. The result
 lies mathematically between zero and the bound, subject to ordinary
 floating-point error.
+
+For the complexity bounds, @k@ is the time bound, @s@ the initial stored
+support size, and @w@, @e@, and @u@ are per-step upper bounds on stored source
+states, traversed transition edges, and accumulated destination states.
+
+Complexity: excluding the initial 'distributionWeights' call,
+'transitionLaw', and predicate evaluation,
+@O(s log(s + 1) + k (w + e log(u + 1) + u))@ time, @O(w + u)@ temporary
+space, and @O(1)@ result space. At @k = 0@ the function takes @O(1)@ time and
+space and does not inspect its other arguments.
 -}
 boundedExpectation ::
     ( Distribution distribution
@@ -359,8 +410,8 @@ boundedExpectation bound initial transition isVisited =
                     let next = pushSparseWeights weights transition
                      in cumulative `seq` next `seq` go (remaining - 1) next cumulative
 
-{- | Probability under an arbitrary initial distribution of a finite-threshold
-event in the total number of visits
+{- | Compute, under an arbitrary initial distribution, the probability of a
+finite-threshold event in the total number of visits
 @V_i = sum_(t = 0)^infinity 1_{X_t = i}@.
 
 The initial state at time zero is included. Upper-tail events include the atom
@@ -371,6 +422,12 @@ classification, so their positive mass is placed structurally at infinity.
 
 The implementation mixes the internally shared state-conditioned results
 under the supplied initial distribution.
+
+For the complexity bounds, @n@ is the state count, @s@ the initial stored
+support size, and @k@ the event's numeric threshold.
+
+Complexity: excluding 'distributionWeights', @O(n^3 + s + log(k + 1))@
+worst-case time, @O(n^2 + s)@ temporary space, and @O(1)@ result space.
 -}
 totalProbability ::
     ( FiniteState state
@@ -385,7 +442,15 @@ totalProbability ::
 totalProbability event matrix target initial =
     probabilityUnderEither initial (totalProbabilityGivenInitialState event matrix target)
 
--- | Probability of a total-visit event conditioned on @X_0 = j@.
+{- | Compute the probability of a total-visit event conditioned on @X_0 = j@.
+Partially applying the event, matrix, and target shares the all-state
+computation.
+
+Complexity: the first forced query takes @O(n^3 + log(k + 1))@ worst-case
+time, @O(n^2)@ temporary space, and may retain an @O(n)@ all-state cache for
+event threshold @k@; subsequent shared lookups take @O(1)@ time. The scalar
+result occupies @O(1)@ space.
+-}
 totalProbabilityGivenInitialState ::
     (FiniteState state) =>
     DiscreteEvent ->
@@ -398,13 +463,16 @@ totalProbabilityGivenInitialState event matrix target =
   where
     probabilities = S.extract <$> totalProbabilityByState event matrix target
 
-{- | Total-visit event probabilities in canonical initial-state order.
+{- | Compute total-visit event probabilities in canonical initial-state order.
 Coordinate @j@ is @P_j(V_i in E)@ for the supplied target @i@ and
 'DiscreteEvent' @E@. Upper tails are evaluated directly and include infinitely
 many visits; lower tails contain finite counts only.
 
 Graph classification and any required checked linear solves are shared across
 all initial states. Structural zero and one boundaries avoid a solve.
+
+Complexity: @O(n^3 + log(k + 1))@ worst-case time, @O(n^2)@ temporary
+space, and @O(n)@ result space for @n@ states and event threshold @k@.
 -}
 totalProbabilityByState ::
     forall state.
@@ -454,8 +522,14 @@ totalProbabilityByState event matrix target =
             returning <- Return.eventualProbabilityGivenInitialState matrix target
             pure (mapValues (* (returning ^ count)) hitValues)
 
-{- | Probability under an arbitrary initial distribution of infinitely many
-visits.
+{- | Compute, under an arbitrary initial distribution, the probability of
+infinitely many visits to the target. A transient target gives exactly zero;
+a recurrent target mixes its state-conditioned hitting probabilities. Any
+numerical failure comes from the checked hitting-probability solve.
+
+Complexity: excluding 'distributionWeights', @O(n^3 + s)@ worst-case time,
+@O(n^2 + s)@ temporary space, and @O(1)@ result space for @n@ states and
+initial stored support size @s@.
 -}
 infiniteProbability ::
     ( FiniteState state
@@ -469,7 +543,16 @@ infiniteProbability ::
 infiniteProbability matrix target initial =
     probabilityUnderEither initial (infiniteProbabilityGivenInitialState matrix target)
 
--- | Expected total visits under an arbitrary initial distribution.
+{- | Compute expected total visits under an arbitrary initial distribution.
+
+A recurrent target gives 'InfiniteExpectation' exactly when it is reachable
+from a state with positive initial weight. A transient target has a finite
+result unless a required checked hitting or return solve fails.
+
+Complexity: excluding 'distributionWeights', @O(n^3 + s n)@ worst-case time,
+@O(n^2 + s)@ temporary space, and @O(1)@ result space for @n@ states and
+initial stored support size @s@.
+-}
 totalExpectation ::
     ( FiniteState state
     , Distribution distribution
@@ -482,9 +565,17 @@ totalExpectation ::
 totalExpectation matrix target initial =
     expectationUnderEither initial (totalExpectationGivenInitialState matrix target)
 
-{- | Probability of a 'DiscreteEvent' in the number of visits strictly before
-a finite time bound. The bounded law has no atom at infinity, and values
-outside its support contribute exactly zero.
+{- | Compute the probability of a 'DiscreteEvent' in the number of visits
+strictly before a finite time bound. The bounded law has no atom at infinity,
+and values outside its support contribute exactly zero.
+
+Use @k@, @s@, @j@, @e@, and @r@ as defined for 'boundedLaw'.
+
+Complexity: excluding the initial 'distributionWeights' call,
+'transitionLaw', and predicate evaluation,
+@O(s log(s + 1) + k (j + e log(j + 1)) + j log(r + 1) + r)@ time,
+@O(j + r)@ temporary space, and @O(1)@ result space. At @k = 0@ the function
+takes @O(1)@ time and space.
 -}
 boundedProbability ::
     ( Distribution distribution
@@ -507,7 +598,17 @@ boundedProbability bound event initial transition isVisited =
   where
     law = boundedLaw bound initial transition isVisited
 
--- | Probability of a bounded visit-count event conditioned on @X_0 = i@.
+{- | Compute the probability of a bounded visit-count event conditioned on
+@X_0 = i@.
+
+Use @k@, @j@, @e@, and @r@ as defined for 'boundedLaw'; the initial support
+has size one.
+
+Complexity: excluding 'transitionLaw' and predicate evaluation,
+@O(k (j + e log(j + 1)) + j log(r + 1) + r)@ time, @O(j + r)@ temporary
+space, and @O(1)@ result space. At @k = 0@ the function takes @O(1)@ time and
+space.
+-}
 boundedProbabilityGivenInitialState ::
     ( Transition transition
     , Ord (TransitionState transition)
@@ -521,8 +622,15 @@ boundedProbabilityGivenInitialState ::
 boundedProbabilityGivenInitialState bound event initial =
     boundedProbability bound event (pointMass initial)
 
-{- | Expected visits before a strict finite time bound conditioned on
+{- | Compute expected visits before a strict finite time bound conditioned on
 @X_0 = i@.
+
+Use @k@, @w@, @e@, and @u@ as defined for 'boundedExpectation'; the initial
+support has size one.
+
+Complexity: excluding 'transitionLaw' and predicate evaluation,
+@O(k (w + e log(u + 1) + u))@ time, @O(w + u)@ temporary space, and @O(1)@
+result space. At @k = 0@ the function takes @O(1)@ time and space.
 -}
 boundedExpectationGivenInitialState ::
     ( Transition transition
@@ -536,10 +644,11 @@ boundedExpectationGivenInitialState ::
 boundedExpectationGivenInitialState bound initial =
     boundedExpectation bound (pointMass initial)
 
-{- | The occupation matrix of the chain, also known as its Green function:
-entry @(i, j)@ is @sum_(n >= 0) (P^n)(i,j) = E(V_j | X_0 = i)@, the expected
-total number of visits to @j@ started from @i@. Rows and columns follow the
-canonical order of the 'FiniteState' instance.
+{- | Compute the occupation matrix of the chain, also known as its Green
+function. Entry @(i, j)@ is
+@sum_(n >= 0) (P^n)(i,j) = E(V_j | X_0 = i)@, the expected total number of
+visits to @j@ started from @i@. Rows and columns follow the canonical order of
+the 'FiniteState' instance.
 
 Unlike 'Dtmc.Analysis.Absorption.fundamentalMatrix', which is the finite
 @T x T@ block, this is defined on the whole state space and therefore needs
@@ -558,11 +667,17 @@ from the support graph, so they are exact.
 'Dtmc.Analysis.VisitCount.totalExpectation' computes single entries by a
 different route and agrees with this one.
 
+Returns 'Left' when construction of the transient fundamental matrix fails
+the checked linear-system contract.
+
 If there are @c@ recurrent classes, reverse reachability is computed once per
 class and shared by every target in it.
 
-Time: @O(n^2 + t^3 + c(n + E))@ for @t@ transient states and @E@ support
-edges. Result space: @O(n^2 + cn)@.
+Complexity: for @n@ states, @t@ transient states, @E@ support edges, and @c@
+closed classes, full evaluation takes
+@O(n^2 + (n + E) log(n + 1) + t^3 + c (n + E) + n^2 log(t + 1))@ time,
+@O(n^2)@ temporary space, @O(n + E)@ retained graph-cache space, and
+@O(n^2)@ result space. The time bound is @O(n^3)@ in the worst case.
 -}
 occupationMatrix ::
     forall state.

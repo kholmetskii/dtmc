@@ -2,7 +2,7 @@
 
 {- |
 Module      : Dtmc.Analysis.Classification
-Description : Communicating classes, irreducibility, periodicity, and recurrence.
+Description : Communication, irreducibility, periodicity, and recurrence.
 
 Qualitative DTMC properties derived from the support graph of @P@: there is an
 edge @i -> j@ exactly when the stored @P(i,j) > 0@. The comparison has no
@@ -12,10 +12,15 @@ magnitudes. Recurrence statements assume a finite, valid transition matrix.
 Queries accept named state constructors through 'FiniteState'; state lists are
 returned in the canonical order of that instance.
 
-For @n@ states and @E@ support edges, the first graph query scans @n^2@
-entries and may spend @O(n log n + E)@ building the requested cached graph
-facts. Queries on the same matrix share those lazy caches. A @0 x 0@ matrix
-has no communicating classes and is neither irreducible nor aperiodic here.
+For the complexity bounds, @n@ is the number of states and @E@ is the number
+of strictly positive entries. The stated per-operation bounds exclude
+'FiniteState' method costs and construction of the shared support graph. Its
+first use adds @O(n^2)@ time and temporary space and retains @O(n + E)@ cache
+space. Strong components, closedness, periods, and phases are also computed
+lazily and shared by later queries on the same matrix.
+
+A @0 x 0@ matrix has no communicating classes and is neither irreducible nor
+aperiodic here.
 -}
 module Dtmc.Analysis.Classification (
     -- * Reachability
@@ -81,10 +86,11 @@ toState index =
 toIndex :: (FiniteState state) => state -> Int
 toIndex = stateIndexInt
 
-{- | Whether @P(i,j) > 0@: a direct transition in the support graph. No
-tolerance is applied.
+{- | Test whether @P(i,j) > 0@, so that the support graph contains the direct
+edge @i -> j@. No tolerance is applied.
 
-Time: @O(outDegree(i))@ after the support graph is built.
+Complexity: excluding shared support-graph construction, @O(d_i)@ time and
+@O(1)@ temporary and result space for out-degree @d_i@ of state @i@.
 -}
 supportEdge ::
     (FiniteState state) =>
@@ -94,10 +100,11 @@ supportEdge ::
     Bool
 supportEdge p i j = G.hasEdge (tmSupport p) (toIndex i) (toIndex j)
 
-{- | Whether @j@ is reachable from @i@ in zero or more transitions. Hence every
-state is reachable from itself, even without a self-transition.
+{- | Test whether @j@ is reachable from @i@ in zero or more transitions.
+Every state is therefore reachable from itself, even without a self-loop.
 
-Time: @O(n + E)@; traversal space: @O(n)@.
+Complexity: excluding shared support-graph construction, @O(n + E)@ time,
+@O(n)@ temporary space, and @O(1)@ result space.
 -}
 accessible ::
     (FiniteState state) =>
@@ -107,11 +114,14 @@ accessible ::
     Bool
 accessible p i j = G.reachable (tmSupport p) (toIndex i) (toIndex j)
 
-{- | Whether any target is reachable from @i@ in zero or more transitions.
-An empty target list gives 'False'; including @i@ gives 'True'.
+{- | Test whether any supplied target is reachable from @i@ in zero or more
+transitions. An empty target list gives 'False'; including @i@ gives 'True'.
 
-The graph is traversed once rather than once per target. Worst-case time:
-@O(n + E + t)@ for @t@ supplied targets; space: @O(n)@.
+The graph is traversed once rather than once per target.
+
+Complexity: excluding shared support-graph construction, @O(n + E + t)@
+worst-case time, @O(n + t)@ temporary space, and @O(1)@ result space for @t@
+supplied targets.
 -}
 reachesAny ::
     (FiniteState state) =>
@@ -122,10 +132,13 @@ reachesAny ::
 reachesAny p i targets =
     G.reachesAny (tmSupport p) (toIndex i) (map toIndex targets)
 
-{- | Whether @i@ and @j@ communicate: each state is reachable from the other.
-This is an equivalence relation on the state space.
+{- | Test whether @i@ and @j@ communicate, meaning that each is reachable
+from the other. This is an equivalence relation on the state space.
 
-Time: @O(1)@ after strongly connected components are cached.
+Complexity: excluding shared support-graph construction, the first query
+takes @O(n + E + n log(n + 1))@ time and @O(n + E)@ temporary space and
+retains @O(n)@ component-cache space; subsequent queries take @O(1)@ time.
+Temporary and result space per cached query are @O(1)@.
 -}
 communicates ::
     (FiniteState state) =>
@@ -136,20 +149,27 @@ communicates ::
 communicates p i j =
     G.sameComponent (tmSupport p) (toIndex i) (toIndex j)
 
-{- | The communicating classes, equivalent to the strongly connected
-components of the support graph. States within a class and the classes by
-least member are both in ascending order.
+{- | Return the communicating classes, equivalently the strongly connected
+components of the support graph. States within each class are ascending, and
+classes are ordered by their least member.
 
-This is a focused projection of the complete 'classify' report. Result
-construction takes @O(n)@ after components are cached.
+This is a focused projection of the complete 'classify' report.
+
+Complexity: excluding shared support-graph construction, the first full
+evaluation takes @O(n + E + n log(n + 1))@ time and @O(n + E)@ temporary
+space and retains @O(n)@ component cache; subsequent evaluations take
+@O(n)@ time and temporary space. Result space is @O(n)@.
 -}
 communicatingClasses :: (FiniteState state) => TransitionMatrix state -> [[state]]
 communicatingClasses = map classMembers . classesOf . classify
 
-{- | Whether every state communicates with every other state. The empty chain
-is not irreducible.
+{- | Test whether every state communicates with every other state. The empty
+chain is not irreducible.
 
-Time: @O(1)@ after communicating classes are cached.
+Complexity: excluding shared support-graph construction, the first query
+takes @O(n + E + n log(n + 1))@ time and @O(n + E)@ temporary space and
+retains @O(n)@ component-cache space; subsequent queries take @O(1)@ time.
+Temporary and result space per cached query are @O(1)@.
 -}
 irreducible :: TransitionMatrix state -> Bool
 irreducible = graphIrreducible . tmSupport
@@ -160,12 +180,15 @@ graphIrreducible graph =
         [component] -> not (null component)
         _ -> False
 
-{- | The period of @i@:
+{- | Return the period of @i@:
 @gcd { k >= 1 | (P^k)(i,i) > 0 }@. Returns 'Nothing' when @i@ has no
 positive-length return path, necessarily a singleton class without a
 self-transition.
 
-Time: @O(1)@ after periods are cached.
+Complexity: excluding shared support-graph construction, the first query
+takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space and retains
+@O(n)@ period-cache space; subsequent queries take @O(1)@ time. Temporary
+and result space per cached query are @O(1)@.
 -}
 period ::
     (FiniteState state) =>
@@ -174,11 +197,15 @@ period ::
     Maybe Natural
 period p i = G.periodOf (tmSupport p) (toIndex i)
 
-{- | Whether every communicating class has period @1@. The empty chain and a
-chain containing a class with undefined period are not aperiodic under this
-definition.
+{- | Test whether every communicating class has period @1@. The empty chain
+and a chain containing a class with undefined period are not aperiodic under
+this definition.
 
-Time: @O(c)@ for @c@ cached communicating classes.
+Complexity: excluding shared support-graph construction, the first query
+takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space and retains
+@O(n)@ component and period cache; later queries take @O(c)@ time for @c@
+communicating classes. Temporary and result space per cached query are
+@O(1)@.
 -}
 aperiodic :: TransitionMatrix state -> Bool
 aperiodic = graphAperiodic . tmSupport
@@ -195,7 +222,10 @@ graphAperiodic graph =
 @C_((r+1) mod d)@; @C_0@ contains the least state. Returns 'Nothing' for a
 reducible chain or an undefined period.
 
-Time and result space: @O(n)@ after graph facts are cached.
+Complexity: excluding shared support-graph construction, the first full
+evaluation takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space
+and retains @O(n)@ component, period, and phase cache; later evaluations take
+@O(n)@ time and temporary space. Result space is @O(n)@.
 -}
 cyclicClasses :: (FiniteState state) => TransitionMatrix state -> Maybe [[state]]
 cyclicClasses p
@@ -206,7 +236,7 @@ cyclicClasses p
             Just d ->
                 let dInt = fromIntegral d
                     -- One pass buckets every vertex by its phase (@O(V + d)@),
-                    -- instead of scanning all vertices once per phase (@O(dV)@).
+                    -- rather than scanning all vertices once per phase.
                     buckets =
                         Array.accumArray
                             (flip (:))
@@ -217,11 +247,14 @@ cyclicClasses p
   where
     g = tmSupport p
 
-{- | Whether the chain returns to @i@ with probability one when started there.
-For a finite DTMC this holds exactly when @i@ belongs to a closed communicating
-class.
+{- | Test whether the chain returns to @i@ with probability one when started
+there. For a finite DTMC this holds exactly when @i@ belongs to a closed
+communicating class.
 
-Time: @O(1)@ after class closedness is cached.
+Complexity: excluding shared support-graph construction, the first query
+takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space and retains
+@O(n)@ component-closedness cache; subsequent queries take @O(1)@ time.
+Temporary and result space per cached query are @O(1)@.
 -}
 recurrentState ::
     (FiniteState state) =>
@@ -230,10 +263,13 @@ recurrentState ::
     Bool
 recurrentState p i = G.inClosedComponent (tmSupport p) (toIndex i)
 
-{- | Whether @i@ is transient: the probability of returning from @i@ is less
-than one. This is the negation of 'recurrentState' for a finite DTMC.
+{- | Test whether @i@ is transient, meaning that its return probability is
+less than one. This is the negation of 'recurrentState' for a finite DTMC.
 
-Time: @O(1)@ after class closedness is cached.
+Complexity: excluding shared support-graph construction, the first query
+takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space and retains
+@O(n)@ component-closedness cache; subsequent queries take @O(1)@ time.
+Temporary and result space per cached query are @O(1)@.
 -}
 transientState ::
     (FiniteState state) =>
@@ -242,21 +278,29 @@ transientState ::
     Bool
 transientState p i = not (recurrentState p i)
 
-{- | Members of the closed communicating classes, ordered by class and state
-index. Every non-empty finite DTMC has at least one; the empty chain returns
-the empty list.
+{- | Return the members of closed communicating classes, ordered by class and
+state index. Every non-empty finite DTMC has at least one; the empty chain
+returns the empty list.
 
-This is a focused projection of the complete 'classify' report. Time and
-result space: @O(n)@ after class closedness is cached.
+This is a focused projection of the complete 'classify' report.
+
+Complexity: excluding shared support-graph construction, the first full
+evaluation takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space
+and retains @O(n)@ component and closedness cache; later evaluations take
+@O(n)@ time and temporary space. Result space is @O(n)@.
 -}
 recurrentStates :: (FiniteState state) => TransitionMatrix state -> [state]
 recurrentStates = recurrentStatesOf . classify
 
-{- | Members of the non-closed communicating classes, ordered by class and
-state index. The result is empty exactly when every class is closed.
+{- | Return the members of non-closed communicating classes, ordered by class
+and state index. The result is empty exactly when every class is closed.
 
-This is a focused projection of the complete 'classify' report. Time and
-result space: @O(n)@ after class closedness is cached.
+This is a focused projection of the complete 'classify' report.
+
+Complexity: excluding shared support-graph construction, the first full
+evaluation takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space
+and retains @O(n)@ component and closedness cache; later evaluations take
+@O(n)@ time and temporary space. Result space is @O(n)@.
 -}
 transientStates :: (FiniteState state) => TransitionMatrix state -> [state]
 transientStates = transientStatesOf . classify
@@ -266,8 +310,11 @@ irreducibility, and aperiodicity report from one shared support graph. The
 standalone whole-chain queries are focused projections of this report; scalar
 reachability, period, and recurrence queries remain direct graph lookups.
 
-On an unforced matrix, time is @O(n^2 + n log n + E)@ and cached graph plus
-report space is @O(n + E)@.
+Complexity: full evaluation on an unforced matrix takes
+@O(n^2 + (n + E) log(n + 1))@ time, @O(n^2 + n + E)@ temporary space,
+@O(n + E)@ retained graph-cache space, and @O(n)@ result space. With all
+graph facts cached, it takes @O(n)@ time and @O(n)@ temporary and result
+space.
 -}
 classify :: (FiniteState state) => TransitionMatrix state -> Classification state
 classify p =

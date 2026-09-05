@@ -5,8 +5,8 @@ Module      : Dtmc.Analysis.Classification.Internal
 Description : Internal carriers and graph operations for chain classification.
 
 Raw carrier types and solver-oriented graph operations behind
-"Dtmc.Analysis.Classification": the per-class summary 'type CommClass' and the
-whole-chain structural report 'type Classification'. This module exposes the
+"Dtmc.Analysis.Classification": the per-class summary t'CommClass' and the
+whole-chain structural report t'Classification'. This module exposes the
 report constructor for trusted internal use; constructing it here may produce
 summary fields inconsistent with its communicating classes.
 -}
@@ -51,10 +51,10 @@ deriving instance (Eq state) => Eq (CommClass state)
 
 deriving instance (Show state) => Show (CommClass state)
 
-{- | A consistent structural report built by 'Dtmc.Analysis.Classification.classify'.
-The constructor is exposed here for trusted internal use; "Dtmc.Analysis.Classification"
-keeps it hidden so its summary fields stay aligned with its communicating
-classes.
+{- | A consistent structural report built by
+'Dtmc.Analysis.Classification.classify'. The constructor is exposed here for
+trusted internal use; "Dtmc.Analysis.Classification" keeps it hidden so its
+summary fields stay aligned with its communicating classes.
 -}
 data Classification state = Classification
     { classesOf :: [CommClass state]
@@ -68,14 +68,14 @@ data Classification state = Classification
     implies convergence to its unique stationary distribution.
     -}
     , chainPeriod :: Maybe Natural
-    {- ^ The period of the chain when it is irreducible (@Just d@); @Nothing@ for
-    a reducible chain (where the period is a per-class notion) or when the
-    single class has no cycles.
+    {- ^ The period of an irreducible chain (@Just d@), or @Nothing@ for a
+    reducible chain, where period is a per-class notion, or when the single
+    class has no cycles.
     -}
     , recurrentStatesOf :: [state]
-    -- ^ States lying in closed classes -- recurrent, in the finite-chain sense.
+    -- ^ States in closed classes, which are recurrent in a finite chain.
     , transientStatesOf :: [state]
-    -- ^ States lying in non-closed classes -- transient.
+    -- ^ States in non-closed classes, which are transient.
     , absorbingStates :: [state]
     {- ^ Singleton closed classes. For exact stochastic rows these are
     absorbing states with @P(i,i) = 1@; numerically derived or otherwise
@@ -98,12 +98,17 @@ toState index =
 toIndex :: (FiniteState state) => state -> Int
 toIndex = stateIndexInt
 
-{- | States from which an allowed seed is reachable along a support path
-containing only states accepted by @allowed@. Disallowed seeds are ignored;
-the result is duplicate-free and ordered by state index.
+{- | Return states from which an allowed seed is reachable along a support
+path containing only states accepted by @allowed@. Disallowed seeds are
+ignored; the result is duplicate-free and ordered by state index.
 
-Time: @O(n + E + s)@ plus @n@ predicate evaluations for @s@ seeds. Temporary
-space: @O(n + E)@.
+For the complexity bounds, @n@ is the state count, @E@ the support-edge count,
+@s@ the number of supplied seeds, and @r@ the number of returned states.
+
+Complexity: excluding @n@ evaluations of @allowed@, 'FiniteState' method
+costs, and shared support-graph construction, @O(n + E + s)@ time,
+@O(n + E + s)@ temporary space, and @O(r)@ result space. The first reverse
+traversal also retains @O(n + E)@ predecessor-cache space.
 -}
 backwardReachable ::
     (FiniteState state) =>
