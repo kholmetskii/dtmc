@@ -71,7 +71,6 @@ import Dtmc.Dynamics.Internal (
     pushSparseWeights,
  )
 import Dtmc.State (
-    Cardinality,
     FiniteState,
     finiteStates,
  )
@@ -87,7 +86,6 @@ import Dtmc.Transition.Matrix.Internal (
     unTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -181,7 +179,7 @@ eventualProbabilitiesByState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError (LA.Vector Double)
 eventualProbabilitiesByState p = do
     transientReturns <-
         if null transient
@@ -202,12 +200,12 @@ eventualProbabilitiesByState p = do
         valueAt i
             | recurrentState p i = 1
             | otherwise = transientValues Unboxed.! toIndex i
-    pure (S.vector [valueAt i | i <- finiteStates])
+    pure (LA.fromList [valueAt i | i <- finiteStates])
   where
     dim = stateCardinalityInt @state
     transient = transientStates p
     transientIdx = map toIndex transient
-    matrix = S.extract (unTransitionMatrix p)
+    matrix = unTransitionMatrix p
 
 {- | Compute the probability of returning to one state after at least one
 transition. A recurrent-state query returns exactly @1@ without forcing the
@@ -235,7 +233,7 @@ eventualProbabilityGivenInitialState p =
             then Right 1
             else (`LA.atIndex` toIndex i) <$> probabilities
   where
-    probabilities = S.extract <$> eventualProbabilitiesByState p
+    probabilities = eventualProbabilitiesByState p
 
 {- | Compute the expected first-return time for one state. A transient state
 returns 'InfiniteExpectation' without a numerical solve. For a recurrent
@@ -293,7 +291,7 @@ recurrentReturnExpectations p = do
     entriesForClass (members, distribution) =
         traverse (entry vector) members
       where
-        vector = S.extract (unDistributionVector distribution)
+        vector = unDistributionVector distribution
 
     entry vector member
         | stationaryProbability <= 0 || not (finite reciprocal) = Left NonFiniteSolution

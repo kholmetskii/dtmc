@@ -21,6 +21,11 @@ First Hackage release.
   limiting matrices, and cyclic subsequential limits.
 - Added state-labelled and list-based construction and inspection. No
   `hmatrix` type appears in the public API.
+- Changed the internal dense storage of `DistributionVector` and
+  `TransitionMatrix` from statically sized values to ordinary `hmatrix`
+  vectors and matrices. The public types remain state-indexed and abstract,
+  and their smart constructors continue to validate dimensions against the
+  finite state cardinality.
 - Added `Dtmc.Distribution.Map.mapStates` for transforming sparse
   distributions, combining the weights of states that share a target.
 - Added `Dtmc.Transition.Matrix.fromRows`, which builds a matrix from a grid

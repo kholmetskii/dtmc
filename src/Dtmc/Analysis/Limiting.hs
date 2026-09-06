@@ -76,7 +76,6 @@ import Dtmc.Transition.Matrix.Internal (
     unTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -150,7 +149,7 @@ convergentLimit p = do
                 ( LA.toLists
                     ( entering
                         LA.<> LA.fromRows
-                            [ S.extract (unDistributionVector distribution)
+                            [ unDistributionVector distribution
                             | (_, distribution) <- classes
                             ]
                     )
@@ -212,7 +211,7 @@ limitDecomposition p = do
     pure (classes, entering)
   where
     dim = stateCardinalityInt @state
-    matrix = S.extract (unTransitionMatrix p)
+    matrix = unTransitionMatrix p
     transient = transientStates p
     transientIndices = map toIndex transient
     closedClasses =
@@ -295,7 +294,7 @@ cyclicLimits p
                     )
   where
     dim = stateCardinalityInt @state
-    original = S.extract (unTransitionMatrix p)
+    original = unTransitionMatrix p
     powered = power commonPeriod p
     commonPeriod =
         foldr
@@ -324,7 +323,7 @@ cyclicLimits p
             (0, dim - 1)
             [ (memberIndex, vector `LA.atIndex` memberIndex)
             | (members, distribution) <- phaseClasses
-            , let vector = S.extract (unDistributionVector distribution)
+            , let vector = unDistributionVector distribution
             , member <- members
             , let memberIndex = stateIndexInt member
             ]

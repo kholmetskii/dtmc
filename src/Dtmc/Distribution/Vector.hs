@@ -2,8 +2,8 @@
 Module      : Dtmc.Distribution.Vector
 Description : Dense probability vectors over finite state types.
 
-t'DistributionVector' stores a probability law over a 'FiniteState' type in a
-statically sized vector. Coordinates follow its canonical state order, so
+t'DistributionVector' stores a probability law over a 'FiniteState' type in an
+hmatrix vector. Coordinates follow its canonical state order, so
 'fromList' and 'toList' are a positional pair: both speak the same list of
 weights, one coordinate per state. 'fromList' checks and canonicalises the
 simplex invariant with the @1e-9@ tolerance documented by
@@ -42,7 +42,6 @@ import Dtmc.State.Internal (
     stateCardinalityInt,
  )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 
 {- | Why a list of weights was rejected as a state distribution.
 -}
@@ -75,7 +74,7 @@ fromList ::
 fromList weights
     | supplied /= dimension = Left (WrongLength dimension supplied)
     | otherwise =
-        bimap InWeights (DistributionVector . S.vector) canonicalised
+        bimap InWeights (DistributionVector . LA.fromList) canonicalised
   where
     dimension = stateCardinalityInt @state
     supplied = length weights
@@ -87,5 +86,5 @@ zeros. This is a representation-neutral copy of the dense vector.
 Complexity: @O(n)@ time and @O(n)@ temporary and result space for state
 cardinality @n@.
 -}
-toList :: (FiniteState state) => DistributionVector state -> [Double]
-toList = LA.toList . S.extract . unDistributionVector
+toList :: DistributionVector state -> [Double]
+toList = LA.toList . unDistributionVector

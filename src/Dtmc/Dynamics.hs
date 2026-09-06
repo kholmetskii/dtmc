@@ -43,7 +43,7 @@ import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
     unTransitionMatrix,
  )
-import Numeric.LinearAlgebra.Static qualified as S
+import Numeric.LinearAlgebra qualified as LA
 import Numeric.Natural (Natural)
 
 {- | Compute the next-state distribution @mu' = transpose(P) mu@.
@@ -57,12 +57,11 @@ Complexity: @O(n^2)@ time, @O(n^2)@ temporary space in the worst case, and
 @O(n)@ result space for state cardinality @n@.
 -}
 evolveVector ::
-    (FiniteState state) =>
     DistributionVector state ->
     TransitionMatrix state ->
     DistributionVector state
 evolveVector (DistributionVector v) p =
-    DistributionVector (S.tr (unTransitionMatrix p) S.#> v)
+    DistributionVector (LA.tr (unTransitionMatrix p) LA.#> v)
 
 {- | Compute the distribution after @k@ transitions as
 @evolveVector mu (power k p)@. Exponent zero is the original distribution

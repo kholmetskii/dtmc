@@ -237,7 +237,7 @@ fourStateCyclic =
                 ]
             )
 
-matrixSupport :: (KnownNat n) => TransitionMatrix (Finite n) -> [[Bool]]
+matrixSupport :: TransitionMatrix (Finite n) -> [[Bool]]
 matrixSupport = map (map (> 0)) . toRows
 
 boolMul :: [[Bool]] -> [[Bool]] -> [[Bool]]

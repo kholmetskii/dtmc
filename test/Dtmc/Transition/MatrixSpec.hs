@@ -116,6 +116,11 @@ spec = do
                 `shouldBe` []
 
     describe "fromRows" $ do
+        it "constructs the empty finite chain" $
+            case fromRows @(Finite 0) [] of
+                Right transitionMatrix -> toRows transitionMatrix `shouldBe` []
+                Left err -> expectationFailure ("expected acceptance, got " <> show err)
+
         prop "stores canonical rows close to the accepted input" $
             forAll (genTransitionRows 3) $ \matrix ->
                 case fromRows @(Finite 3) matrix of

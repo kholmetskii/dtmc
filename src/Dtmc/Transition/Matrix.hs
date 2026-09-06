@@ -63,7 +63,6 @@ import Dtmc.Transition.Matrix.Internal (
     unsafeTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -103,7 +102,7 @@ fromRows ::
 fromRows rows
     | suppliedRows /= dimension = Left (WrongRowCount dimension suppliedRows)
     | otherwise =
-        unsafeTransitionMatrix . S.matrix . concat
+        unsafeTransitionMatrix . (dimension LA.>< dimension) . concat
             <$> traverse canonicaliseRow (zip [0 ..] rows)
   where
     dimension = stateCardinalityInt @state
@@ -125,17 +124,20 @@ Complexity: excluding evaluation of 'finiteStates' and the kernel laws,
 @O(n^2)@ time and @O(n^2)@ temporary and result space.
 -}
 fromKernel ::
+    forall state.
     (FiniteState state) =>
     TransitionKernel state ->
     TransitionMatrix state
 fromKernel kernel =
     unsafeTransitionMatrix $
-        S.matrix
+        (dimension LA.>< dimension)
             [ weight
             | source <- finiteStates
             , let distribution = transitionLaw kernel source
             , weight <- denseWeights finiteStates distribution
             ]
+  where
+    dimension = stateCardinalityInt @state
 
 {- | Return all stored entries as rows in canonical state order. Exact zeros
 are retained. This is a representation-neutral copy of the dense matrix and
@@ -143,8 +145,8 @@ does not force its support graph.
 
 Complexity: @O(n^2)@ time and @O(n^2)@ temporary and result space.
 -}
-toRows :: (FiniteState state) => TransitionMatrix state -> [[Double]]
-toRows = LA.toLists . S.extract . unTransitionMatrix
+toRows :: TransitionMatrix state -> [[Double]]
+toRows = LA.toLists . unTransitionMatrix
 
 {- | Compose two transitions: @compose p q@ means take a @p@ step,
 then a @q@ step, and stores the matrix product @P Q@.
@@ -156,7 +158,6 @@ Complexity: @O(n^3)@ worst-case time and @O(n^2)@ temporary and result space.
 The support graph is built lazily.
 -}
 compose ::
-    (FiniteState state) =>
     TransitionMatrix state ->
     TransitionMatrix state ->
     TransitionMatrix state

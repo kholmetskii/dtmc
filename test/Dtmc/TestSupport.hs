@@ -262,7 +262,6 @@ setFirstEntry value ((_ : rest) : rows) =
 setFirstEntry _ rows = rows
 
 approxTransitionMatrixEq ::
-    (FiniteState state) =>
     Double ->
     TransitionMatrix state ->
     TransitionMatrix state ->
@@ -274,7 +273,6 @@ approxTransitionMatrixEq tolerance left right =
     close x y = abs (x - y) <= tolerance
 
 approxDistributionEq ::
-    (FiniteState state) =>
     Double ->
     DistributionVector state ->
     DistributionVector state ->

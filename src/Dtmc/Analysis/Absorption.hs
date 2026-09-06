@@ -68,7 +68,6 @@ import Dtmc.Distribution (
     Distribution (..),
  )
 import Dtmc.State (
-    Cardinality,
     FiniteState,
  )
 import Dtmc.State.Internal (
@@ -80,7 +79,6 @@ import Dtmc.Transition.Matrix.Internal (
     unTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 
 toIndex :: (FiniteState state) => state -> Int
 toIndex = stateIndexInt
@@ -135,7 +133,7 @@ fundamentalMatrix p
   where
     transient = transientStates p
     transientIdx = map toIndex transient
-    matrix = S.extract (unTransitionMatrix p)
+    matrix = unTransitionMatrix p
 
 {- | Compute absorption probabilities into one recurrent state in canonical
 state order. Coordinate @i@ is the probability that the supplied target is
@@ -161,12 +159,12 @@ probabilityByState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError (LA.Vector Double)
 probabilityByState p target
     | not (recurrentState p target) =
-        Right (S.vector (replicate dim 0))
+        Right (LA.fromList (replicate dim 0))
     | null transientIdx =
-        Right (S.vector [arrived i | i <- [0 .. dim - 1]])
+        Right (LA.fromList [arrived i | i <- [0 .. dim - 1]])
     | otherwise = do
         g <- fundamental (subMatrix transientIdx transientIdx matrix)
         let exits = LA.flatten (subMatrix transientIdx [targetIdx] matrix)
@@ -181,10 +179,10 @@ probabilityByState p target
             valueAt i
                 | transientMask Unboxed.! i = interior Unboxed.! i
                 | otherwise = arrived i
-        pure (S.vector [valueAt i | i <- [0 .. dim - 1]])
+        pure (LA.fromList [valueAt i | i <- [0 .. dim - 1]])
   where
     dim = stateCardinalityInt @state
-    matrix = S.extract (unTransitionMatrix p)
+    matrix = unTransitionMatrix p
     targetIdx = toIndex target
     transientIdx = map toIndex (transientStates p)
     transientMask :: Unboxed.UArray Int Bool
@@ -238,7 +236,7 @@ probabilityGivenInitialState ::
 probabilityGivenInitialState p target =
     \i -> (`LA.atIndex` toIndex i) <$> values
   where
-    values = S.extract <$> probabilityByState p target
+    values = probabilityByState p target
 
 {- | Compute the expected number of transitions until the chain first enters
 the recurrent states under an arbitrary initial distribution. The value is

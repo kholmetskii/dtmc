@@ -85,7 +85,6 @@ import Dtmc.Dynamics.Internal (
     pushSparseWeights,
  )
 import Dtmc.State (
-    Cardinality,
     FiniteState,
     finiteStates,
  )
@@ -100,7 +99,6 @@ import Dtmc.Transition.Matrix (
     TransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -157,7 +155,7 @@ exactProbabilitiesByState ::
     Natural ->
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError (LA.Vector Double)
 exactProbabilitiesByState count matrix target
     | count == 0 = mapProbabilities (1 -) <$> hitting
     | recurrentState matrix target = Right zeroProbabilities
@@ -167,15 +165,14 @@ exactProbabilitiesByState count matrix target
         let finiteMass = returning ^ (count - 1) * (1 - returning)
         pure (mapProbabilities (* finiteMass) hits)
   where
-    hitting :: Either LinearSystemError (S.R (Cardinality state))
+    hitting :: Either LinearSystemError (LA.Vector Double)
     hitting =
-        S.vector
+        LA.fromList
             <$> traverse
                 (Hit.eventualProbabilityGivenInitialState matrix [target])
                 finiteStates
-    zeroProbabilities = S.vector [0 | _ <- finiteStates @state]
-    mapProbabilities transform =
-        S.vector . map transform . LA.toList . S.extract
+    zeroProbabilities = LA.fromList [0 | _ <- finiteStates @state]
+    mapProbabilities = LA.cmap
 
 {- | Compute probabilities of infinitely many visits in canonical initial-state
 order.
@@ -195,14 +192,14 @@ infiniteProbabilitiesByState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError (LA.Vector Double)
 infiniteProbabilitiesByState matrix target
     | recurrentState matrix target =
-        S.vector
+        LA.fromList
             <$> traverse
                 (Hit.eventualProbabilityGivenInitialState matrix [target])
                 finiteStates
-    | otherwise = Right (S.vector [0 | _ <- finiteStates @state])
+    | otherwise = Right (LA.fromList [0 | _ <- finiteStates @state])
 
 {- | Compute the probability of infinitely many visits from one initial state.
 Argument order is matrix, target, then initial state. Partially applying the
@@ -222,7 +219,7 @@ infiniteProbabilityGivenInitialState ::
 infiniteProbabilityGivenInitialState matrix target =
     \initial -> (`LA.atIndex` toIndex initial) <$> probabilities
   where
-    probabilities = S.extract <$> infiniteProbabilitiesByState matrix target
+    probabilities = infiniteProbabilitiesByState matrix target
 
 {- | Compute expected total visits to the target in canonical initial-state
 order.
@@ -461,7 +458,7 @@ totalProbabilityGivenInitialState ::
 totalProbabilityGivenInitialState event matrix target =
     \initial -> (`LA.atIndex` toIndex initial) <$> probabilities
   where
-    probabilities = S.extract <$> totalProbabilityByState event matrix target
+    probabilities = totalProbabilityByState event matrix target
 
 {- | Compute total-visit event probabilities in canonical initial-state order.
 Coordinate @j@ is @P_j(V_i in E)@ for the supplied target @i@ and
@@ -480,7 +477,7 @@ totalProbabilityByState ::
     DiscreteEvent ->
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError (LA.Vector Double)
 totalProbabilityByState event matrix target =
     case event of
         EqualTo count -> exactProbabilitiesByState count matrix target
@@ -492,16 +489,15 @@ totalProbabilityByState event matrix target =
         AtLeast count -> after (count - 1)
   where
     recurrent = recurrentState matrix target
-    hits :: Either LinearSystemError (S.R (Cardinality state))
+    hits :: Either LinearSystemError (LA.Vector Double)
     hits =
-        S.vector
+        LA.fromList
             <$> traverse
                 (Hit.eventualProbabilityGivenInitialState matrix [target])
                 finiteStates
-    zeros = S.vector [0 | _ <- finiteStates @state]
-    ones = S.vector [1 | _ <- finiteStates @state]
-    mapValues transform =
-        S.vector . map transform . LA.toList . S.extract
+    zeros = LA.fromList [0 | _ <- finiteStates @state]
+    ones = LA.fromList [1 | _ <- finiteStates @state]
+    mapValues = LA.cmap
 
     atMost count
         | recurrent = mapValues (1 -) <$> hits

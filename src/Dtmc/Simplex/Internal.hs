@@ -15,11 +15,7 @@ module Dtmc.Simplex.Internal (
 import Dtmc.Simplex (
     SimplexError (..),
  )
-import GHC.TypeNats (
-    KnownNat,
- )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 
 -- | The absolute tolerance shared by simplex construction and sampling repair.
 simplexTolerance :: Double
@@ -36,9 +32,9 @@ empty vector yields @Left (SumOffBy 0)@.
 
 Complexity: @O(n)@ time and @O(n)@ temporary and result space.
 -}
-canonicaliseSimplex :: (KnownNat n) => S.R n -> Either SimplexError (S.R n)
+canonicaliseSimplex :: LA.Vector Double -> Either SimplexError (LA.Vector Double)
 canonicaliseSimplex vector =
-    S.vector <$> canonicaliseSimplexEntries (LA.toList (S.extract vector))
+    LA.fromList <$> canonicaliseSimplexEntries (LA.toList vector)
 
 {- | Construct a canonical finite list with the same tolerance, repair, and
 error ordering as 'canonicaliseSimplex'. Entry indices refer to the supplied

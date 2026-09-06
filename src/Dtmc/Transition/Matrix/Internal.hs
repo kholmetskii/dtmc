@@ -2,10 +2,10 @@
 Module      : Dtmc.Transition.Matrix.Internal
 Description : Raw carrier for transition matrices (unsafe underbelly).
 
-Raw carrier behind t'Dtmc.Transition.Matrix.TransitionMatrix': a statically
-sized matrix paired with its lazy support graph. The public smart constructor
-validates and canonicalises rows; this internal module exposes unchecked
-construction.
+Raw carrier behind t'Dtmc.Transition.Matrix.TransitionMatrix': an hmatrix
+matrix paired with its lazy support graph. The public smart constructor
+validates its square shape and canonicalises rows; this internal module
+exposes unchecked construction.
 
 The constructor is positional so the public matrix projection cannot act as a
 record-update setter and desynchronise the matrix from its cached graph.
@@ -25,10 +25,10 @@ import Dtmc.Distribution.Vector.Internal (
     DistributionVector (DistributionVector),
  )
 import Dtmc.State (
-    Cardinality,
     FiniteState,
  )
 import Dtmc.State.Internal (
+    stateCardinalityInt,
     stateIndexInt,
  )
 import Dtmc.Transition (
@@ -38,11 +38,7 @@ import Dtmc.Transition.Matrix.Internal.Graph (
     Graph,
     fromAdjacency,
  )
-import GHC.TypeNats (
-    KnownNat,
- )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 
 {- | A stored square matrix whose rows and columns follow the canonical order
 of its finite state type. Entry @(i,j)@ is the transition probability from
@@ -58,7 +54,7 @@ directly.
 -}
 data TransitionMatrix state
     = -- | Unchecked matrix/cache pair; the graph must match the matrix.
-      TransitionMatrix (S.Sq (Cardinality state)) Graph
+      TransitionMatrix (LA.Matrix Double) Graph
 
 -- Nominal role prevents coercion between distinct state types, including
 -- state types with the same cardinality.
@@ -70,7 +66,7 @@ Complexity: @O(1)@ time and @O(1)@ space.
 -}
 unTransitionMatrix ::
     TransitionMatrix state ->
-    S.Sq (Cardinality state)
+    LA.Matrix Double
 unTransitionMatrix (TransitionMatrix matrix _) = matrix
 
 {- | Return the lazy support graph, with edge @i -> j@ exactly when the stored
@@ -103,8 +99,7 @@ the support graph takes @O(n^2)@ time and @O(n^2)@ temporary space; the graph
 occupies @O(n + E)@ space for @E@ support edges.
 -}
 unsafeTransitionMatrix ::
-    (FiniteState state) =>
-    S.Sq (Cardinality state) ->
+    LA.Matrix Double ->
     TransitionMatrix state
 unsafeTransitionMatrix matrix =
     TransitionMatrix matrix (supportGraphOf matrix)
@@ -122,9 +117,7 @@ matrixRowAt ::
     DistributionVector state
 matrixRowAt matrix state =
     DistributionVector
-        ( S.toRows (unTransitionMatrix matrix)
-            !! stateIndexInt state
-        )
+        (LA.toRows (unTransitionMatrix matrix) !! stateIndexInt state)
 
 instance (FiniteState state) => Transition (TransitionMatrix state) where
     type TransitionState (TransitionMatrix state) = state
@@ -135,8 +128,7 @@ instance (FiniteState state) => Transition (TransitionMatrix state) where
 -- Use strict positivity without tolerance so graph queries reflect the stored
 -- matrix exactly; keep construction here so the cache cannot become stale.
 supportGraphOf ::
-    (KnownNat dimension) =>
-    S.Sq dimension ->
+    LA.Matrix Double ->
     Graph
 supportGraphOf matrix =
     fromAdjacency
@@ -146,7 +138,7 @@ supportGraphOf matrix =
         , (j, entry) <- zip [0 ..] row
         ]
   where
-    rows = LA.toLists (S.extract matrix)
+    rows = LA.toLists matrix
     dim = length rows
 
 {- | Matrix multiplication as transition composition: @p '<>' q@ takes a @p@
@@ -154,16 +146,16 @@ step followed by a @q@ step. Exact products preserve row-stochasticity and
 associativity; 'Double' results are neither revalidated nor exactly
 associative.
 -}
-instance (FiniteState state) => Semigroup (TransitionMatrix state) where
+instance Semigroup (TransitionMatrix state) where
     (<>) ::
         TransitionMatrix state ->
         TransitionMatrix state ->
         TransitionMatrix state
-    p <> q = unsafeTransitionMatrix (unTransitionMatrix p S.<> unTransitionMatrix q)
+    p <> q = unsafeTransitionMatrix (unTransitionMatrix p LA.<> unTransitionMatrix q)
 
 {- | The identity matrix represents zero transitions and is the unit of the
 transition-composition monoid.
 -}
 instance (FiniteState state) => Monoid (TransitionMatrix state) where
     mempty :: TransitionMatrix state
-    mempty = unsafeTransitionMatrix S.eye
+    mempty = unsafeTransitionMatrix (LA.ident (stateCardinalityInt @state))

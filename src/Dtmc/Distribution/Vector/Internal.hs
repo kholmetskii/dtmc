@@ -15,7 +15,6 @@ import Dtmc.Distribution (
     Distribution (..),
  )
 import Dtmc.State (
-    Cardinality,
     FiniteState,
     finiteStates,
  )
@@ -23,14 +22,13 @@ import Dtmc.State.Internal (
     stateIndexInt,
  )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 
 {- | A state distribution vector whose coordinates follow the canonical order
 of its finite state type. The internal constructor performs no validation.
 -}
 newtype DistributionVector state
-    = -- | Wrap an unchecked statically sized probability vector.
-      DistributionVector (S.R (Cardinality state))
+    = -- | Wrap an unchecked probability vector.
+      DistributionVector (LA.Vector Double)
 
 -- Nominal role prevents coercion between distinct state types, including
 -- state types with the same cardinality.
@@ -45,15 +43,14 @@ Complexity: @O(1)@ time and @O(1)@ space.
 -}
 unDistributionVector ::
     DistributionVector state ->
-    S.R (Cardinality state)
+    LA.Vector Double
 unDistributionVector (DistributionVector vector) = vector
 
 instance (FiniteState state) => Distribution (DistributionVector state) where
     type DistributionState (DistributionVector state) = state
 
     probabilityAt distribution state =
-        S.extract (unDistributionVector distribution)
-            `LA.atIndex` stateIndexInt state
+        unDistributionVector distribution `LA.atIndex` stateIndexInt state
 
     distributionWeights distribution =
         [ (state, weight)
@@ -61,4 +58,4 @@ instance (FiniteState state) => Distribution (DistributionVector state) where
         , weight /= 0
         ]
       where
-        weights = LA.toList (S.extract (unDistributionVector distribution))
+        weights = LA.toList (unDistributionVector distribution)

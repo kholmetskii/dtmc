@@ -108,6 +108,13 @@ Structural and infinite-horizon analyses—including classification,
 absorption, stationarity, and limiting behaviour—require a finite
 `TransitionMatrix`.
 
+`DistributionVector state` and `TransitionMatrix state` remain abstract and
+nominally tied to `state`, so values for distinct state types cannot be mixed.
+Internally, their dense storage uses ordinary `hmatrix` vectors and matrices
+rather than type-level, statically sized values. The public smart constructors
+therefore check vector lengths and matrix dimensions against the
+`FiniteState` cardinality before storing them.
+
 ### Finite state types
 
 Derive `FiniteState` for a fieldless enumeration with `Generic`, as in the
@@ -204,7 +211,7 @@ instead of storing invalid values. They accept coordinate and total-mass error
 within `1e-9`, clamp tolerated coordinate error to `[0, 1]`, and normalise the
 repaired weights. `NaN` and infinite coordinates are rejected.
 
-The explicit `hmatrix` transition-matrix constructor validates and repairs
+`Dtmc.Transition.Matrix.fromRows` validates the matrix dimensions and repairs
 each row under the same policy, returning `TransitionMatrixError` on failure.
 
 Linear-system-based hitting, return, absorption, stationary, and limiting
@@ -226,8 +233,11 @@ contract, and time and space complexity.
 No `hmatrix` type appears anywhere in the public API. Matrices are built from
 and read back as plain lists of weights, and distributions as state-labelled
 weights or plain lists, so an application never mentions `hmatrix` in its own
-signatures. The package does use `hmatrix` internally for the linear algebra,
-so building it needs a BLAS/LAPACK implementation.
+signatures. Internally, `DistributionVector` stores an `hmatrix` vector and
+`TransitionMatrix` stores an `hmatrix` matrix; their dimensions are protected
+by the public construction paths rather than encoded in those storage types.
+The package also uses `hmatrix` for numerical linear algebra, so building it
+needs a BLAS/LAPACK implementation.
 
 ## Building and testing
 

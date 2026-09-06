@@ -71,7 +71,6 @@ import Dtmc.Transition.Matrix.Internal (
     unTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 
 toIndex :: (FiniteState state) => state -> Int
 toIndex = stateIndexInt
@@ -234,7 +233,7 @@ stationaryDistributions p =
     traverse distributionOn closedClasses
   where
     dim = stateCardinalityInt @state
-    matrix = S.extract (unTransitionMatrix p)
+    matrix = unTransitionMatrix p
     closedClasses =
         [classMembers c | c <- classesOf (classify p), classClosed c]
     distributionOn members = do
@@ -248,7 +247,7 @@ stationaryDistributions p =
                     (zip indices (LA.toList solution))
         pure
             ( members
-            , DistributionVector (S.vector [placed Unboxed.! i | i <- [0 .. dim - 1]])
+            , DistributionVector (LA.fromList [placed Unboxed.! i | i <- [0 .. dim - 1]])
             )
       where
         indices = map toIndex members

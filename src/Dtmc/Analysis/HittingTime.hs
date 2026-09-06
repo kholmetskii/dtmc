@@ -70,7 +70,6 @@ import Dtmc.Dynamics.Internal (
     pushSparseWeights,
  )
 import Dtmc.State (
-    Cardinality,
     FiniteState,
  )
 import Dtmc.State.Internal (
@@ -86,7 +85,6 @@ import Dtmc.Transition.Matrix.Internal (
     unTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -199,7 +197,7 @@ eventualProbabilitiesByState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError (LA.Vector Double)
 eventualProbabilitiesByState p targets =
     -- The ordinary hitting problem is the competing problem with no competing
     -- boundary (@H_B = infinity@), so it reuses the same single solve.
@@ -228,7 +226,7 @@ eventualProbabilityGivenInitialState ::
 eventualProbabilityGivenInitialState p targets =
     \i -> (`LA.atIndex` toIndex i) <$> probabilities
   where
-    probabilities = S.extract <$> eventualProbabilitiesByState p targets
+    probabilities = eventualProbabilitiesByState p targets
 
 {- | Compute competing hitting probabilities
 @h_i = P(H_A < H_B | X_0 = i)@ in state order, for a successful boundary @A@
@@ -280,7 +278,7 @@ raceProbabilitiesByState ::
     TransitionMatrix state ->
     [state] ->
     [state] ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError (LA.Vector Double)
 raceProbabilitiesByState p successful competing = do
     solved <-
         if null interiorIdx
@@ -301,7 +299,7 @@ raceProbabilitiesByState p successful competing = do
             | inEffective i = 1
             | canReach i = interiorValues Unboxed.! i
             | otherwise = 0
-    pure (S.vector [valueAt i | i <- [0 .. dim - 1]])
+    pure (LA.fromList [valueAt i | i <- [0 .. dim - 1]])
   where
     dim = stateCardinalityInt @state
     -- Masks keep boundary and solution lookup constant-time during assembly.
@@ -327,7 +325,7 @@ raceProbabilitiesByState p successful competing = do
             )
     canReach i = reachMask Unboxed.! i
     interiorIdx = [i | i <- [0 .. dim - 1], not (inEffective i), canReach i]
-    matrix = S.extract (unTransitionMatrix p)
+    matrix = unTransitionMatrix p
 
 {- | Compute the probability of hitting the successful boundary strictly
 before the competing boundary from one state, @P(H_A < H_B | X_0 = i)@. This
@@ -354,8 +352,7 @@ raceProbabilityGivenInitialState ::
 raceProbabilityGivenInitialState p successful competing =
     \i -> (`LA.atIndex` toIndex i) <$> probabilities
   where
-    probabilities =
-        S.extract <$> raceProbabilitiesByState p successful competing
+    probabilities = raceProbabilitiesByState p successful competing
 
 {- | Compute expected hitting times @E(H_A | X_0 = i)@ in state order.
 Targets have exact expectation zero. A non-target state has
@@ -419,7 +416,7 @@ expectationsByState p targets = do
     doomedMask = indexMask dim (map toIndex doomed)
     certainIdx =
         [i | i <- [0 .. dim - 1], not (inTarget i), not (doomedMask Unboxed.! i)]
-    matrix = S.extract (unTransitionMatrix p)
+    matrix = unTransitionMatrix p
 
 {- | Compute the expected time to hit the target set from one state. This has
 the same edge cases, numerical behaviour, and errors as @expectationsByState@.

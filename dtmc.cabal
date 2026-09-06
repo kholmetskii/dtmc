@@ -133,7 +133,6 @@ test-suite spec
     , containers >=0.6 && <0.8
     , dtmc
     , finite-typelits
-    , hmatrix
     , hspec
     , mwc-random
     , QuickCheck
