@@ -66,7 +66,7 @@ asTransitionKernel ::
     TransitionMatrix (Finite 3) ->
     Kernel.TransitionKernel (Finite 3)
 asTransitionKernel matrix =
-    Kernel.transitionKernel $ \source ->
+    Kernel.fromLaws $ \source ->
         checked $
             DistributionMap.fromList
                 [ (destination, stepProbability matrix source destination)
@@ -82,7 +82,7 @@ spec =
 
         it "exposes a source-dependent kernel through the same operation" $
             let kernel =
-                    Kernel.transitionKernel $ \source ->
+                    Kernel.fromLaws $ \source ->
                         checked $
                             DistributionMap.fromList
                                 [(source, 0.25), (source + 1, 0.75 :: Double)]
@@ -91,7 +91,10 @@ spec =
 
         it "exposes deterministic kernels as point-mass laws" $
             Distribution.distributionWeights
-                (Transition.transitionLaw (Kernel.deterministicKernel (+ 1)) (4 :: Int))
+                ( Transition.transitionLaw
+                    (Kernel.fromLaws (DistributionMap.pointMass . (+ 1)))
+                    (4 :: Int)
+                )
                 `shouldBe` [(5, 1)]
 
         prop "gives matrices and equivalent kernels approximately equal laws" $

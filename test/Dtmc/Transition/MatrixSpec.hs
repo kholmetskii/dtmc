@@ -11,6 +11,7 @@ import Data.Finite (
 import Dtmc.Distribution (
     distributionWeights,
  )
+import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.Distribution.Vector.HMatrix (
     mkDistributionVector,
     unDistributionVector,
@@ -106,7 +107,8 @@ spec = do
                     PhaseB -> PhaseC
                     PhaseC -> PhaseA
             materialised =
-                fromKernel (Kernel.deterministicKernel successor) ::
+                fromKernel
+                    (Kernel.fromLaws (DistributionMap.pointMass . successor)) ::
                     TransitionMatrix NamedPhase
 
         it "materialises a finite deterministic kernel" $
@@ -118,7 +120,7 @@ spec = do
 
         it "materialises the empty finite chain" $
             toRows
-                ( fromKernel (Kernel.deterministicKernel id) ::
+                ( fromKernel (Kernel.fromLaws DistributionMap.pointMass) ::
                     TransitionMatrix (Finite 0)
                 )
                 `shouldBe` []

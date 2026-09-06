@@ -26,7 +26,7 @@ import Dtmc.Distribution.Map (
 import Dtmc.TestSupport
 import Dtmc.Transition.Kernel (
     TransitionKernel,
-    transitionKernel,
+    fromLaws,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -72,7 +72,7 @@ terminalChain =
 
 simpleRandomWalk :: TransitionKernel Integer
 simpleRandomWalk =
-    transitionKernel $ \state ->
+    fromLaws $ \state ->
         checked
             (fromList [(state - 1, 0.5), (state + 1, 0.5)])
 
@@ -81,7 +81,7 @@ tinySurvival = 1e-12
 
 tinySurvivalKernel :: TransitionKernel Int
 tinySurvivalKernel =
-    transitionKernel $ \state ->
+    fromLaws $ \state ->
         case state of
             0 ->
                 checked

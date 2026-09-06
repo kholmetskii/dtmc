@@ -82,7 +82,7 @@ asTransitionKernel ::
     TransitionMatrix state ->
     Kernel.TransitionKernel state
 asTransitionKernel matrix =
-    Kernel.transitionKernel $ \source ->
+    Kernel.fromLaws $ \source ->
         either (error . show) id $
             DistributionMap.fromList
                 [ (destination, FT.stepProbability matrix source destination)
@@ -91,7 +91,7 @@ asTransitionKernel matrix =
 
 simpleRandomWalk :: Kernel.TransitionKernel Integer
 simpleRandomWalk =
-    Kernel.transitionKernel $ \state ->
+    Kernel.fromLaws $ \state ->
         either (error . show) id $
             DistributionMap.fromList [(state - 1, 0.5), (state + 1, 0.5)]
 

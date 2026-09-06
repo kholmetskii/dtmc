@@ -8,13 +8,11 @@ state-space enumeration is required or attempted.
 -}
 module Dtmc.Transition.Kernel (
     TransitionKernel,
-    transitionKernel,
-    deterministicKernel,
+    fromLaws,
 ) where
 
 import Dtmc.Distribution.Map (
     DistributionMap,
-    pointMass,
  )
 import Dtmc.Transition (
     Transition (..),
@@ -31,20 +29,14 @@ instance Transition (TransitionKernel state) where
 
     transitionLaw (TransitionKernel kernel) = kernel
 
-{- | Construct a kernel from a function that returns an already validated,
-map-backed law. No global state-space traversal is required or attempted.
+{- | Construct a kernel from the function that supplies its transition laws.
+Each law must already be a validated t'DistributionMap'; no global state-space
+traversal is required or attempted.
+'Dtmc.Transition.transitionLaw' reads those laws back.
 
 Complexity: @O(1)@ time and @O(1)@ space.
 -}
-transitionKernel ::
+fromLaws ::
     (state -> DistributionMap state) ->
     TransitionKernel state
-transitionKernel = TransitionKernel
-
-{- | Construct the deterministic kernel that maps each state to one successor.
-
-Complexity: @O(1)@ time and @O(1)@ space.
--}
-deterministicKernel :: (state -> state) -> TransitionKernel state
-deterministicKernel successor =
-    transitionKernel (pointMass . successor)
+fromLaws = TransitionKernel

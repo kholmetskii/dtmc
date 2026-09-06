@@ -26,7 +26,7 @@ import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.TestSupport
 import Dtmc.Transition.Kernel (
     TransitionKernel,
-    transitionKernel,
+    fromLaws,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -122,7 +122,7 @@ tinyVisitChain =
 
 simpleRandomWalk :: TransitionKernel Integer
 simpleRandomWalk =
-    transitionKernel $ \state ->
+    fromLaws $ \state ->
         checked
             ( DistributionMap.fromList
                 [(state - 1, 0.5), (state + 1, 0.5)]

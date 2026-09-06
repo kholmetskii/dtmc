@@ -10,6 +10,7 @@ import Dtmc.Distribution (
 import Dtmc.Distribution.Map (
     DistributionMap,
     fromList,
+    mapStates,
     pointMass,
     toMap,
  )
@@ -44,6 +45,32 @@ spec =
         it "returns zero for an absent state" $
             probabilityAt (pointMass "present") "absent"
                 `shouldBe` 0
+
+        it "pushes weights through a state mapping" $
+            case
+                ( fromList [(-1, 0.5), (1, 0.5)] ::
+                    Either DistributionError (DistributionMap Int)
+                )
+            of
+                Right steps ->
+                    distributionWeights (mapStates (+ 10) steps)
+                        `shouldBe` [(9, 0.5), (11, 0.5)]
+                Left err ->
+                    expectationFailure
+                        ("expected acceptance, got " <> show err)
+
+        it "combines weights whose states map to the same target" $
+            case
+                ( fromList [(0, 0.25), (1, 0.25), (2, 0.5)] ::
+                    Either DistributionError (DistributionMap Int)
+                )
+            of
+                Right distribution ->
+                    distributionWeights (mapStates (`mod` 2) distribution)
+                        `shouldBe` [(0, 0.75), (1, 0.25)]
+                Left err ->
+                    expectationFailure
+                        ("expected acceptance, got " <> show err)
 
         it "rejects an empty law" $
             (fromList [] :: Either DistributionError (DistributionMap Int))

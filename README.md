@@ -44,7 +44,7 @@ import qualified Dtmc.Distribution.Map as DistributionMap
 import Dtmc.Distribution.Vector (DistributionVector)
 import qualified Dtmc.Distribution.Vector as DistributionVector
 import Dtmc.State (FiniteState)
-import Dtmc.Transition.Kernel (TransitionKernel, transitionKernel)
+import Dtmc.Transition.Kernel (TransitionKernel, fromLaws)
 import Dtmc.Transition.Matrix (TransitionMatrix, fromKernel)
 import GHC.Generics (Generic)
 
@@ -56,7 +56,7 @@ weatherKernel = do
   dryLaw <- DistributionMap.fromList [(Dry, 0.9), (Wet, 0.1)]
   wetLaw <- DistributionMap.fromList [(Dry, 0.4), (Wet, 0.6)]
   pure $
-    transitionKernel $ \state ->
+    fromLaws $ \state ->
       case state of
         Dry -> dryLaw
         Wet -> wetLaw
@@ -120,21 +120,37 @@ also provides `FiniteState` instances for `()`, `Bool`, and `Ordering`.
 
 ### Potentially infinite state types
 
-A `TransitionKernel` does not enumerate its state space. For example, this
-deterministic chain visits successively larger integers:
+A `TransitionKernel` does not enumerate its state space. The following
+examples define deterministic and stochastic chains over the integers:
 
 ```haskell
+import Dtmc.Distribution (DistributionError)
+import qualified Dtmc.Distribution.Map as DistributionMap
 import Dtmc.Transition.Kernel
   ( TransitionKernel
-  , deterministicKernel
+  , fromLaws
   )
 
 countUp :: TransitionKernel Integer
-countUp = deterministicKernel (+ 1)
+countUp = fromLaws (DistributionMap.pointMass . (+ 1))
+
+randomWalk :: Either DistributionError (TransitionKernel Integer)
+randomWalk = do
+  steps <- DistributionMap.fromList
+    [ (-1, 0.5)
+    , (1, 0.5)
+    ]
+
+  pure $
+    fromLaws $ \position ->
+      DistributionMap.mapStates (+ position) steps
 ```
 
-A stochastic infinite-state kernel is created with `transitionKernel`. Its
-function must return an already validated `DistributionMap` for every state.
+The random walk validates its relative step distribution once. `mapStates`
+then translates that law to the current position while preserving its
+probability mass. Every transition still has finite support, although the
+states reachable over the whole lifetime of the chain are infinite.
+
 Each transition law and every representable initial distribution has finite
 support; no global enumeration or truncation is performed.
 
@@ -149,9 +165,11 @@ These are the built-in public construction paths:
 |---|---|---|
 | Sparse distribution | `Dtmc.Distribution.Map.fromList` or `pointMass` | `fromDistribution` |
 | Dense finite distribution | `Dtmc.Distribution.Vector.fromList` | `Dtmc.Distribution.Vector.HMatrix.mkDistributionVector` |
-| Functional transition kernel | `Dtmc.Transition.Kernel.transitionKernel` | `deterministicKernel` |
+| Functional transition kernel | `Dtmc.Transition.Kernel.fromLaws` | — |
 | Dense finite transition matrix | `Dtmc.Transition.Matrix.fromKernel` | `Dtmc.Transition.Matrix.HMatrix.mkTransitionMatrix` |
 
+`Dtmc.Distribution.Map.mapStates` transforms a validated sparse distribution
+and combines weights when several source states map to the same target.
 `identity`, `compose`, and `power` construct new transition matrices from
 existing ones.
 

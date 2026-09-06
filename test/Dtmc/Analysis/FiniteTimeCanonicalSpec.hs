@@ -28,7 +28,7 @@ import Dtmc.TestSupport (
  )
 import Dtmc.Transition.Kernel (
     TransitionKernel,
-    transitionKernel,
+    fromLaws,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -64,7 +64,7 @@ checked = either (error . show) id
 
 simpleRandomWalk :: TransitionKernel Integer
 simpleRandomWalk =
-    transitionKernel $ \state ->
+    fromLaws $ \state ->
         checked
             ( fromList
                 [(state - 1, 0.5), (state + 1, 0.5)]

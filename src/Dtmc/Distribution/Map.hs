@@ -10,6 +10,7 @@ module Dtmc.Distribution.Map (
     fromList,
     fromDistribution,
     pointMass,
+    mapStates,
     toMap,
 ) where
 
@@ -59,19 +60,47 @@ Complexity: @O(1)@ time and @O(1)@ result space.
 pointMass :: state -> DistributionMap state
 pointMass state = DistributionMap (Map.singleton state 1)
 
-{- | Convert any distribution representation to a map without revalidation or
-renormalisation. Exact-zero coordinates are already omitted by the
-'distributionWeights' contract.
+{- | Push a distribution through a deterministic state mapping. Weights whose
+states map to the same target are added, and an exact-zero combined weight is
+removed.
 
-Complexity: the cost of 'distributionWeights', plus @O(s)@ time and @O(s)@
-temporary and result space for @s@ returned weights.
+No validation, clamping, or renormalisation is performed. A valid input
+therefore remains a probability distribution up to ordinary floating-point
+summation error.
+
+Complexity: @O(s log(s + 1))@ time, @O(s)@ temporary space, and @O(r)@
+result space for @s@ stored source states and @r@ distinct target states.
+-}
+mapStates ::
+    (Ord target) =>
+    (source -> target) ->
+    DistributionMap source ->
+    DistributionMap target
+mapStates transform =
+    DistributionMap
+        . Map.filter (/= 0)
+        . Map.mapKeysWith (+) transform
+        . unDistributionMap
+
+{- | Convert any distribution representation to a map without revalidation or
+renormalisation. Weights reported for the same state are added and an
+exact-zero combined weight is removed, so an instance that reports states out
+of order, or reports one twice, still yields a structurally sound map. Whether
+the reported weights form a probability law remains the obligation of the
+'Distribution' instance.
+
+Complexity: the cost of 'distributionWeights', plus @O(s log s)@ time and
+@O(s)@ temporary and result space for @s@ returned weights.
 -}
 fromDistribution ::
-    (Distribution distribution) =>
+    (Distribution distribution, Ord (DistributionState distribution)) =>
     distribution ->
     DistributionMap (DistributionState distribution)
 fromDistribution =
-    DistributionMap . Map.fromDistinctAscList . distributionWeights
+    DistributionMap
+        . Map.filter (/= 0)
+        . Map.fromListWith (+)
+        . distributionWeights
 
 {- | Project the stored coordinates as a strict map. Exact-zero coordinates
 are already omitted, so the result carries the mathematical support with its

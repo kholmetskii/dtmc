@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0.0 — 2026-09-04
+## 0.2.0.0
 
 First Hackage release.
 
@@ -21,3 +21,5 @@ First Hackage release.
   limiting matrices, and cyclic subsequential limits.
 - Added state-labelled and list-based construction and inspection, with
   `hmatrix`-specific interoperability isolated in explicitly named modules.
+- Added `Dtmc.Distribution.Map.mapStates` for transforming sparse
+  distributions, combining the weights of states that share a target.

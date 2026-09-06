@@ -182,7 +182,7 @@ zeroStepAndGeneratorState = runST $ do
 
 emptyKernel :: Kernel.TransitionKernel Int
 emptyKernel =
-    Kernel.transitionKernel
+    Kernel.fromLaws
         (const (fromDistribution (UncheckedDistribution [])))
 
 spec :: Spec
@@ -264,8 +264,8 @@ spec = do
                     checkedSimulation
                         ( simulate
                             4
-                            ( Kernel.deterministicKernel
-                                (\state -> (state + 1) `mod` (3 :: Int))
+                            ( Kernel.fromLaws
+                                (pointMass . (\state -> (state + 1) `mod` (3 :: Int)))
                             )
                             0
                             generator
