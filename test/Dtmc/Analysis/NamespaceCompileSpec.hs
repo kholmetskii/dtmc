@@ -28,7 +28,6 @@ import Dtmc.TestSupport (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
-    TransitionMatrixError,
     fromRows,
  )
 import Test.Hspec (

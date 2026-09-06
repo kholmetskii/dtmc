@@ -163,8 +163,8 @@ These are the built-in public construction paths:
 
 | Value | Recommended construction | Alternative construction |
 |---|---|---|
-| Sparse distribution | `Dtmc.Distribution.Map.fromList` or `pointMass` | `fromDistribution` |
-| Dense finite distribution | `Dtmc.Distribution.Vector.fromList` | — |
+| Sparse distribution | `Dtmc.Distribution.Map.fromList` (state-labelled) or `pointMass` | `fromDistribution` |
+| Dense finite distribution | `Dtmc.Distribution.Vector.fromList` (one weight per state, canonical order) | — |
 | Functional transition kernel | `Dtmc.Transition.Kernel.fromLaws` | — |
 | Dense finite transition matrix | `Dtmc.Transition.Matrix.fromRows` or `fromKernel` | — |
 

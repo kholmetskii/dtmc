@@ -35,7 +35,6 @@ import Dtmc.TestSupport (
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
-    TransitionMatrixError,
     fromRows,
  )
 import GHC.Generics (Generic)

@@ -57,7 +57,6 @@ import Test.Hspec.QuickCheck (
     prop,
  )
 import Test.QuickCheck (
-    Gen,
     choose,
     counterexample,
     forAll,
