@@ -84,7 +84,7 @@ tmSupport (TransitionMatrix _ support) = support
 
 -- Manual 'Show': 'Graph' has no 'Show', and the derived cache should not
 -- appear in the rendering.
-instance (FiniteState state) => Show (TransitionMatrix state) where
+instance Show (TransitionMatrix state) where
     showsPrec d p =
         showParen (d > 10) $
             showString "TransitionMatrix "

@@ -34,7 +34,7 @@ newtype DistributionVector state
 -- state types with the same cardinality.
 type role DistributionVector nominal
 
-deriving instance (FiniteState state) => Show (DistributionVector state)
+deriving instance Show (DistributionVector state)
 
 {- | Return the stored probability vector unchanged. This performs no copy,
 validation, clamping, or renormalisation.
