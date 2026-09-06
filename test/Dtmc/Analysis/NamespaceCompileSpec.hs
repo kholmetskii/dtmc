@@ -22,16 +22,15 @@ import Dtmc.Analysis.VisitCount qualified as Visit
 import Dtmc.Distribution.Vector (
     DistributionVector,
  )
-import Dtmc.Distribution.Vector.HMatrix (
-    mkDistributionVector,
+import Dtmc.Distribution.Vector qualified as Vector
+import Dtmc.TestSupport (
+    chunksOf,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
  )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
- )
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -42,19 +41,19 @@ import Test.Hspec (
 matrix :: TransitionMatrix (Finite 2)
 matrix =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0.5, 0.5, 0, 1] :: S.Sq 2)
+        ( fromRows
+            (chunksOf 2 [0.5, 0.5, 0, 1])
         )
 
 initial :: DistributionVector (Finite 2)
 initial =
     checked
-        (mkDistributionVector (S.vector [1, 0] :: S.R 2))
+        (Vector.fromList [1, 0])
 
 mixedInitial :: DistributionVector (Finite 2)
 mixedInitial =
     checked
-        (mkDistributionVector (S.vector [0.25, 0.75] :: S.R 2))
+        (Vector.fromList [0.25, 0.75])
 
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id

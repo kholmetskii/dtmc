@@ -30,12 +30,9 @@ import Dtmc.Transition.Kernel (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
  )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
- )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -61,8 +58,9 @@ checked = either (error . show) id
 transientVisitChain :: TransitionMatrix (Finite 3)
 transientVisitChain =
     checked
-        ( mkTransitionMatrix
-            ( S.matrix
+        ( fromRows
+            ( chunksOf
+                3
                 [ 1 / 4
                 , 0
                 , 3 / 4
@@ -72,16 +70,16 @@ transientVisitChain =
                 , 0
                 , 0
                 , 1
-                ] ::
-                S.Sq 3
+                ]
             )
         )
 
 recurrentVisitChain :: TransitionMatrix (Finite 4)
 recurrentVisitChain =
     checked
-        ( mkTransitionMatrix
-            ( S.matrix
+        ( fromRows
+            ( chunksOf
+                4
                 [ 0
                 , 1 / 2
                 , 1 / 2
@@ -98,8 +96,7 @@ recurrentVisitChain =
                 , 0
                 , 0
                 , 1
-                ] ::
-                S.Sq 4
+                ]
             )
         )
 
@@ -109,14 +106,14 @@ tinyReturn = 1e-12
 tinyVisitChain :: TransitionMatrix (Finite 2)
 tinyVisitChain =
     checked
-        ( mkTransitionMatrix
-            ( S.matrix
+        ( fromRows
+            ( chunksOf
+                2
                 [ tinyReturn
                 , 1 - tinyReturn
                 , 0
                 , 1
-                ] ::
-                S.Sq 2
+                ]
             )
         )
 
@@ -130,9 +127,6 @@ simpleRandomWalk =
 
 close :: Double -> Double -> Bool
 close = approxEq testTolerance
-
-entries :: S.R 3 -> [Double]
-entries = LA.toList . S.extract
 
 known :: Maybe Double -> Double
 known = fromMaybe (error "oracle horizon does not determine this event")
@@ -149,7 +143,7 @@ generatedTotalChecks :: TransitionMatrix (Finite 3) -> Bool
 generatedTotalChecks matrix =
     and
         [ let scalar = checked (Visit.totalProbabilityGivenInitialState event matrix 0 initial)
-              dense = entries (checked (visitTotalProbabilityByState event matrix 0))
+              dense = (checked (visitTotalProbabilityByState event matrix 0))
            in close (dense !! fromIntegral initial) scalar
                 && scalar >= negate testTolerance
                 && scalar <= 1 + testTolerance
@@ -185,8 +179,7 @@ spec = do
 
         it "places recurrent positive-count mass structurally at infinity" $ do
             let probabilities event =
-                    LA.toList
-                        (S.extract (checked (visitTotalProbabilityByState event recurrentVisitChain 2)))
+                    checked (visitTotalProbabilityByState event recurrentVisitChain 2)
                 expectedHit = [2 / 3, 1 / 3, 1, 0]
                 expectedMiss = [1 / 3, 2 / 3, 0, 1]
             sequence_
@@ -213,8 +206,9 @@ spec = do
             actual `shouldSatisfy` (\value -> abs (value - tinyReturn) < 1e-15)
 
         prop "keeps scalar and all-state event queries consistent (random @3)" $
-            forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                case mkTransitionMatrix rawMatrix of
+            forAll (genTransitionRows 3) $ \rawMatrix ->
+                case fromRows rawMatrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left problem -> counterexample (show problem) False
                     Right matrix -> property (generatedTotalChecks matrix)
 
@@ -234,20 +228,17 @@ spec = do
                 `shouldBe` 1.5
 
         prop "matches independent path enumeration for every relation (random @3)" $
-            forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                case mkTransitionMatrix rawMatrix of
+            forAll (genTransitionRows 3) $ \rawMatrix ->
+                case fromRows rawMatrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left problem -> counterexample (show problem) False
                     Right matrix -> property (generatedBoundedChecks matrix)
 
     describe "canonical infinite and expectation names" $ do
         it "match the completed total-visit law" $ do
             let infiniteValues =
-                    LA.toList
-                        ( S.extract
-                            ( checked
-                                (visitInfiniteProbabilityByState recurrentVisitChain 2)
-                            )
-                        )
+                    checked
+                        (visitInfiniteProbabilityByState recurrentVisitChain 2)
             sequence_
                 [ actual `shouldSatisfy` close expected
                 | (actual, expected) <- zip infiniteValues [2 / 3, 1 / 3, 1, 0]

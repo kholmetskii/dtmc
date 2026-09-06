@@ -27,22 +27,21 @@ import Dtmc.Distribution (
 import Dtmc.Distribution.Vector (
     DistributionVector,
  )
-import Dtmc.Distribution.Vector.HMatrix (
-    mkDistributionVector,
- )
+import Dtmc.Distribution.Vector qualified as Vector
 import Dtmc.State (
     FiniteState,
  )
+import Dtmc.TestSupport (
+    chunksOf,
+ )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
- )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
  )
 import GHC.Generics (
     Generic,
  )
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -88,8 +87,8 @@ instance FiniteState Weather
 weatherTransition :: TransitionMatrix Weather
 weatherTransition =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+        ( fromRows
+            (chunksOf 2 [0.9, 0.1, 0.4, 0.6])
         )
 
 weatherStationary :: DistributionVector Weather
@@ -101,8 +100,9 @@ weatherStationary =
 fruitTransition :: TransitionMatrix FruitState
 fruitTransition =
     checked
-        ( mkTransitionMatrix
-            ( S.matrix
+        ( fromRows
+            ( chunksOf
+                7
                 [ 0
                 , 0
                 , 1 / 2
@@ -152,8 +152,7 @@ fruitTransition =
                 , 0
                 , 0
                 , 0
-                ] ::
-                S.Sq 7
+                ]
             )
         )
 
@@ -168,15 +167,15 @@ mangoToPearProbability n =
 cafeInitial :: DistributionVector CafeState
 cafeInitial =
     checked
-        ( mkDistributionVector
-            (S.vector [1, 0, 0, 0, 0, 0, 0] :: S.R 7)
+        ( Vector.fromList [1, 0, 0, 0, 0, 0, 0]
         )
 
 cafeTransition :: TransitionMatrix CafeState
 cafeTransition =
     checked
-        ( mkTransitionMatrix
-            ( S.matrix
+        ( fromRows
+            ( chunksOf
+                7
                 [ 0
                 , 1 / 5
                 , 0
@@ -226,8 +225,7 @@ cafeTransition =
                 , 0
                 , 0
                 , 1
-                ] ::
-                S.Sq 7
+                ]
             )
         )
 

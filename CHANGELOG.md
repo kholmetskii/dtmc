@@ -19,7 +19,14 @@ First Hackage release.
   probabilities and expectations.
 - Added extremal stationary distributions for every recurrent class, ordinary
   limiting matrices, and cyclic subsequential limits.
-- Added state-labelled and list-based construction and inspection, with
-  `hmatrix`-specific interoperability isolated in explicitly named modules.
+- Added state-labelled and list-based construction and inspection. No
+  `hmatrix` type appears in the public API.
 - Added `Dtmc.Distribution.Map.mapStates` for transforming sparse
   distributions, combining the weights of states that share a target.
+- Added `Dtmc.Transition.Matrix.fromRows`, which builds a matrix from a grid
+  of weights and reports shape mismatches as typed errors.
+- Made `Dtmc.Distribution.Vector.fromList` positional: it now takes one weight
+  per state in canonical state order, so it is the exact inverse of `toList`,
+  and reports a length mismatch through the new `DistributionVectorError`.
+  Labelled construction, where duplicates combine and missing states default
+  to zero, remains `Dtmc.Distribution.Map.fromList`.

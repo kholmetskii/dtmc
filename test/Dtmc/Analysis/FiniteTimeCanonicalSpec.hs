@@ -18,12 +18,11 @@ import Dtmc.Distribution.Map (
 import Dtmc.Distribution.Vector (
     DistributionVector,
  )
-import Dtmc.Distribution.Vector.HMatrix (
-    mkDistributionVector,
- )
+import Dtmc.Distribution.Vector qualified as Vector
 import Dtmc.TestSupport (
     approxEq,
-    genTransitionMatrix,
+    chunksOf,
+    genTransitionRows,
     testTolerance,
  )
 import Dtmc.Transition.Kernel (
@@ -32,11 +31,9 @@ import Dtmc.Transition.Kernel (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
  )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
- )
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -57,7 +54,7 @@ initialWeights = zip finites [0.2, 0.3, 0.5]
 
 initialDistribution :: DistributionVector (Finite 3)
 initialDistribution =
-    checked (mkDistributionVector (S.vector [0.2, 0.3, 0.5] :: S.R 3))
+    checked (Vector.fromList [0.2, 0.3, 0.5])
 
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id
@@ -144,13 +141,13 @@ spec = do
             let matrix :: TransitionMatrix (Finite 2)
                 matrix =
                     checked
-                        ( mkTransitionMatrix
-                            (S.matrix [0.5, 0.5, 0, 1] :: S.Sq 2)
+                        ( fromRows
+                            (chunksOf 2 [0.5, 0.5, 0, 1])
                         )
                 initial :: DistributionVector (Finite 2)
                 initial =
                     checked
-                        (mkDistributionVector (S.vector [1, 0] :: S.R 2))
+                        (Vector.fromList [1, 0])
             FT.stepProbability matrix 0 1 `shouldBe` 0.5
             FT.nStepProbability 2 matrix 0 1 `shouldBe` 0.75
             FT.probability initial matrix [FT.At 1 1] `shouldBe` 0.5
@@ -186,7 +183,8 @@ spec = do
                 `shouldBe` Right 0.5
 
         prop "matches independent path enumeration (random @3)" $
-            forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                case mkTransitionMatrix rawMatrix of
+            forAll (genTransitionRows 3) $ \rawMatrix ->
+                case fromRows rawMatrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left problem -> counterexample (show problem) False
                     Right matrix -> property (canonicalMatchesOracle matrix)

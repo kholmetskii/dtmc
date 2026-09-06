@@ -43,14 +43,14 @@ import Dtmc.State (
     FiniteState,
  )
 import Dtmc.TestSupport (
-    genTransitionMatrix,
+    chunksOf,
+    genTransitionRows,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
     toRows,
- )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
  )
 import GHC.Generics (
     Generic,
@@ -58,7 +58,6 @@ import GHC.Generics (
 import GHC.TypeNats (
     KnownNat,
  )
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (Natural)
 import Test.Hspec (
     Spec,
@@ -83,14 +82,15 @@ data NamedClassState = ClassA | ClassB | ClassC
 
 instance FiniteState NamedClassState
 
-fromRows :: (Show e) => Either e (TransitionMatrix (Finite n)) -> TransitionMatrix (Finite n)
-fromRows = either (error . show) id
+checked :: (Show e) => Either e a -> a
+checked = either (error . show) id
 
 threeCycle :: TransitionMatrix (Finite 3)
 threeCycle =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                3
                 [ 0
                 , 1
                 , 0
@@ -105,15 +105,16 @@ threeCycle =
 
 namedThreeCycle :: TransitionMatrix NamedClassState
 namedThreeCycle =
-    either (error . show) id $
-        mkTransitionMatrix @NamedClassState
-            (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0] :: S.Sq 3)
+    checked $
+        fromRows @NamedClassState
+            (chunksOf 3 [0, 1, 0, 0, 0, 1, 1, 0, 0])
 
 selfLoopTwo :: TransitionMatrix (Finite 2)
 selfLoopTwo =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                2
                 [ 0.5
                 , 0.5
                 , 1.0
@@ -123,9 +124,10 @@ selfLoopTwo =
 
 bipartiteTwo :: TransitionMatrix (Finite 2)
 bipartiteTwo =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                2
                 [ 0
                 , 1
                 , 1
@@ -135,9 +137,10 @@ bipartiteTwo =
 
 sevenState :: TransitionMatrix (Finite 7)
 sevenState =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                7
                 [ 0
                 , 1
                 , 0
@@ -192,9 +195,10 @@ sevenState =
 
 identityThree :: TransitionMatrix (Finite 3)
 identityThree =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                3
                 [ 1
                 , 0
                 , 0
@@ -210,9 +214,10 @@ identityThree =
 -- Exercise 3.2.2: irreducible, period 2, cyclic classes {A,B} and {C,D}.
 fourStateCyclic :: TransitionMatrix (Finite 4)
 fourStateCyclic =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                4
                 [ 0
                 , 0
                 , 1
@@ -285,8 +290,9 @@ spec :: Spec
 spec = do
     describe "communication is an equivalence relation" $ do
         prop "is reflexive, symmetric, and transitive on random support graphs" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix @(Finite 4) matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         let states = finites :: [Finite 4]
                          in conjoin
@@ -313,8 +319,9 @@ spec = do
                         counterexample ("generated matrix was rejected: " <> show err) False
 
         prop "accessibility is reflexive" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix @(Finite 4) matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         conjoin
                             [ property (accessible p i i)
@@ -353,15 +360,17 @@ spec = do
                 `shouldBe` [Just 2, Just 2, Just 1, Just 1, Just 1, Just 1, Just 1]
 
         prop "agrees with the gcd of return-time lengths (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p -> periodMatchesReference p (finites :: [Finite 4])
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False
 
         prop "agrees with the gcd of return-time lengths (random @3)" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix matrix of
+            forAll (genTransitionRows 3) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Right p -> periodMatchesReference p (finites :: [Finite 3])
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False
@@ -374,16 +383,18 @@ spec = do
             classesAsInts threeCycle `shouldBe` [[0, 1, 2]]
 
         prop "the classes partition the state space (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         property (sortUnique (concat (classesAsInts p)) == [0 .. 3])
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False
 
         prop "communication agrees with the class partition (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         let states = finites :: [Finite 4]
                             classIx = communicatingClasses p
@@ -408,8 +419,9 @@ spec = do
             cyclicClassesAsInts sevenState `shouldBe` Nothing
 
         prop "classes partition the states and advance one step (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         case cyclicClasses p of
                             Nothing -> property True
@@ -451,8 +463,9 @@ spec = do
             map getFinite (absorbingStates (classify threeCycle)) `shouldBe` []
 
         prop "absorbing states have only a self-loop (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         conjoin
                             [ counterexample (show i) $
@@ -463,8 +476,9 @@ spec = do
                         counterexample ("generated matrix was rejected: " <> show err) False
 
         prop "report fields agree with their class summaries (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix @(Finite 4) matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         let report = classify p
                             cs = classesOf report
@@ -508,8 +522,9 @@ spec = do
             transientStates identityThree `shouldBe` []
 
         prop "recurrent and transient states partition the state space (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         sort
                             ( map getFinite (recurrentStates p)
@@ -520,16 +535,18 @@ spec = do
                         counterexample ("generated matrix was rejected: " <> show err) False
 
         prop "every finite chain has a recurrent state (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix @(Finite 4) matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         property (not (null (recurrentStates p)))
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False
 
         prop "transient iff some reachable state cannot reach back (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         let states = finites :: [Finite 4]
                          in conjoin
@@ -544,8 +561,9 @@ spec = do
                         counterexample ("generated matrix was rejected: " <> show err) False
 
         prop "predicates agree with the state lists (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                case mkTransitionMatrix matrix of
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         let states = finites :: [Finite 4]
                          in conjoin

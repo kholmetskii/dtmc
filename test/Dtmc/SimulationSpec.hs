@@ -21,7 +21,7 @@ import Dtmc.Distribution.Map (
     pointMass,
     fromDistribution,
  )
-import Dtmc.Distribution.Vector.HMatrix (mkDistributionVector)
+import Dtmc.Distribution.Vector qualified as Vector
 import Dtmc.Simulation (
     SimulationError (..),
     sample,
@@ -29,15 +29,16 @@ import Dtmc.Simulation (
     step,
  )
 import Dtmc.State (FiniteState)
+import Dtmc.TestSupport (
+    chunksOf,
+ )
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
- )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
  )
 import GHC.Generics (Generic)
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -77,8 +78,9 @@ checkedSimulation action = do
 cyclicThree :: TransitionMatrix (Finite 3)
 cyclicThree =
     either (error . show) id $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                3
                 [ 0
                 , 1
                 , 0
@@ -94,14 +96,15 @@ cyclicThree =
 namedCyclicThree :: TransitionMatrix NamedSample
 namedCyclicThree =
     either (error . show) id $
-        mkTransitionMatrix @NamedSample
-            (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0] :: S.Sq 3)
+        fromRows @NamedSample
+            (chunksOf 3 [0, 1, 0, 0, 0, 1, 1, 0, 0])
 
 absorbingTwo :: TransitionMatrix (Finite 2)
 absorbingTwo =
     either (error . show) id $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                2
                 [ 1
                 , 0
                 , 0.3
@@ -135,7 +138,7 @@ pointMassSamples = runST $ do
     generator <- MWC.create
     let distribution =
             either (error . show) id $
-                mkDistributionVector @(Finite 3) (S.vector [0, 1, 0] :: S.R 3)
+                Vector.fromList @(Finite 3) [0, 1, 0]
     replicateM 20 (checkedSimulation (sample distribution generator))
 
 namedPointMassSamples :: [NamedSample]
@@ -143,8 +146,7 @@ namedPointMassSamples = runST $ do
     generator <- MWC.create
     let distribution =
             either (error . show) id $
-                mkDistributionVector @NamedSample
-                    (S.vector [0, 1, 0] :: S.R 3)
+                Vector.fromList @NamedSample [0, 1, 0]
     replicateM 20 (checkedSimulation (sample distribution generator))
 
 mapPointMassSamples :: [Natural]

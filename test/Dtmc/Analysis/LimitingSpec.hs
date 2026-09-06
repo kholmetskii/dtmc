@@ -17,19 +17,16 @@ import Dtmc.State (
  )
 import Dtmc.TestSupport (
     approxEq,
+    chunksOf,
     testTolerance,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    fromRows,
     identity,
     power,
+    toRows,
  )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
-    unTransitionMatrix,
- )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -49,16 +46,16 @@ checked = either (error . show) id
 twoClosedClasses :: TransitionMatrix (Finite 3)
 twoClosedClasses =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [1, 0, 0, 0, 0.4, 0.6, 0, 0.5, 0.5] :: S.Sq 3)
+        ( fromRows
+            (chunksOf 3 [1, 0, 0, 0, 0.4, 0.6, 0, 0.5, 0.5])
         )
 
 -- State 0 is transient; {1,2} is the only recurrent class.
 withTransient :: TransitionMatrix (Finite 3)
 withTransient =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0, 0.5, 0.5, 0, 0.4, 0.6, 0, 0.5, 0.5] :: S.Sq 3)
+        ( fromRows
+            (chunksOf 3 [0, 0.5, 0.5, 0, 0.4, 0.6, 0, 0.5, 0.5])
         )
 
 -- States 0 and 1 are transient and can enter either absorbing class. This
@@ -66,8 +63,9 @@ withTransient =
 withTwoDestinations :: TransitionMatrix (Finite 4)
 withTwoDestinations =
     checked
-        ( mkTransitionMatrix
-            ( S.matrix
+        ( fromRows
+            ( chunksOf
+                4
                 [ 0
                 , 1 / 2
                 , 1 / 4
@@ -84,8 +82,7 @@ withTwoDestinations =
                 , 0
                 , 0
                 , 1
-                ] ::
-                S.Sq 4
+                ]
             )
         )
 
@@ -93,24 +90,25 @@ withTwoDestinations =
 twoState :: TransitionMatrix (Finite 2)
 twoState =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+        ( fromRows
+            (chunksOf 2 [0.9, 0.1, 0.4, 0.6])
         )
 
 -- Irreducible with period 3, so P^n never settles.
 threeCycle :: TransitionMatrix (Finite 3)
 threeCycle =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0] :: S.Sq 3)
+        ( fromRows
+            (chunksOf 3 [0, 1, 0, 0, 0, 1, 1, 0, 0])
         )
 
 -- Reducible with disjoint recurrent cycles of periods 2 and 3.
 mixedPeriods :: TransitionMatrix (Finite 5)
 mixedPeriods =
     checked
-        ( mkTransitionMatrix
-            ( S.matrix
+        ( fromRows
+            ( chunksOf
+                5
                 [ 0
                 , 1
                 , 0
@@ -136,8 +134,7 @@ mixedPeriods =
                 , 1
                 , 0
                 , 0
-                ] ::
-                S.Sq 5
+                ]
             )
         )
 
@@ -145,8 +142,8 @@ mixedPeriods =
 withTransientCycle :: TransitionMatrix (Finite 3)
 withTransientCycle =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0, 1, 0, 0, 0, 1, 0, 1, 0] :: S.Sq 3)
+        ( fromRows
+            (chunksOf 3 [0, 1, 0, 0, 0, 1, 0, 1, 0])
         )
 
 -- An irreducible period-2 chain whose two cyclic phases have different
@@ -154,13 +151,13 @@ withTransientCycle =
 unequalPhases :: TransitionMatrix (Finite 3)
 unequalPhases =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0, 1 / 4, 3 / 4, 1, 0, 0, 1, 0, 0] :: S.Sq 3)
+        ( fromRows
+            (chunksOf 3 [0, 1 / 4, 3 / 4, 1, 0, 0, 1, 0, 0])
         )
 
 powerRows :: (FiniteState state) => Natural -> TransitionMatrix state -> [[Double]]
 powerRows steps p =
-    LA.toLists (S.extract (unTransitionMatrix (power steps p)))
+    toRows (power steps p)
 
 matrixCloseTo :: [[Double]] -> [[Double]] -> Bool
 matrixCloseTo expected actual =

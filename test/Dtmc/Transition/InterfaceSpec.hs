@@ -15,17 +15,16 @@ import Dtmc.Distribution qualified as Distribution
 import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.TestSupport (
     approxEq,
-    genTransitionMatrix,
+    chunksOf,
+    genTransitionRows,
  )
 import Dtmc.Transition qualified as Transition
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
  )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
- )
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -47,8 +46,9 @@ checked = either (error . show) id
 finiteChain :: TransitionMatrix (Finite 3)
 finiteChain =
     checked $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                3
                 [ 0.5
                 , 0.5
                 , 0
@@ -58,8 +58,7 @@ finiteChain =
                 , 1
                 , 0
                 , 0
-                ] ::
-                S.Sq 3
+                ]
             )
 
 asTransitionKernel ::
@@ -98,8 +97,9 @@ spec =
                 `shouldBe` [(5, 1)]
 
         prop "gives matrices and equivalent kernels approximately equal laws" $
-            forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                case mkTransitionMatrix rawMatrix of
+            forAll (genTransitionRows 3) $ \rawMatrix ->
+                case fromRows rawMatrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left problem -> counterexample (show problem) False
                     Right matrix ->
                         let kernel = asTransitionKernel matrix

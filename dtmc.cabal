@@ -52,11 +52,9 @@ library
       Dtmc.State
       Dtmc.Distribution
       Dtmc.Distribution.Vector
-      Dtmc.Distribution.Vector.HMatrix
       Dtmc.Distribution.Map
       Dtmc.Transition
       Dtmc.Transition.Matrix
-      Dtmc.Transition.Matrix.HMatrix
       Dtmc.Transition.Kernel
       Dtmc.Simulation
       Dtmc.Dynamics

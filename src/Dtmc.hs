@@ -37,10 +37,9 @@ analysis modules use the same concise names, such as @probability@ and
 @expectation@, for their subject-specific operations. Import analysis modules
 qualified.
 
-The ordinary construction and inspection APIs do not expose @hmatrix@ types.
-Callers already using @hmatrix@ can opt into
-"Dtmc.Distribution.Vector.HMatrix" and
-"Dtmc.Transition.Matrix.HMatrix". The package still uses @hmatrix@ internally
-and therefore requires a BLAS/LAPACK implementation when it is built.
+No @hmatrix@ type appears anywhere in the public API: values are built from
+and inspected as plain lists of weights. The package still uses @hmatrix@
+internally and therefore requires a BLAS/LAPACK implementation when it is
+built.
 -}
 module Dtmc () where

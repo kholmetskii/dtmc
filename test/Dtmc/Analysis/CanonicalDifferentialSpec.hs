@@ -29,18 +29,13 @@ import Dtmc.Distribution (
 import Dtmc.Distribution.Vector (
     DistributionVector,
  )
-import Dtmc.Distribution.Vector.HMatrix (
-    mkDistributionVector,
- )
+import Dtmc.Distribution.Vector qualified as Vector
 import Dtmc.TestSupport
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
  )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
- )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -60,13 +55,14 @@ initialWeights = zip finites [0.2, 0.3, 0.5]
 
 initialDistribution :: DistributionVector (Finite 3)
 initialDistribution =
-    checked (mkDistributionVector (S.vector [0.2, 0.3, 0.5] :: S.R 3))
+    checked (Vector.fromList [0.2, 0.3, 0.5])
 
 terminalChain :: TransitionMatrix (Finite 3)
 terminalChain =
     checked
-        ( mkTransitionMatrix
-            ( S.matrix
+        ( fromRows
+            ( chunksOf
+                3
                 [ 0
                 , 0.5
                 , 0.5
@@ -76,16 +72,12 @@ terminalChain =
                 , 0
                 , 0
                 , 1
-                ] ::
-                S.Sq 3
+                ]
             )
         )
 
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id
-
-entries :: S.R 3 -> [Double]
-entries = LA.toList . S.extract
 
 known :: Maybe Double -> Double
 known = fromMaybe (error "oracle horizon does not determine this event")
@@ -169,7 +161,7 @@ finiteAndBoundedChecks matrix =
         and
             [ let law = Oracle.hittingLaw 4 matrix target source
                   exact = known (Oracle.lawProbability (EqualTo time) law)
-                  dense = entries (hitProbabilityByState (EqualTo time) matrix [2])
+                  dense = (hitProbabilityByState (EqualTo time) matrix [2])
                in close (Hit.probabilityGivenInitialState (EqualTo time) matrix target source) exact
                     && close (dense !! fromIntegral source) exact
             | source <- finites
@@ -178,7 +170,7 @@ finiteAndBoundedChecks matrix =
             && and
                 [ let law = Oracle.hittingLaw 4 matrix target source
                       bounded = known (Oracle.lawProbability (LessThan bound) law)
-                      dense = entries (hitProbabilityByState (LessThan bound) matrix [2])
+                      dense = (hitProbabilityByState (LessThan bound) matrix [2])
                    in close
                         (Hit.probabilityGivenInitialState (LessThan bound) matrix target source)
                         bounded
@@ -190,7 +182,7 @@ finiteAndBoundedChecks matrix =
         and
             [ let law = Oracle.returnLaw 4 matrix source
                   exact = known (Oracle.lawProbability (EqualTo time) law)
-                  dense = entries (returnProbabilityByState (EqualTo time) matrix)
+                  dense = (returnProbabilityByState (EqualTo time) matrix)
                in close (Return.probabilityGivenInitialState (EqualTo time) matrix source) exact
                     && close (dense !! fromIntegral source) exact
             | source <- finites
@@ -199,7 +191,7 @@ finiteAndBoundedChecks matrix =
             && and
                 [ let law = Oracle.returnLaw 4 matrix source
                       bounded = known (Oracle.lawProbability (LessThan bound) law)
-                      dense = entries (returnProbabilityByState (LessThan bound) matrix)
+                      dense = (returnProbabilityByState (LessThan bound) matrix)
                    in close
                         (Return.probabilityGivenInitialState (LessThan bound) matrix source)
                         bounded
@@ -271,7 +263,7 @@ terminalChecks =
         case hitEventualProbabilityByState terminalChain [1] of
             Left _ -> False
             Right dense ->
-                and (zipWith close (entries dense) hitValues)
+                and (zipWith close (dense) hitValues)
                     && and
                         [ rightClose expected (Hit.eventualProbabilityGivenInitialState terminalChain [1] state)
                         | (state, expected) <- zip states hitValues
@@ -289,7 +281,7 @@ terminalChecks =
         case hitRaceProbabilityByState terminalChain [1] [2] of
             Left _ -> False
             Right dense ->
-                and (zipWith close (entries dense) raceValues)
+                and (zipWith close (dense) raceValues)
                     && and
                         [ rightClose
                             expected
@@ -313,7 +305,7 @@ terminalChecks =
         case returnEventualProbabilityByState terminalChain of
             Left _ -> False
             Right dense ->
-                and (zipWith close (entries dense) returnValues)
+                and (zipWith close (dense) returnValues)
                     && and
                         [ rightClose expected (Return.eventualProbabilityGivenInitialState terminalChain state)
                         | (state, expected) <- zip states returnValues
@@ -343,7 +335,7 @@ terminalChecks =
                 Right dense ->
                     and
                         [ let expected = known (Oracle.lawProbability (EqualTo count) law)
-                           in close (entries dense !! fromIntegral state) expected
+                           in close (dense !! fromIntegral state) expected
                                 && rightClose
                                     expected
                                     (Visit.totalProbabilityGivenInitialState (EqualTo count) terminalChain 1 state)
@@ -354,7 +346,7 @@ terminalChecks =
             && case visitInfiniteProbabilityByState terminalChain 1 of
                 Left _ -> False
                 Right dense ->
-                    entries dense == [0, 0, 0]
+                    dense == [0, 0, 0]
                         && all
                             (rightClose 0 . Visit.infiniteProbabilityGivenInitialState terminalChain 1)
                             states
@@ -374,8 +366,9 @@ spec :: Spec
 spec = do
     describe "canonical finite-horizon differential baseline" $ do
         prop "all finite and bounded queries match path enumeration (random @3)" $
-            forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                case mkTransitionMatrix rawMatrix of
+            forAll (genTransitionRows 3) $ \rawMatrix ->
+                case fromRows rawMatrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left problem -> counterexample (show problem) False
                     Right matrix -> property (finiteAndBoundedChecks matrix)
 

@@ -16,10 +16,7 @@ import Dtmc.Distribution.Map (
     fromList,
     fromDistribution,
  )
-import Dtmc.Distribution.Vector.HMatrix (
-    mkDistributionVector,
- )
-import Numeric.LinearAlgebra.Static qualified as S
+import Dtmc.Distribution.Vector qualified as Vector
 import Test.Hspec (
     Spec,
     describe,
@@ -32,7 +29,7 @@ spec =
     describe "Distribution interface" $ do
         let vector =
                 either (error . show) id $
-                    mkDistributionVector @(Finite 3) (S.vector [0.2, 0, 0.8] :: S.R 3)
+                    Vector.fromList @(Finite 3) [0.2, 0, 0.8]
             mapDistribution =
                 either
                     (error . show)

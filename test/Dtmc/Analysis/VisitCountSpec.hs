@@ -29,15 +29,9 @@ import Dtmc.TestSupport
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
  )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
- )
-import GHC.TypeNats (
-    KnownNat,
- )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -63,14 +57,14 @@ checked = either (error . show) id
 twoCycle :: TransitionMatrix (Finite 2)
 twoCycle =
     checked $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                2
                 [ 0
                 , 1
                 , 1
                 , 0
-                ] ::
-                S.Sq 2
+                ]
             )
 
 -- Target 0 returns with probability 1/4. State 1 first reaches it with
@@ -78,8 +72,9 @@ twoCycle =
 transientVisitChain :: TransitionMatrix (Finite 3)
 transientVisitChain =
     checked $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                3
                 [ 1 / 4
                 , 0
                 , 3 / 4
@@ -89,16 +84,16 @@ transientVisitChain =
                 , 0
                 , 0
                 , 1
-                ] ::
-                S.Sq 3
+                ]
             )
 
 -- States 0 and 1 may enter absorbing target 2; absorbing state 3 cannot.
 recurrentVisitChain :: TransitionMatrix (Finite 4)
 recurrentVisitChain =
     checked $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                4
                 [ 0
                 , 1 / 2
                 , 1 / 2
@@ -115,8 +110,7 @@ recurrentVisitChain =
                 , 0
                 , 0
                 , 1
-                ] ::
-                S.Sq 4
+                ]
             )
 
 mixedInitial :: DistributionMap.DistributionMap (Finite 2)
@@ -144,9 +138,6 @@ simpleRandomWalk =
 closeTo :: Double -> Double -> Bool
 closeTo expected actual = abs (actual - expected) <= testTolerance
 
-entries :: (KnownNat n) => S.R n -> [Double]
-entries = LA.toList . S.extract
-
 expectationCloseTo :: Double -> Expectation -> Bool
 expectationCloseTo expected (FiniteExpectation actual) = closeTo expected actual
 expectationCloseTo _ InfiniteExpectation = False
@@ -156,7 +147,7 @@ spec = do
     describe "totalProbabilityByState" $ do
         it "matches the geometric law for a transient target" $ do
             let probabilities count =
-                    entries (checked ((visitTotalProbabilityByState . EqualTo) count transientVisitChain 0))
+                    (checked ((visitTotalProbabilityByState . EqualTo) count transientVisitChain 0))
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
@@ -172,25 +163,24 @@ spec = do
                 | (actual, expected) <-
                     zip (probabilities 3) [3 / 64, 3 / 128, 0]
                 ]
-            entries (checked (visitInfiniteProbabilityByState transientVisitChain 0))
+            (checked (visitInfiniteProbabilityByState transientVisitChain 0))
                 `shouldBe` [0, 0, 0]
 
         it "puts all positive recurrent-target mass at infinity" $ do
-            entries
-                (checked ((visitTotalProbabilityByState . EqualTo) 1 recurrentVisitChain 2))
+            checked ((visitTotalProbabilityByState . EqualTo) 1 recurrentVisitChain 2)
                 `shouldBe` [0, 0, 0, 0]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
                     zip
-                        (entries (checked (visitInfiniteProbabilityByState recurrentVisitChain 2)))
+                        ((checked (visitInfiniteProbabilityByState recurrentVisitChain 2)))
                         [2 / 3, 1 / 3, 1, 0]
                 ]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
                     zip
-                        (entries (checked ((visitTotalProbabilityByState . EqualTo) 0 recurrentVisitChain 2)))
+                        ((checked ((visitTotalProbabilityByState . EqualTo) 0 recurrentVisitChain 2)))
                         [1 / 3, 2 / 3, 0, 1]
                 ]
 
@@ -201,8 +191,9 @@ spec = do
                 `shouldSatisfy` closeTo (3 / 4)
 
         prop "scalar queries look up the all-state result (random @3)" $
-            forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                case mkTransitionMatrix rawMatrix of
+            forAll (genTransitionRows 3) $ \rawMatrix ->
+                case fromRows rawMatrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left err -> counterexample (show err) False
                     Right matrix ->
                         conjoin
@@ -214,7 +205,7 @@ spec = do
                                             [ (Visit.totalProbabilityGivenInitialState . EqualTo) count matrix 0 initial
                                                 === Right probability
                                             | (initial, probability) <-
-                                                zip (finites :: [Finite 3]) (entries probabilities)
+                                                zip (finites :: [Finite 3]) (probabilities)
                                             ]
                                 | count <- [0, 1, 3]
                                 ]
@@ -225,7 +216,7 @@ spec = do
                                         [ Visit.infiniteProbabilityGivenInitialState matrix 0 initial
                                             === Right probability
                                         | (initial, probability) <-
-                                            zip (finites :: [Finite 3]) (entries probabilities)
+                                            zip (finites :: [Finite 3]) (probabilities)
                                         ]
                             ]
 
@@ -248,8 +239,9 @@ spec = do
                 `shouldBe` [InfiniteExpectation, InfiniteExpectation, FiniteExpectation 0, InfiniteExpectation]
 
         prop "agrees with hitting, return, recurrence, and reachability (random @3)" $
-            forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                case mkTransitionMatrix rawMatrix of
+            forAll (genTransitionRows 3) $ \rawMatrix ->
+                case fromRows rawMatrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left err -> counterexample (show err) False
                     Right matrix ->
                         case do
@@ -279,11 +271,11 @@ spec = do
                                     , infiniteVisits
                                     , expectations
                                     ) ->
-                                    let hitValues = entries hits
-                                        zeroValues = entries zeroVisits
-                                        oneValues = entries oneVisit
-                                        twoValues = entries twoVisits
-                                        infiniteValues = entries infiniteVisits
+                                    let hitValues = hits
+                                        zeroValues = zeroVisits
+                                        oneValues = oneVisit
+                                        twoValues = twoVisits
+                                        infiniteValues = infiniteVisits
                                         states = finites :: [Finite 3]
                                         structuralExpectations =
                                             [ if accessible matrix initial 0
@@ -363,8 +355,9 @@ spec = do
 
         prop "has total mass one and no count above the bound (random @3)" $
             forAll (choose (0, 5 :: Int)) $ \rawBound ->
-                forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                    case mkTransitionMatrix rawMatrix of
+                forAll (genTransitionRows 3) $ \rawMatrix ->
+                    case fromRows rawMatrix ::
+                            Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                         Left err -> counterexample (show err) False
                         Right matrix ->
                             let bound = fromIntegral rawBound
@@ -411,8 +404,9 @@ spec = do
 
         prop "equals the sum of finite-time visit probabilities (random @3)" $
             forAll (choose (0, 5 :: Int)) $ \rawBound ->
-                forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                    case mkTransitionMatrix rawMatrix of
+                forAll (genTransitionRows 3) $ \rawMatrix ->
+                    case fromRows rawMatrix ::
+                            Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                         Left err -> counterexample (show err) False
                         Right matrix ->
                             let bound = fromIntegral rawBound
@@ -452,8 +446,9 @@ spec = do
                     ]
 
         prop "agrees with totalExpectation entry by entry" $
-            forAll (genTransitionMatrix @3) $ \m ->
-                case mkTransitionMatrix m of
+            forAll (genTransitionRows 3) $ \m ->
+                case fromRows m ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left err -> counterexample (show err) False
                     Right p ->
                         case Visit.occupationMatrix p of

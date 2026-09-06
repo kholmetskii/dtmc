@@ -30,12 +30,9 @@ import Dtmc.Transition.Kernel (
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
  )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
- )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -54,8 +51,9 @@ import Test.QuickCheck (
 terminalChain :: TransitionMatrix (Finite 3)
 terminalChain =
     checked
-        ( mkTransitionMatrix
-            ( S.matrix
+        ( fromRows
+            ( chunksOf
+                3
                 [ 0
                 , 0.5
                 , 0.5
@@ -65,8 +63,7 @@ terminalChain =
                 , 0
                 , 0
                 , 1
-                ] ::
-                S.Sq 3
+                ]
             )
         )
 
@@ -96,9 +93,6 @@ tinySurvivalKernel =
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id
 
-entries :: S.R 3 -> [Double]
-entries = LA.toList . S.extract
-
 close :: Double -> Double -> Bool
 close = approxEq testTolerance
 
@@ -121,7 +115,7 @@ generatedChecks matrix =
         [ let law = Oracle.hittingLaw 4 matrix isTarget initial
               oracle = known (Oracle.lawProbability event law)
               scalar = Hit.probabilityGivenInitialState event matrix isTarget initial
-              dense = entries (hitProbabilityByState event matrix [2])
+              dense = (hitProbabilityByState event matrix [2])
            in close scalar oracle
                 && close (dense !! fromIntegral initial) oracle
         | initial <- finites
@@ -144,19 +138,19 @@ spec = do
             Hit.probabilityGivenInitialState (AtLeast 0) terminalChain target 0 `shouldBe` 1
             Hit.probabilityGivenInitialState (AtLeast 1) terminalChain target 0 `shouldBe` 1
             Hit.probabilityGivenInitialState (AtLeast 2) terminalChain target 0 `shouldBe` 0.5
-            entries (hitProbabilityByState (GreaterThan 1) terminalChain [1])
+            (hitProbabilityByState (GreaterThan 1) terminalChain [1])
                 `shouldBe` [0.5, 0, 1]
-            entries (hitProbabilityByState (AtMost 1) terminalChain [1])
+            (hitProbabilityByState (AtMost 1) terminalChain [1])
                 `shouldBe` [0.5, 1, 0]
 
         it "keeps empty-target and time-zero boundaries structural" $ do
-            entries (hitProbabilityByState (EqualTo 3) terminalChain [])
+            (hitProbabilityByState (EqualTo 3) terminalChain [])
                 `shouldBe` [0, 0, 0]
-            entries (hitProbabilityByState (AtMost 3) terminalChain [])
+            (hitProbabilityByState (AtMost 3) terminalChain [])
                 `shouldBe` [0, 0, 0]
-            entries (hitProbabilityByState (GreaterThan 3) terminalChain [])
+            (hitProbabilityByState (GreaterThan 3) terminalChain [])
                 `shouldBe` [1, 1, 1]
-            entries (hitProbabilityByState (AtLeast 0) terminalChain [1])
+            (hitProbabilityByState (AtLeast 0) terminalChain [1])
                 `shouldBe` [1, 1, 1]
             Hit.probabilityGivenInitialState (EqualTo 0) terminalChain (== 1) 1 `shouldBe` 1
             Hit.probabilityGivenInitialState (GreaterThan 0) terminalChain (== 1) 1 `shouldBe` 0
@@ -174,8 +168,9 @@ spec = do
                 `shouldBe` tinySurvival
 
         prop "matches the path oracle for every relation (random @3)" $
-            forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                case mkTransitionMatrix rawMatrix of
+            forAll (genTransitionRows 3) $ \rawMatrix ->
+                case fromRows rawMatrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left problem -> counterexample (show problem) False
                     Right matrix -> property (generatedChecks matrix)
 
@@ -184,7 +179,7 @@ spec = do
             let states = finites :: [Finite 3]
             case hitEventualProbabilityByState terminalChain [1] of
                 Left problem -> error (show problem)
-                Right values -> entries values `shouldBe` [0.5, 1, 0]
+                Right values -> values `shouldBe` [0.5, 1, 0]
             mapM_
                 ( \(state, expected) ->
                     Hit.eventualProbabilityGivenInitialState terminalChain [1] state
@@ -193,7 +188,7 @@ spec = do
                 (zip states [0.5, 1, 0])
             case hitRaceProbabilityByState terminalChain [1] [2] of
                 Left problem -> error (show problem)
-                Right values -> entries values `shouldBe` [0.5, 1, 0]
+                Right values -> values `shouldBe` [0.5, 1, 0]
             mapM_
                 ( \(state, expected) ->
                     Hit.raceProbabilityGivenInitialState terminalChain [1] [2] state

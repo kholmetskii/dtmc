@@ -10,9 +10,6 @@ import Data.Finite (
     Finite,
     finites,
  )
-import Data.Proxy (
-    Proxy (..),
- )
 import Dtmc.Analysis.FiniteTime (
     stepProbability,
  )
@@ -24,10 +21,7 @@ import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.Distribution.Vector (
     DistributionVector,
  )
-import Dtmc.Distribution.Vector.HMatrix (
-    mkDistributionVector,
-    unDistributionVector,
- )
+import Dtmc.Distribution.Vector qualified as Vector
 import Dtmc.Dynamics (
     evolveN,
     evolveVector,
@@ -39,26 +33,19 @@ import Dtmc.State (
 import Dtmc.TestSupport (
     approxDistributionEq,
     approxEq,
+    chunksOf,
     genSimplexPoint,
-    genTransitionMatrix,
+    genTransitionRows,
     testTolerance,
  )
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
- )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
+    fromRows,
  )
 import GHC.Generics (
     Generic,
  )
-import GHC.TypeNats (
-    KnownNat,
-    natVal,
- )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -88,8 +75,9 @@ checked = either (error . show) id
 finiteChain :: TransitionMatrix (Finite 3)
 finiteChain =
     checked $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                3
                 [ 0.5
                 , 0.5
                 , 0
@@ -99,13 +87,12 @@ finiteChain =
                 , 1
                 , 0
                 , 0
-                ] ::
-                S.Sq 3
+                ]
             )
 
 finiteInitial :: DistributionVector (Finite 3)
 finiteInitial =
-    checked (mkDistributionVector (S.vector [0.6, 0.3, 0.1] :: S.R 3))
+    checked (Vector.fromList [0.6, 0.3, 0.1])
 
 kernelChain :: Kernel.TransitionKernel (Finite 3)
 kernelChain =
@@ -131,38 +118,33 @@ simpleRandomWalk =
 closeTo :: Double -> Double -> Bool
 closeTo = approxEq testTolerance
 
-genDistribution :: forall n. (KnownNat n) => Gen (S.R n)
-genDistribution = do
-    entries <- genSimplexPoint (fromIntegral (natVal (Proxy @n)))
-    pure (S.vector entries)
-
 twoState :: TransitionMatrix (Finite 2)
 twoState =
     either (error . show) id $
-        mkTransitionMatrix
-            (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+        fromRows
+            (chunksOf 2 [0.9, 0.1, 0.4, 0.6])
 
 namedInitial :: DistributionVector NamedPosition
 namedInitial =
     either (error . show) id $
-        mkDistributionVector @NamedPosition
-            (S.vector [1, 0] :: S.R 2)
+        Vector.fromList @NamedPosition [1, 0]
 
 namedTwoState :: TransitionMatrix NamedPosition
 namedTwoState =
     either (error . show) id $
-        mkTransitionMatrix @NamedPosition
-            (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+        fromRows @NamedPosition
+            (chunksOf 2 [0.9, 0.1, 0.4, 0.6])
 
 spec :: Spec
 spec = do
     describe "evolveVector" $ do
         prop "keeps the distribution on the simplex" $
-            forAll ((,) <$> genDistribution @3 <*> genTransitionMatrix @3) $
+            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionRows 3) $
                 \(vector, matrix) ->
-                    case (mkDistributionVector @(Finite 3) vector, mkTransitionMatrix matrix) of
+                    case (Vector.fromList @(Finite 3) vector, fromRows matrix) of
                         (Right mu, Right p) ->
-                            case mkDistributionVector @(Finite 3) (unDistributionVector (evolveVector mu p)) of
+                            case Vector.fromList @(Finite 3)
+                                (Vector.toList (evolveVector mu p)) of
                                 Right _ ->
                                     property True
                                 Left err ->
@@ -177,10 +159,9 @@ spec = do
         it "matches a hand-computed two-state step" $ do
             let mu =
                     either (error . show) id $
-                        mkDistributionVector @(Finite 2)
-                            (S.vector [1, 0] :: S.R 2)
+                        Vector.fromList @(Finite 2) [1, 0]
 
-            LA.toList (S.extract (unDistributionVector (evolveVector mu twoState)))
+            Vector.toList (evolveVector mu twoState)
                 `shouldBe` [0.9, 0.1]
 
         it "preserves named states while evolving the dense vector" $ do
@@ -193,8 +174,7 @@ spec = do
         it "leaves a distribution unchanged after zero steps" $ do
             let mu =
                     either (error . show) id $
-                        mkDistributionVector @(Finite 2)
-                            (S.vector [0.25, 0.75] :: S.R 2)
+                        Vector.fromList @(Finite 2) [0.25, 0.75]
 
             approxDistributionEq
                 1e-12
@@ -206,11 +186,11 @@ spec = do
             $ forAll
                 ( (,,)
                     <$> choose (0, 6 :: Int)
-                    <*> genDistribution @3
-                    <*> genTransitionMatrix @3
+                    <*> genSimplexPoint 3
+                    <*> genTransitionRows 3
                 )
             $ \(k, vector, matrix) ->
-                case (mkDistributionVector @(Finite 3) vector, mkTransitionMatrix matrix) of
+                case (Vector.fromList @(Finite 3) vector, fromRows matrix) of
                     (Right mu, Right p) ->
                         let iterated =
                                 iterate (`evolveVector` p) mu !! k
@@ -229,11 +209,11 @@ spec = do
                 ( (,,,)
                     <$> choose (0, 4 :: Int)
                     <*> choose (0, 4 :: Int)
-                    <*> genDistribution @3
-                    <*> genTransitionMatrix @3
+                    <*> genSimplexPoint 3
+                    <*> genTransitionRows 3
                 )
             $ \(m, n, vector, matrix) ->
-                case (mkDistributionVector @(Finite 3) vector, mkTransitionMatrix matrix) of
+                case (Vector.fromList @(Finite 3) vector, fromRows matrix) of
                     (Right mu, Right p) ->
                         property $
                             approxDistributionEq

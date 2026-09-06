@@ -25,9 +25,7 @@ import Dtmc.Distribution.Map qualified as DistributionMap
 import Dtmc.Distribution.Vector (
     DistributionVector,
  )
-import Dtmc.Distribution.Vector.HMatrix (
-    mkDistributionVector,
- )
+import Dtmc.Distribution.Vector qualified as Vector
 import Dtmc.Dynamics (
     evolveVector,
     evolveVectorN,
@@ -35,25 +33,23 @@ import Dtmc.Dynamics (
 import Dtmc.State qualified
 import Dtmc.TestSupport (
     approxEq,
+    chunksOf,
     genSimplexPoint,
-    genTransitionMatrix,
+    genTransitionRows,
     testTolerance,
  )
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
     power,
     rowAt,
- )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
-    unTransitionMatrix,
+    toRows,
  )
 import GHC.Generics (
     Generic,
  )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
@@ -80,8 +76,9 @@ import Test.QuickCheck (
 chain :: TransitionMatrix (Finite 3)
 chain =
     either (error . show) id $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                3
                 [ 0.5
                 , 0.5
                 , 0.0
@@ -91,14 +88,13 @@ chain =
                 , 1.0
                 , 0.0
                 , 0.0
-                ] ::
-                S.Sq 3
+                ]
             )
 
 initial :: DistributionVector (Finite 3)
 initial =
     either (error . show) id $
-        mkDistributionVector (S.vector [0.6, 0.3, 0.1] :: S.R 3)
+        Vector.fromList [0.6, 0.3, 0.1]
 
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id
@@ -155,26 +151,27 @@ instance Dtmc.State.FiniteState NamedPhase
 namedCycle :: TransitionMatrix NamedPhase
 namedCycle =
     either (error . show) id $
-        mkTransitionMatrix @NamedPhase
-            (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0] :: S.Sq 3)
+        fromRows @NamedPhase
+            (chunksOf 3 [0, 1, 0, 0, 0, 1, 1, 0, 0])
 
 twoState :: TransitionMatrix (Finite 2)
 twoState =
     either (error . show) id $
-        mkTransitionMatrix
-            (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+        fromRows
+            (chunksOf 2 [0.9, 0.1, 0.4, 0.6])
 
 twoStateSquared :: TransitionMatrix (Finite 2)
 twoStateSquared =
     either (error . show) id $
-        mkTransitionMatrix
-            (S.matrix [0.85, 0.15, 0.6, 0.4] :: S.Sq 2)
+        fromRows
+            (chunksOf 2 [0.85, 0.15, 0.6, 0.4])
 
 closedFormTransition :: TransitionMatrix (Finite 3)
 closedFormTransition =
     either (error . show) id $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                3
                 [ 0.1
                 , 0.5
                 , 0.4
@@ -184,8 +181,7 @@ closedFormTransition =
                 , 0.0
                 , 0.5
                 , 0.5
-                ] ::
-                S.Sq 3
+                ]
             )
 
 closedFormProbability :: Int -> Double
@@ -198,8 +194,9 @@ probability examples.
 observationMatrix :: TransitionMatrix (Finite 5)
 observationMatrix =
     either (error . show) id $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                5
                 [ 0
                 , 0
                 , 0
@@ -225,15 +222,14 @@ observationMatrix =
                 , 0
                 , 0
                 , 1 / 2
-                ] ::
-                S.Sq 5
+                ]
             )
 
 -- | Initial law @lambda = [1/4, 1/2, 0, 1/4, 0]@ for the probability examples.
 observationInitial :: DistributionVector (Finite 5)
 observationInitial =
     either (error . show) id $
-        mkDistributionVector (S.vector [1 / 4, 1 / 2, 0, 1 / 4, 0] :: S.R 5)
+        Vector.fromList [1 / 4, 1 / 2, 0, 1 / 4, 0]
 
 spec :: Spec
 spec = do
@@ -243,8 +239,8 @@ spec = do
 
     describe "stepProbability" $ do
         prop "agrees with rowAt then probabilityAt" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix @(Finite 3) matrix of
+            forAll (genTransitionRows 3) $ \matrix ->
+                case fromRows @(Finite 3) matrix of
                     Right p ->
                         conjoin
                             [ stepProbability p i j
@@ -270,8 +266,8 @@ spec = do
                     `shouldBe` map (\(i, j) -> if i == j then 1 else 0) ijs
 
         prop "agrees with stepProbability at exponent one" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix @(Finite 3) matrix of
+            forAll (genTransitionRows 3) $ \matrix ->
+                case fromRows @(Finite 3) matrix of
                     Right p ->
                         conjoin
                             [ property $
@@ -296,19 +292,18 @@ spec = do
                 ]
 
         prop "agrees with the corresponding power entry" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix @(Finite 3) matrix of
+            forAll (genTransitionRows 3) $ \matrix ->
+                case fromRows @(Finite 3) matrix of
                     Right p ->
-                        let fourStep = S.extract (unTransitionMatrix (power 4 p))
+                        let fourStep = toRows (power 4 p)
                          in conjoin
                                 [ property $
                                     approxEq
                                         testTolerance
                                         (nStepProbability 4 p i j)
                                         ( fourStep
-                                            `LA.atIndex` ( fromIntegral (getFinite i)
-                                                         , fromIntegral (getFinite j)
-                                                         )
+                                            !! fromIntegral (getFinite i)
+                                            !! fromIntegral (getFinite j)
                                         )
                                 | i <- finites
                                 , j <- finites
@@ -349,11 +344,11 @@ spec = do
                 ( (,,)
                     <$> choose (0, 6 :: Int)
                     <*> genSimplexPoint 3
-                    <*> genTransitionMatrix @3
+                    <*> genTransitionRows 3
                 )
             $ \(k, entries, matrix) ->
-                case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
-                     , mkTransitionMatrix matrix
+                case ( Vector.fromList @(Finite 3) entries
+                     , fromRows @(Finite 3) matrix
                      ) of
                     (Right mu, Right p) ->
                         conjoin
@@ -374,11 +369,11 @@ spec = do
                 ( (,,)
                     <$> choose (0, 6 :: Int)
                     <*> genSimplexPoint 3
-                    <*> genTransitionMatrix @3
+                    <*> genTransitionRows 3
                 )
             $ \(k, entries, matrix) ->
-                case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
-                     , mkTransitionMatrix matrix
+                case ( Vector.fromList @(Finite 3) entries
+                     , fromRows @(Finite 3) matrix
                      ) of
                     (Right mu, Right p) ->
                         let iterated = iterate (`evolveVector` p) mu !! k
@@ -403,8 +398,9 @@ spec = do
                 `shouldBe` 0
 
         prop "gives matrices and equivalent kernels the same transition powers" $
-            forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                case mkTransitionMatrix rawMatrix of
+            forAll (genTransitionRows 3) $ \rawMatrix ->
+                case fromRows rawMatrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left problem -> counterexample (show problem) False
                     Right matrix ->
                         let kernel = asTransitionKernel matrix
@@ -470,10 +466,10 @@ spec = do
                 `shouldBe` True
 
         prop "a one-state path equals the initial probability" $
-            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
+            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionRows 3) $
                 \(entries, matrix) ->
-                    case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
-                         , mkTransitionMatrix matrix
+                    case ( Vector.fromList @(Finite 3) entries
+                         , fromRows @(Finite 3) matrix
                          ) of
                         (Right mu, Right p) ->
                             conjoin
@@ -487,10 +483,10 @@ spec = do
                                 False
 
         prop "a two-state path equals lambda_i * P(i, j)" $
-            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
+            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionRows 3) $
                 \(entries, matrix) ->
-                    case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
-                         , mkTransitionMatrix matrix
+                    case ( Vector.fromList @(Finite 3) entries
+                         , fromRows @(Finite 3) matrix
                          ) of
                         (Right mu, Right p) ->
                             conjoin
@@ -559,10 +555,10 @@ spec = do
                 `shouldBe` True
 
         prop "a single observation equals direct evolution" $
-            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
+            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionRows 3) $
                 \(entries, matrix) ->
-                    case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
-                         , mkTransitionMatrix matrix
+                    case ( Vector.fromList @(Finite 3) entries
+                         , fromRows @(Finite 3) matrix
                          ) of
                         (Right mu, Right p) ->
                             conjoin
@@ -580,10 +576,10 @@ spec = do
                                 False
 
         prop "is invariant under observation order" $
-            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionMatrix @3) $
+            forAll ((,) <$> genSimplexPoint 3 <*> genTransitionRows 3) $
                 \(entries, matrix) ->
-                    case ( mkDistributionVector @(Finite 3) (S.vector entries :: S.R 3)
-                         , mkTransitionMatrix matrix
+                    case ( Vector.fromList @(Finite 3) entries
+                         , fromRows @(Finite 3) matrix
                          ) of
                         (Right mu, Right p) ->
                             property $

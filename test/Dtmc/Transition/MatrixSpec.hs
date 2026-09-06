@@ -12,10 +12,7 @@ import Dtmc.Distribution (
     distributionWeights,
  )
 import Dtmc.Distribution.Map qualified as DistributionMap
-import Dtmc.Distribution.Vector.HMatrix (
-    mkDistributionVector,
-    unDistributionVector,
- )
+import Dtmc.Distribution.Vector qualified as Vector
 import Dtmc.Simplex (SimplexError (..))
 import Dtmc.State (
     FiniteState,
@@ -24,31 +21,26 @@ import Dtmc.TestSupport (
     approxEq,
     approxTransitionMatrixEq,
     bumpSmallestInFirstRow,
-    genTransitionMatrix,
-    modifyMatrixRows,
+    chunksOf,
+    genTransitionRows,
     setFirstEntry,
     testTolerance,
  )
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError (..),
+    compose,
     fromKernel,
+    fromRows,
     identity,
     power,
-    compose,
     rowAt,
     toRows,
- )
-import Dtmc.Transition.Matrix.HMatrix (
-    TransitionMatrixError (..),
-    mkTransitionMatrix,
-    unTransitionMatrix,
  )
 import GHC.Generics (
     Generic,
  )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -75,28 +67,26 @@ instance FiniteState NamedPhase
 cyclicThree :: TransitionMatrix (Finite 3)
 cyclicThree =
     either (error . show) id $
-        mkTransitionMatrix
-            ( S.matrix
-                [0, 1, 0, 0, 0, 1, 1, 0, 0]
-            )
+        fromRows
+            (chunksOf 3 [0, 1, 0, 0, 0, 1, 1, 0, 0])
 
 namedCycle :: TransitionMatrix NamedPhase
 namedCycle =
     either (error . show) id $
-        mkTransitionMatrix @NamedPhase
-            (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0] :: S.Sq 3)
+        fromRows @NamedPhase
+            (chunksOf 3 [0, 1, 0, 0, 0, 1, 1, 0, 0])
 
 twoState :: TransitionMatrix (Finite 2)
 twoState =
     either (error . show) id $
-        mkTransitionMatrix
-            (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+        fromRows
+            (chunksOf 2 [0.9, 0.1, 0.4, 0.6])
 
 twoStateSquared :: TransitionMatrix (Finite 2)
 twoStateSquared =
     either (error . show) id $
-        mkTransitionMatrix
-            (S.matrix [0.85, 0.15, 0.6, 0.4] :: S.Sq 2)
+        fromRows
+            (chunksOf 2 [0.85, 0.15, 0.6, 0.4])
 
 spec :: Spec
 spec = do
@@ -125,15 +115,13 @@ spec = do
                 )
                 `shouldBe` []
 
-    describe "mkTransitionMatrix" $ do
+    describe "fromRows" $ do
         prop "stores canonical rows close to the accepted input" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix @(Finite 3) matrix of
+            forAll (genTransitionRows 3) $ \matrix ->
+                case fromRows @(Finite 3) matrix of
                     Right transitionMatrix ->
-                        let storedRows =
-                                LA.toLists
-                                    (S.extract (unTransitionMatrix transitionMatrix))
-                            inputRows = LA.toLists (S.extract matrix)
+                        let storedRows = toRows transitionMatrix
+                            inputRows = matrix
                             closeRow left right =
                                 and
                                     ( zipWith
@@ -159,15 +147,10 @@ spec = do
                             False
 
         it "canonicalises tolerated error independently in each row" $
-            case mkTransitionMatrix @(Finite 2)
-                ( S.matrix
-                    [-5e-10, 1 + 5e-10, 0.5, 0.5 - 5e-10] ::
-                    S.Sq 2
-                ) of
+            case fromRows @(Finite 2)
+                (chunksOf 2 [-5e-10, 1 + 5e-10, 0.5, 0.5 - 5e-10]) of
                 Right transitionMatrix -> do
-                    let rows =
-                            LA.toLists
-                                (S.extract (unTransitionMatrix transitionMatrix))
+                    let rows = toRows transitionMatrix
                     case rows of
                         firstRow : secondRow : _ -> do
                             firstRow `shouldBe` [0, 1]
@@ -179,20 +162,17 @@ spec = do
                         ("expected acceptance, got " <> show err)
 
         it "reports a non-finite coordinate with its row and column" $
-            case mkTransitionMatrix @(Finite 2)
-                (S.matrix [1, 0, 0, 1 / 0] :: S.Sq 2) of
+            case fromRows @(Finite 2)
+                (chunksOf 2 [1, 0, 0, 1 / 0]) of
                 Left err ->
                     err `shouldBe` InRow 1 (NonFiniteEntry 1)
                 Right _ ->
                     expectationFailure "expected rejection"
 
         prop "identifies a row whose sum is invalid" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                let invalid =
-                        modifyMatrixRows
-                            (bumpSmallestInFirstRow 1e-6)
-                            matrix
-                 in case mkTransitionMatrix @(Finite 3) invalid of
+            forAll (genTransitionRows 3) $ \matrix ->
+                let invalid = bumpSmallestInFirstRow 1e-6 matrix
+                 in case fromRows @(Finite 3) invalid of
                         Left (InRow 0 (SumOffBy _)) ->
                             property True
                         result ->
@@ -201,12 +181,9 @@ spec = do
                                 False
 
         prop "identifies a negative entry by row and column" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                let invalid =
-                        modifyMatrixRows
-                            (setFirstEntry (-1e-6))
-                            matrix
-                 in case mkTransitionMatrix @(Finite 3) invalid of
+            forAll (genTransitionRows 3) $ \matrix ->
+                let invalid = setFirstEntry (-1e-6) matrix
+                 in case fromRows @(Finite 3) invalid of
                         Left (InRow 0 (NegativeEntry 0 _)) ->
                             property True
                         result ->
@@ -217,14 +194,12 @@ spec = do
     describe "compose" $ do
         prop "is closed under multiplication"
             $ forAll
-                ((,) <$> genTransitionMatrix @3 <*> genTransitionMatrix @3)
+                ((,) <$> genTransitionRows 3 <*> genTransitionRows 3)
             $ \(left, right) ->
-                case (mkTransitionMatrix @(Finite 3) left, mkTransitionMatrix @(Finite 3) right) of
+                case (fromRows @(Finite 3) left, fromRows @(Finite 3) right) of
                     (Right leftMatrix, Right rightMatrix) ->
-                        case mkTransitionMatrix @(Finite 3)
-                            ( unTransitionMatrix
-                                (compose leftMatrix rightMatrix)
-                            ) of
+                        case fromRows @(Finite 3)
+                            (toRows (compose leftMatrix rightMatrix)) of
                             Right _ ->
                                 property True
                             Left err ->
@@ -237,8 +212,8 @@ spec = do
                             False
 
         prop "approximately equals itself at zero tolerance" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix @(Finite 3) matrix of
+            forAll (genTransitionRows 3) $ \matrix ->
+                case fromRows @(Finite 3) matrix of
                     Right transitionMatrix ->
                         property
                             ( approxTransitionMatrixEq
@@ -255,14 +230,14 @@ spec = do
         prop "composition is approximately associative"
             $ forAll
                 ( (,,)
-                    <$> genTransitionMatrix @3
-                    <*> genTransitionMatrix @3
-                    <*> genTransitionMatrix @3
+                    <$> genTransitionRows 3
+                    <*> genTransitionRows 3
+                    <*> genTransitionRows 3
                 )
             $ \(matrixA, matrixB, matrixC) ->
-                case ( mkTransitionMatrix @(Finite 3) matrixA
-                     , mkTransitionMatrix @(Finite 3) matrixB
-                     , mkTransitionMatrix @(Finite 3) matrixC
+                case ( fromRows @(Finite 3) matrixA
+                     , fromRows @(Finite 3) matrixB
+                     , fromRows @(Finite 3) matrixC
                      ) of
                     (Right a, Right b, Right c) ->
                         property $
@@ -277,8 +252,8 @@ spec = do
 
     describe "TransitionMatrix Monoid" $ do
         prop "has a left identity" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix @(Finite 3) matrix of
+            forAll (genTransitionRows 3) $ \matrix ->
+                case fromRows @(Finite 3) matrix of
                     Right p ->
                         property $
                             approxTransitionMatrixEq
@@ -291,8 +266,8 @@ spec = do
                             False
 
         prop "has a right identity" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix @(Finite 3) matrix of
+            forAll (genTransitionRows 3) $ \matrix ->
+                case fromRows @(Finite 3) matrix of
                     Right p ->
                         property $
                             approxTransitionMatrixEq
@@ -334,14 +309,12 @@ spec = do
                 `shouldBe` True
 
         prop "stays stochastic for small exponents" $
-            forAll ((,) <$> choose (0, 6 :: Int) <*> genTransitionMatrix @3) $
+            forAll ((,) <$> choose (0, 6 :: Int) <*> genTransitionRows 3) $
                 \(k, matrix) ->
-                    case mkTransitionMatrix @(Finite 3) matrix of
+                    case fromRows @(Finite 3) matrix of
                         Right p ->
-                            case mkTransitionMatrix @(Finite 3)
-                                ( unTransitionMatrix
-                                    (power (fromIntegral k) p)
-                                ) of
+                            case fromRows @(Finite 3)
+                                (toRows (power (fromIntegral k) p)) of
                                 Right _ ->
                                     property True
                                 Left err ->
@@ -358,10 +331,10 @@ spec = do
                 ( (,,)
                     <$> choose (0, 6 :: Int)
                     <*> choose (0, 6 :: Int)
-                    <*> genTransitionMatrix @3
+                    <*> genTransitionRows 3
                 )
             $ \(m, n, matrix) ->
-                case mkTransitionMatrix @(Finite 3) matrix of
+                case fromRows @(Finite 3) matrix of
                     Right p ->
                         property $
                             approxTransitionMatrixEq
@@ -377,26 +350,23 @@ spec = do
 
     describe "rowAt" $ do
         it "reads rows rather than columns" $
-            LA.toList
-                (S.extract (unDistributionVector (rowAt cyclicThree 0)))
+            Vector.toList (rowAt cyclicThree 0)
                 `shouldBe` [0, 1, 0]
 
         it "returns each row of the three-cycle" $ do
-            let row index =
-                    LA.toList
-                        (S.extract (unDistributionVector (rowAt cyclicThree index)))
+            let row index = Vector.toList (rowAt cyclicThree index)
 
             row 0 `shouldBe` [0, 1, 0]
             row 1 `shouldBe` [0, 0, 1]
             row 2 `shouldBe` [1, 0, 0]
 
         prop "always returns a valid distribution" $
-            forAll (genTransitionMatrix @3) $ \matrix ->
-                case mkTransitionMatrix @(Finite 3) matrix of
+            forAll (genTransitionRows 3) $ \matrix ->
+                case fromRows @(Finite 3) matrix of
                     Right transitionMatrix ->
                         conjoin
-                            [ case mkDistributionVector @(Finite 3)
-                                (unDistributionVector (rowAt transitionMatrix index)) of
+                            [ case Vector.fromList @(Finite 3)
+                                (Vector.toList (rowAt transitionMatrix index)) of
                                 Right _ ->
                                     property True
                                 Left err ->

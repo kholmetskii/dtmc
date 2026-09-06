@@ -41,7 +41,7 @@ import qualified Dtmc.Analysis.HittingTime as HittingTime
 import qualified Dtmc.Analysis.Stationary as Stationary
 import Dtmc.Distribution (DistributionError)
 import qualified Dtmc.Distribution.Map as DistributionMap
-import Dtmc.Distribution.Vector (DistributionVector)
+import Dtmc.Distribution.Vector (DistributionVector, DistributionVectorError)
 import qualified Dtmc.Distribution.Vector as DistributionVector
 import Dtmc.State (FiniteState)
 import Dtmc.Transition.Kernel (TransitionKernel, fromLaws)
@@ -64,8 +64,8 @@ weatherKernel = do
 weatherMatrix :: Either DistributionError (TransitionMatrix Weather)
 weatherMatrix = fromKernel <$> weatherKernel
 
-initialWeather :: Either DistributionError (DistributionVector Weather)
-initialWeather = DistributionVector.fromList [(Dry, 1)]
+initialWeather :: Either DistributionVectorError (DistributionVector Weather)
+initialWeather = DistributionVector.fromList [1, 0]
 
 main :: IO ()
 main =
@@ -164,9 +164,9 @@ These are the built-in public construction paths:
 | Value | Recommended construction | Alternative construction |
 |---|---|---|
 | Sparse distribution | `Dtmc.Distribution.Map.fromList` or `pointMass` | `fromDistribution` |
-| Dense finite distribution | `Dtmc.Distribution.Vector.fromList` | `Dtmc.Distribution.Vector.HMatrix.mkDistributionVector` |
+| Dense finite distribution | `Dtmc.Distribution.Vector.fromList` | — |
 | Functional transition kernel | `Dtmc.Transition.Kernel.fromLaws` | — |
-| Dense finite transition matrix | `Dtmc.Transition.Matrix.fromKernel` | `Dtmc.Transition.Matrix.HMatrix.mkTransitionMatrix` |
+| Dense finite transition matrix | `Dtmc.Transition.Matrix.fromRows` or `fromKernel` | — |
 
 `Dtmc.Distribution.Map.mapStates` transforms a validated sparse distribution
 and combines weights when several source states map to the same target.
@@ -221,17 +221,13 @@ failure.
 See each function's Haddock documentation for its edge cases, numerical
 contract, and time and space complexity.
 
-## `hmatrix` interoperability
+## `hmatrix`
 
-The ordinary construction and inspection APIs use state-labelled weights and
-plain lists. Applications already using `hmatrix` can opt into:
-
-- `Dtmc.Distribution.Vector.HMatrix` for statically sized distribution
-  vectors;
-- `Dtmc.Transition.Matrix.HMatrix` for statically sized transition matrices.
-
-Keeping these imports explicit prevents `hmatrix` types from appearing in the
-ordinary public API.
+No `hmatrix` type appears anywhere in the public API. Matrices are built from
+and read back as plain lists of weights, and distributions as state-labelled
+weights or plain lists, so an application never mentions `hmatrix` in its own
+signatures. The package does use `hmatrix` internally for the linear algebra,
+so building it needs a BLAS/LAPACK implementation.
 
 ## Building and testing
 

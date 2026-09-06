@@ -23,15 +23,12 @@ import Dtmc.State (
 import Dtmc.TestSupport
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
- )
-import Dtmc.Transition.Matrix.HMatrix (
     TransitionMatrixError,
-    mkTransitionMatrix,
+    fromRows,
  )
 import GHC.Generics (
     Generic,
  )
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec
 import Test.Hspec.QuickCheck (
     prop,
@@ -47,8 +44,9 @@ data Four = A | B | C | D
 chain :: TransitionMatrix Four
 chain =
     either (error . show) id $
-        mkTransitionMatrix
-            ( S.matrix
+        fromRows
+            ( chunksOf
+                4
                 [ 0
                 , 1 / 3
                 , 2 / 3
@@ -72,7 +70,7 @@ chain =
 twoCycle :: TransitionMatrix Bool
 twoCycle =
     either (error . show) id $
-        mkTransitionMatrix (S.matrix [0, 1, 1, 0])
+        fromRows (chunksOf 2 [0, 1, 1, 0])
 
 closeTo :: Double -> Double -> Bool
 closeTo expected actual = approxEq testTolerance expected actual
@@ -150,8 +148,8 @@ spec = do
 
     describe "absorption probabilities" $
         prop "sum to one from every transient state" $
-            forAll (genTransitionMatrix @3) $ \m ->
-                case mkTransitionMatrix m ::
+            forAll (genTransitionRows 3) $ \m ->
+                case fromRows m ::
                         Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left err ->
                         counterexample ("generated matrix rejected: " <> show err) False

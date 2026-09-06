@@ -35,11 +35,10 @@ import Dtmc.TestSupport
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
+    TransitionMatrixError,
+    fromRows,
     identity,
- )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
-    unTransitionMatrix,
+    toRows,
  )
 import GHC.Generics (
     Generic,
@@ -47,8 +46,6 @@ import GHC.Generics (
 import GHC.TypeNats (
     KnownNat,
  )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -74,8 +71,8 @@ data NamedRuinState = Ruined | One | Two | Three | Won
 
 instance FiniteState NamedRuinState
 
-fromRows :: (Show e) => Either e (TransitionMatrix (Finite n)) -> TransitionMatrix (Finite n)
-fromRows = either (error . show) id
+checked :: (Show e) => Either e a -> a
+checked = either (error . show) id
 
 asTransitionKernel ::
     (FiniteState state) =>
@@ -99,9 +96,10 @@ simpleRandomWalk =
 -- probability 1-p; 0 (ruin) and 4 (goal) are absorbing.
 gambler :: Double -> TransitionMatrix (Finite 5)
 gambler p =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                5
                 [ 1
                 , 0
                 , 0
@@ -132,9 +130,10 @@ gambler p =
 
 namedGambler :: TransitionMatrix NamedRuinState
 namedGambler =
-    either (error . show) id $
-        mkTransitionMatrix @NamedRuinState
-            ( S.matrix
+    checked $
+        fromRows @NamedRuinState
+            ( chunksOf
+                5
                 [ 1
                 , 0
                 , 0
@@ -160,17 +159,17 @@ namedGambler =
                 , 0
                 , 0
                 , 1
-                ] ::
-                S.Sq 5
+                ]
             )
 
 -- Oscillator: states 0 and 1 swap with probability 1/2 or exit to
 -- their own absorbing state (0 -> 2, 1 -> 3).
 oscillator :: TransitionMatrix (Finite 4)
 oscillator =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                4
                 [ 0
                 , 0.5
                 , 0.5
@@ -192,9 +191,10 @@ oscillator =
 
 twoCycle :: TransitionMatrix (Finite 2)
 twoCycle =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                2
                 [ 0
                 , 1
                 , 1
@@ -204,9 +204,10 @@ twoCycle =
 
 nonUniformRecurrent :: TransitionMatrix (Finite 2)
 nonUniformRecurrent =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                2
                 [ 0.9
                 , 0.1
                 , 0.4
@@ -217,9 +218,10 @@ nonUniformRecurrent =
 -- 0 -> 1 -> 2 (absorbing): reaching 2 requires passing through 1 first.
 pathChain :: TransitionMatrix (Finite 3)
 pathChain =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                3
                 [ 0
                 , 1
                 , 0
@@ -237,9 +239,10 @@ pathChain =
 -- Double-precision numerical contract.
 illConditionedChain :: TransitionMatrix (Finite 3)
 illConditionedChain =
-    fromRows $
-        mkTransitionMatrix
-            ( S.matrix
+    checked $
+        fromRows
+            ( chunksOf
+                3
                 [ 1 - epsilon
                 , 0
                 , epsilon
@@ -273,9 +276,6 @@ ruinDuration p i =
     r = q / p
     n = 4 :: Int
 
-entries :: (KnownNat n) => S.R n -> [Double]
-entries = LA.toList . S.extract
-
 closeTo :: Double -> Double -> Bool
 closeTo expected x = abs (x - expected) <= testTolerance
 
@@ -284,12 +284,13 @@ expectationCloseTo expected (FiniteExpectation v) = closeTo expected v
 expectationCloseTo _ InfiniteExpectation = False
 
 checkedChain ::
+    forall n.
     (KnownNat n) =>
-    S.Sq n ->
+    [[Double]] ->
     (TransitionMatrix (Finite n) -> Property) ->
     Property
 checkedChain matrix check =
-    case mkTransitionMatrix matrix of
+    case fromRows matrix of
         Right p -> check p
         Left err ->
             counterexample ("generated matrix was rejected: " <> show err) False
@@ -306,7 +307,7 @@ hittingTimeSpec = do
             case hitEventualProbabilityByState (gambler 0.4) [0] of
                 Left err -> expectationFailure (show err)
                 Right result -> do
-                    let h = entries result
+                    let h = result
                     length h `shouldBe` 5
                     sequence_
                         [ x `shouldSatisfy` closeTo (ruinProbability 0.4 i)
@@ -319,7 +320,7 @@ hittingTimeSpec = do
                 Right result ->
                     sequence_
                         [ x `shouldSatisfy` closeTo (1 - fromIntegral i / 4)
-                        | (i, x) <- zip [0 :: Int ..] (entries result)
+                        | (i, x) <- zip [0 :: Int ..] (result)
                         ]
 
         it "solves the oscillator race to a single absorbing state" $ do
@@ -328,11 +329,11 @@ hittingTimeSpec = do
                 Right result ->
                     sequence_
                         [ x `shouldSatisfy` closeTo v
-                        | (x, v) <- zip (entries result) [2 / 3, 1 / 3, 1, 0]
+                        | (x, v) <- zip (result) [2 / 3, 1 / 3, 1, 0]
                         ]
 
         it "is all zero for an empty target" $
-            (entries <$> hitEventualProbabilityByState oscillator [])
+            hitEventualProbabilityByState oscillator []
                 `shouldBe` Right [0, 0, 0, 0]
 
         it "supports a single-state lookup without changing the result" $
@@ -340,7 +341,7 @@ hittingTimeSpec = do
                 `shouldSatisfy` either (const False) (closeTo (2 / 3))
 
         prop "is exactly one on the target and zero off its basin (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
+            forAll (genTransitionRows 4) $ \matrix ->
                 checkedChain matrix $ \p ->
                     case hitEventualProbabilityByState p [0] of
                         Left err -> counterexample (show err) False
@@ -354,59 +355,58 @@ hittingTimeSpec = do
                                                 (x >= -testTolerance && x <= 1 + testTolerance)
                                         | otherwise -> x === 0
                                 | (i, x) <-
-                                    zip (finites :: [Finite 4]) (entries result)
+                                    zip (finites :: [Finite 4]) (result)
                                 ]
 
         prop "satisfies the first-step equations off the target (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                checkedChain matrix $ \p ->
+            forAll (genTransitionRows 4) $ \matrix ->
+                checkedChain @4 matrix $ \p ->
                     case hitEventualProbabilityByState p [0] of
                         Left err -> counterexample (show err) False
                         Right h ->
                             let pushed =
-                                    LA.toList
-                                        ( S.extract (unTransitionMatrix p)
-                                            LA.#> S.extract h
-                                        )
+                                    [ sum (zipWith (*) row h)
+                                    | row <- toRows p
+                                    ]
                              in conjoin
                                     [ property (closeTo hi pi_)
                                     | (i, hi, pi_) <-
-                                        zip3 (finites :: [Finite 4]) (entries h) pushed
+                                        zip3 (finites :: [Finite 4]) (h) pushed
                                     , i /= 0
                                     ]
 
     describe "bounded hitting times" $ do
         it "returns an empty result for the empty chain" $
-            entries ((hitProbabilityByState . LessThan) 3 (identity @(Finite 0)) [])
+            ((hitProbabilityByState . LessThan) 3 (identity @(Finite 0)) [])
                 `shouldBe` []
 
         it "places all time-zero mass on the target" $
-            entries ((hitProbabilityByState . EqualTo) 0 oscillator [2])
+            ((hitProbabilityByState . EqualTo) 0 oscillator [2])
                 `shouldBe` [0, 0, 1, 0]
 
         it "gives zero exact-time mass for an empty target" $
-            entries ((hitProbabilityByState . EqualTo) 5 oscillator [])
+            ((hitProbabilityByState . EqualTo) 5 oscillator [])
                 `shouldBe` [0, 0, 0, 0]
 
         it "matches a one-step gambler's-ruin hit" $
-            entries ((hitProbabilityByState . EqualTo) 1 (gambler 0.5) [0])
+            ((hitProbabilityByState . EqualTo) 1 (gambler 0.5) [0])
                 `shouldBe` [0, 0.5, 0, 0, 0]
 
         it "uses a strict time bound" $ do
-            entries ((hitProbabilityByState . LessThan) 0 oscillator [2])
+            ((hitProbabilityByState . LessThan) 0 oscillator [2])
                 `shouldBe` [0, 0, 0, 0]
-            entries ((hitProbabilityByState . LessThan) 1 oscillator [2])
+            ((hitProbabilityByState . LessThan) 1 oscillator [2])
                 `shouldBe` [0, 0, 1, 0]
             (Hit.probabilityGivenInitialState . LessThan) 2 (gambler 0.5) (== 0) 1
                 `shouldSatisfy` closeTo 0.5
 
         it "ignores duplicate and reordered targets" $
-            entries ((hitProbabilityByState . LessThan) 4 oscillator [2, 3, 2])
-                `shouldBe` entries ((hitProbabilityByState . LessThan) 4 oscillator [3, 2])
+            ((hitProbabilityByState . LessThan) 4 oscillator [2, 3, 2])
+                `shouldBe` ((hitProbabilityByState . LessThan) 4 oscillator [3, 2])
 
         it "single-state queries look up the all-state results" $ do
-            let exact = entries ((hitProbabilityByState . EqualTo) 3 oscillator [2])
-                bounded = entries ((hitProbabilityByState . LessThan) 4 oscillator [2])
+            let exact = ((hitProbabilityByState . EqualTo) 3 oscillator [2])
+                bounded = ((hitProbabilityByState . LessThan) 4 oscillator [2])
             sequence_
                 [ (Hit.probabilityGivenInitialState . EqualTo) 3 oscillator (== 2) i
                     `shouldSatisfy` closeTo exactAt
@@ -419,7 +419,7 @@ hittingTimeSpec = do
                 ]
 
         prop "bounded increments equal exact-time mass (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
+            forAll (genTransitionRows 4) $ \matrix ->
                 checkedChain matrix $ \p ->
                     conjoin
                         [ counterexample (show (t, i, before, after, mass)) $
@@ -432,7 +432,7 @@ hittingTimeSpec = do
                         ]
 
         prop "bounded probabilities increase toward the eventual value (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
+            forAll (genTransitionRows 4) $ \matrix ->
                 checkedChain matrix $ \p ->
                     conjoin
                         [ counterexample (show (bound, i, current, next, eventual)) $
@@ -464,16 +464,15 @@ hittingTimeSpec = do
                 `shouldBe` Right 0
 
         it "gives all zeros for identical successful and competing sets" $
-            ( entries
-                <$> hitRaceProbabilityByState
-                    oscillator
-                    [2, 3]
-                    [2, 3]
+            ( hitRaceProbabilityByState
+                oscillator
+                [2, 3]
+                [2, 3]
             )
                 `shouldBe` Right (replicate 4 0)
 
         it "gives all zeros for an empty successful set" $
-            (entries <$> hitRaceProbabilityByState oscillator [] [2, 3])
+            hitRaceProbabilityByState oscillator [] [2, 3]
                 `shouldBe` Right (replicate 4 0)
 
         it "agrees with eventual hitting for an empty competing set" $ do
@@ -488,7 +487,7 @@ hittingTimeSpec = do
                 (Right before, Right plain) ->
                     sequence_
                         [ x `shouldSatisfy` closeTo y
-                        | (x, y) <- zip (entries before) (entries plain)
+                        | (x, y) <- zip (before) (plain)
                         ]
 
         it "is exactly zero when the successful set is unreachable" $
@@ -515,7 +514,7 @@ hittingTimeSpec = do
                 (Right withDuplicates, Right once) ->
                     sequence_
                         [ x `shouldSatisfy` closeTo y
-                        | (x, y) <- zip (entries withDuplicates) (entries once)
+                        | (x, y) <- zip (withDuplicates) (once)
                         ]
 
         it "ignores target order" $ do
@@ -533,7 +532,7 @@ hittingTimeSpec = do
                 (Right reordered, Right ordered) ->
                     sequence_
                         [ x `shouldSatisfy` closeTo y
-                        | (x, y) <- zip (entries reordered) (entries ordered)
+                        | (x, y) <- zip (reordered) (ordered)
                         ]
 
         it "single-state lookups match the all-state vector" $
@@ -551,7 +550,7 @@ hittingTimeSpec = do
                             i
                             `shouldSatisfy` either (const False) (closeTo x)
                         | (i, x) <-
-                            zip (finites :: [Finite 4]) (entries result)
+                            zip (finites :: [Finite 4]) (result)
                         ]
 
         it "solves the oscillator race against a competing absorber" $ do
@@ -560,7 +559,7 @@ hittingTimeSpec = do
                 Right result ->
                     sequence_
                         [ x `shouldSatisfy` closeTo v
-                        | (x, v) <- zip (entries result) [2 / 3, 1 / 3, 1, 0]
+                        | (x, v) <- zip (result) [2 / 3, 1 / 3, 1, 0]
                         ]
 
         it "matches a hand-computed symmetric race (gambler p = 0.5)" $ do
@@ -569,7 +568,7 @@ hittingTimeSpec = do
                 Right result ->
                     sequence_
                         [ x `shouldSatisfy` closeTo (fromIntegral i / 4)
-                        | (i, x) <- zip [0 :: Int ..] (entries result)
+                        | (i, x) <- zip [0 :: Int ..] (result)
                         ]
 
         it "disjoint races sum to one when the union is hit almost surely" $
@@ -582,7 +581,7 @@ hittingTimeSpec = do
                     (Right wins, Right losses) ->
                         sequence_
                             [ (x + y) `shouldSatisfy` closeTo 1
-                            | (x, y) <- zip (entries wins) (entries losses)
+                            | (x, y) <- zip (wins) (losses)
                             ]
                 | pp <- [0.3, 0.5, 0.7]
                 , let g = gambler pp
@@ -590,8 +589,8 @@ hittingTimeSpec = do
 
     describe "expected hitting time" $ do
         it "returns one entry per state" $ do
-            -- The transient entries come from the linear solve, so they are
-            -- compared within tolerance; the target entries are assigned
+            -- The transient come from the linear solve, so they are
+            -- compared within tolerance; the target are assigned
             -- exactly and checked exactly.
             case hitExpectationByState oscillator [2, 3] of
                 Left err -> expectationFailure (show err)
@@ -636,14 +635,14 @@ hittingTimeSpec = do
             eta 2 `shouldBe` Right (FiniteExpectation 0)
             eta 3 `shouldBe` Right InfiniteExpectation
 
-        prop "finite entries satisfy the first-step equations (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
-                checkedChain matrix $ \p ->
+        prop "finite satisfy the first-step equations (random @4)" $
+            forAll (genTransitionRows 4) $ \matrix ->
+                checkedChain @4 matrix $ \p ->
                     case hitExpectationByState p [0] of
                         Left err -> counterexample (show err) False
                         Right times ->
                             let eta i = times !! fromIntegral i
-                                rows = LA.toLists (S.extract (unTransitionMatrix p))
+                                rows = toRows p
                                 firstStep i row =
                                     case eta i of
                                         InfiniteExpectation -> property True
@@ -677,38 +676,38 @@ returnTimeSpec :: Spec
 returnTimeSpec = do
     describe "bounded first-return times" $ do
         it "returns an empty result for the empty chain" $
-            entries ((returnProbabilityByState . LessThan) 3 (identity @(Finite 0)))
+            ((returnProbabilityByState . LessThan) 3 (identity @(Finite 0)))
                 `shouldBe` []
 
         it "has no return mass at time zero" $
-            entries ((returnProbabilityByState . EqualTo) 0 oscillator)
+            ((returnProbabilityByState . EqualTo) 0 oscillator)
                 `shouldBe` [0, 0, 0, 0]
 
         it "uses the transition diagonal at time one" $
-            entries ((returnProbabilityByState . EqualTo) 1 nonUniformRecurrent)
+            ((returnProbabilityByState . EqualTo) 1 nonUniformRecurrent)
                 `shouldBe` [0.9, 0.6]
 
         it "counts only the first return" $ do
-            entries ((returnProbabilityByState . EqualTo) 1 oscillator)
+            ((returnProbabilityByState . EqualTo) 1 oscillator)
                 `shouldBe` [0, 0, 1, 1]
-            entries ((returnProbabilityByState . EqualTo) 2 oscillator)
+            ((returnProbabilityByState . EqualTo) 2 oscillator)
                 `shouldBe` [0.25, 0.25, 0, 0]
-            entries ((returnProbabilityByState . EqualTo) 2 twoCycle)
+            ((returnProbabilityByState . EqualTo) 2 twoCycle)
                 `shouldBe` [1, 1]
 
         it "uses a strict time bound" $ do
-            entries ((returnProbabilityByState . LessThan) 0 oscillator)
+            ((returnProbabilityByState . LessThan) 0 oscillator)
                 `shouldBe` [0, 0, 0, 0]
-            entries ((returnProbabilityByState . LessThan) 1 oscillator)
+            ((returnProbabilityByState . LessThan) 1 oscillator)
                 `shouldBe` [0, 0, 0, 0]
-            entries ((returnProbabilityByState . LessThan) 2 oscillator)
+            ((returnProbabilityByState . LessThan) 2 oscillator)
                 `shouldBe` [0, 0, 1, 1]
-            entries ((returnProbabilityByState . LessThan) 3 twoCycle)
+            ((returnProbabilityByState . LessThan) 3 twoCycle)
                 `shouldBe` [1, 1]
 
         it "single-state queries look up the all-state results" $ do
-            let exact = entries ((returnProbabilityByState . EqualTo) 3 oscillator)
-                bounded = entries ((returnProbabilityByState . LessThan) 4 oscillator)
+            let exact = ((returnProbabilityByState . EqualTo) 3 oscillator)
+                bounded = ((returnProbabilityByState . LessThan) 4 oscillator)
             sequence_
                 [ (Return.probabilityGivenInitialState . EqualTo) 3 oscillator i
                     `shouldSatisfy` closeTo exactAt
@@ -721,7 +720,7 @@ returnTimeSpec = do
                 ]
 
         prop "bounded increments equal exact-time mass (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
+            forAll (genTransitionRows 4) $ \matrix ->
                 checkedChain matrix $ \p ->
                     conjoin
                         [ counterexample (show (t, i, before, after, mass)) $
@@ -734,7 +733,7 @@ returnTimeSpec = do
                         ]
 
         prop "bounded probabilities increase toward the eventual value (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
+            forAll (genTransitionRows 4) $ \matrix ->
                 checkedChain matrix $ \p ->
                     conjoin
                         [ counterexample (show (bound, i, current, next, eventual)) $
@@ -755,14 +754,14 @@ returnTimeSpec = do
 
     describe "eventual return probability" $ do
         it "returns all state values in one solve" $ do
-            -- The transient entries come from the fundamental-matrix solve,
+            -- The transient come from the fundamental-matrix solve,
             -- so they are compared within tolerance; the recurrent entries
             -- are assigned exactly one by the classification and checked
             -- exactly.
             case returnEventualProbabilityByState oscillator of
                 Left err -> expectationFailure (show err)
                 Right result -> do
-                    let f = entries result
+                    let f = result
                     sequence_
                         [ x `shouldSatisfy` closeTo 0.25
                         | x <- take 2 f
@@ -774,12 +773,12 @@ returnTimeSpec = do
             -- implementation computes f_i = 1 - 1/N_ii from the renewal
             -- identity, while conditioning on the first step gives
             -- f_i = sum_j P_ij h_j{i}.
-            forAll (genTransitionMatrix @4) $ \matrix ->
+            forAll (genTransitionRows 4) $ \matrix ->
                 checkedChain matrix $ \p ->
                     case returnEventualProbabilityByState p of
                         Left err -> counterexample (show err) False
                         Right returns ->
-                            let rows = LA.toLists (S.extract (unTransitionMatrix p))
+                            let rows = toRows p
                              in conjoin
                                     [ case hitEventualProbabilityByState p [i] of
                                         Left err -> counterexample (show err) False
@@ -789,7 +788,7 @@ returnTimeSpec = do
                                                         ( zipWith
                                                             (*)
                                                             row
-                                                            (entries hits)
+                                                            (hits)
                                                         )
                                              in counterexample
                                                     (show (i, f, firstStep))
@@ -798,7 +797,7 @@ returnTimeSpec = do
                                         zip3
                                             (finites :: [Finite 4])
                                             rows
-                                            (entries returns)
+                                            (returns)
                                     ]
 
         it "is one for an absorbing state" $
@@ -818,7 +817,7 @@ returnTimeSpec = do
                 `shouldSatisfy` either (const False) (closeTo 1)
 
         prop "is close to one on recurrent states and within [0, 1] (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
+            forAll (genTransitionRows 4) $ \matrix ->
                 checkedChain matrix $ \p ->
                     conjoin
                         [ counterexample (show (i, f)) $
@@ -861,7 +860,7 @@ returnTimeSpec = do
             Return.expectationGivenInitialState oscillator 1 `shouldBe` Right InfiniteExpectation
 
         prop "is finite exactly on recurrent states (random @4)" $
-            forAll (genTransitionMatrix @4) $ \matrix ->
+            forAll (genTransitionRows 4) $ \matrix ->
                 checkedChain matrix $ \p ->
                     conjoin
                         [ counterexample (show i) $
@@ -894,8 +893,9 @@ returnTimeSpec = do
                 `shouldSatisfy` closeTo 0.5
 
         prop "matches matrix and equivalent-kernel bounded queries" $
-            forAll (genTransitionMatrix @3) $ \rawMatrix ->
-                case mkTransitionMatrix rawMatrix of
+            forAll (genTransitionRows 3) $ \rawMatrix ->
+                case fromRows rawMatrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 3)) of
                     Left problem -> counterexample (show problem) False
                     Right matrix ->
                         let kernel = asTransitionKernel matrix
@@ -928,13 +928,13 @@ returnTimeSpec = do
                 Right result ->
                     sequence_
                         [ probability `shouldSatisfy` closeTo 1
-                        | probability <- entries result
+                        | probability <- result
                         ]
             Hit.raceProbabilityGivenInitialState namedGambler [Won] [Ruined] Two
                 `shouldSatisfy` either (const False) (closeTo 0.5)
 
         it "solves bounded hitting queries in named state order" $
-            entries ((hitProbabilityByState . LessThan) 3 namedGambler [Won])
+            ((hitProbabilityByState . LessThan) 3 namedGambler [Won])
                 `shouldBe` [0, 0, 0.25, 0.5, 1]
 
         it "solves named expected hitting and return times" $ do

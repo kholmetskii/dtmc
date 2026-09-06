@@ -18,12 +18,7 @@ import Dtmc.Analysis.Stationary (
 import Dtmc.Distribution (
     probabilityAt,
  )
-import Dtmc.Distribution.Vector (
-    DistributionVector,
- )
-import Dtmc.Distribution.Vector.HMatrix (
-    unDistributionVector,
- )
+import Dtmc.Distribution.Vector qualified as Vector
 import Dtmc.Dynamics (
     evolveVector,
  )
@@ -33,20 +28,17 @@ import Dtmc.State (
 import Dtmc.TestSupport (
     approxDistributionEq,
     approxEq,
-    genTransitionMatrix,
+    chunksOf,
+    genTransitionRows,
     testTolerance,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
- )
-import Dtmc.Transition.Matrix.HMatrix (
-    mkTransitionMatrix,
+    fromRows,
  )
 import GHC.Generics (
     Generic,
  )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.Hspec (
     Spec,
     describe,
@@ -77,7 +69,10 @@ instance FiniteState Weather
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id
 
-onlyStationary :: (FiniteState state) => TransitionMatrix state -> DistributionVector state
+onlyStationary ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    Vector.DistributionVector state
 onlyStationary matrix =
     case checked (stationaryDistributions matrix) of
         [(_, distribution)] -> distribution
@@ -86,47 +81,42 @@ onlyStationary matrix =
 twoState :: TransitionMatrix (Finite 2)
 twoState =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+        ( fromRows
+            (chunksOf 2 [0.9, 0.1, 0.4, 0.6])
         )
 
 singleton :: TransitionMatrix (Finite 1)
 singleton =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [1] :: S.Sq 1)
+        ( fromRows
+            (chunksOf 1 [1])
         )
 
 threeCycle :: TransitionMatrix (Finite 3)
 threeCycle =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0, 1, 0, 0, 0, 1, 1, 0, 0] :: S.Sq 3)
+        ( fromRows
+            (chunksOf 3 [0, 1, 0, 0, 0, 1, 1, 0, 0])
         )
 
 namedTwoState :: TransitionMatrix Weather
 namedTwoState =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0.9, 0.1, 0.4, 0.6] :: S.Sq 2)
+        ( fromRows
+            (chunksOf 2 [0.9, 0.1, 0.4, 0.6])
         )
 
-entries :: (FiniteState state) => DistributionVector state -> [Double]
-entries = LA.toList . S.extract . unDistributionVector
-
-genPositiveTransitionMatrix :: Gen (S.Sq 3)
-genPositiveTransitionMatrix = do
-    rows <- vectorOf 3 positiveSimplex
-    pure (S.matrix (concat rows))
+genPositiveTransitionMatrix :: Gen [[Double]]
+genPositiveTransitionMatrix = vectorOf 3 positiveSimplex
   where
     positiveSimplex = do
         weights <- vectorOf 3 (choose (1, 1000 :: Double))
         let total = sum weights
         pure (map (/ total) weights)
 
-stationaryLawsHold :: S.Sq 3 -> Property
+stationaryLawsHold :: [[Double]] -> Property
 stationaryLawsHold raw =
-    case mkTransitionMatrix @(Finite 3) raw of
+    case fromRows @(Finite 3) raw of
         Left err -> counterexample (show err) (property False)
         Right matrix ->
             case stationaryDistributions matrix of
@@ -142,7 +132,7 @@ stationaryLawsHold raw =
                                 )
                         , counterexample "sum pi /= 1" $
                             property
-                                (approxEq testTolerance (sum (entries distribution)) 1)
+                                (approxEq testTolerance (sum (Vector.toList distribution)) 1)
                         ]
                 Right _ -> counterexample "positive matrix was not uniquely stationary" (property False)
 
@@ -150,14 +140,14 @@ spec :: Spec
 spec = do
     describe "stationaryDistributions" $ do
         it "returns the point mass for a singleton chain" $
-            entries (onlyStationary singleton)
+            Vector.toList (onlyStationary singleton)
                 `shouldBe` [1]
 
         it "matches the closed form for a two-state chain" $
             and
                 ( zipWith
                     (approxEq testTolerance)
-                    (entries (onlyStationary twoState))
+                    (Vector.toList (onlyStationary twoState))
                     [0.8, 0.2]
                 )
                 `shouldBe` True
@@ -165,7 +155,7 @@ spec = do
         it "is uniform for a periodic three-cycle" $
             and
                 [ approxEq testTolerance actual (1 / 3)
-                | actual <- entries (onlyStationary threeCycle)
+                | actual <- Vector.toList (onlyStationary threeCycle)
                 ]
                 `shouldBe` True
 
@@ -187,17 +177,17 @@ spec = do
             let epsilon = 1e-14
                 matrix =
                     checked
-                        ( mkTransitionMatrix @(Finite 2)
-                            ( S.matrix
+                        ( fromRows @(Finite 2)
+                            ( chunksOf
+                                2
                                 [ 1 - epsilon
                                 , epsilon
                                 , epsilon
                                 , 1 - epsilon
-                                ] ::
-                                S.Sq 2
+                                ]
                             )
                         )
-            entries (onlyStationary matrix)
+            Vector.toList (onlyStationary matrix)
                 `shouldBe` [0.5, 0.5]
 
         it "solves an asymmetric nearly uncoupled chain" $ do
@@ -208,17 +198,17 @@ spec = do
                 returning = 3e-14
                 matrix =
                     checked
-                        ( mkTransitionMatrix @(Finite 2)
-                            ( S.matrix
+                        ( fromRows @(Finite 2)
+                            ( chunksOf
+                                2
                                 [ 1 - leaving
                                 , leaving
                                 , returning
                                 , 1 - returning
-                                ] ::
-                                S.Sq 2
+                                ]
                             )
                         )
-            entries (onlyStationary matrix)
+            Vector.toList (onlyStationary matrix)
                 `shouldSatisfy` allCloseTo [0.75, 0.25]
 
     describe "multiple recurrent classes" $ do
@@ -229,22 +219,22 @@ spec = do
         it "matches the closed form of the notes" $
             case stationaryDistributions twoClosedClasses of
                 Right [(_, onFirst), (_, onSecond)] -> do
-                    entries onFirst `shouldSatisfy` allCloseTo [1, 0, 0]
-                    entries onSecond `shouldSatisfy` allCloseTo [0, 5 / 11, 6 / 11]
+                    Vector.toList onFirst `shouldSatisfy` allCloseTo [1, 0, 0]
+                    Vector.toList onSecond `shouldSatisfy` allCloseTo [0, 5 / 11, 6 / 11]
                 other -> expectationFailure ("unexpected result: " ++ show other)
 
         it "puts exact zero on a transient state" $
             case stationaryDistributions withTransient of
                 Right [(members, only)] -> do
                     members `shouldBe` [1, 2]
-                    take 1 (entries only) `shouldBe` [0]
-                    entries only `shouldSatisfy` allCloseTo [0, 5 / 11, 6 / 11]
+                    take 1 (Vector.toList only) `shouldBe` [0]
+                    Vector.toList only `shouldSatisfy` allCloseTo [0, 5 / 11, 6 / 11]
                 other -> expectationFailure ("unexpected result: " ++ show other)
 
         it "returns one distribution for an irreducible chain" $
             case stationaryDistributions twoState of
                 Right [(_, only)] ->
-                    entries only `shouldSatisfy` allCloseTo [0.8, 0.2]
+                    Vector.toList only `shouldSatisfy` allCloseTo [0.8, 0.2]
                 other -> expectationFailure ("unexpected result: " ++ show other)
 
         it "inverts the mean return time" $
@@ -252,12 +242,12 @@ spec = do
             case stationaryDistributions twoClosedClasses of
                 Right [_, (_, onSecond)] ->
                     Return.expectationGivenInitialState twoClosedClasses 1
-                        `shouldSatisfy` inverts (entries onSecond !! 1)
+                        `shouldSatisfy` inverts (Vector.toList onSecond !! 1)
                 other -> expectationFailure ("unexpected result: " ++ show other)
 
         prop "every returned distribution is stationary and normalised" $
-            forAll (genTransitionMatrix @3) $ \raw ->
-                case mkTransitionMatrix @(Finite 3) raw of
+            forAll (genTransitionRows 3) $ \raw ->
+                case fromRows @(Finite 3) raw of
                     Left err -> counterexample (show err) (property False)
                     Right matrix ->
                         case stationaryDistributions matrix of
@@ -275,7 +265,7 @@ spec = do
                                                 )
                                         , counterexample "sum pi /= 1" $
                                             property
-                                                (approxEq testTolerance (sum (entries d)) 1)
+                                                (approxEq testTolerance (sum (Vector.toList d)) 1)
                                         ]
                                     | (_, d) <- results
                                     ]
@@ -285,16 +275,16 @@ spec = do
 twoClosedClasses :: TransitionMatrix (Finite 3)
 twoClosedClasses =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [1, 0, 0, 0, 0.4, 0.6, 0, 0.5, 0.5] :: S.Sq 3)
+        ( fromRows
+            (chunksOf 3 [1, 0, 0, 0, 0.4, 0.6, 0, 0.5, 0.5])
         )
 
 -- State 0 is transient; {1, 2} is the only recurrent class.
 withTransient :: TransitionMatrix (Finite 3)
 withTransient =
     checked
-        ( mkTransitionMatrix
-            (S.matrix [0, 0.5, 0.5, 0, 0.4, 0.6, 0, 0.5, 0.5] :: S.Sq 3)
+        ( fromRows
+            (chunksOf 3 [0, 0.5, 0.5, 0, 0.4, 0.6, 0, 0.5, 0.5])
         )
 
 allCloseTo :: [Double] -> [Double] -> Bool

@@ -7,8 +7,8 @@ module Dtmc.TestSupport (
     approxDistributionEq,
     approxTransitionMatrixEq,
     genSimplexPoint,
-    genTransitionMatrix,
-    modifyMatrixRows,
+    genTransitionRows,
+    chunksOf,
     bumpSmallest,
     bumpSmallestInFirstRow,
     setFirstEntry,
@@ -26,9 +26,6 @@ module Dtmc.TestSupport (
     absorptionExpectationByState,
 ) where
 
-import Data.Proxy (
-    Proxy (..),
- )
 import Dtmc.Analysis.Absorption qualified as Absorption
 import Dtmc.Analysis.Event (
     DiscreteEvent,
@@ -47,7 +44,6 @@ import Dtmc.Distribution.Vector (
     toList,
  )
 import Dtmc.State (
-    Cardinality,
     FiniteState,
     finiteStates,
  )
@@ -55,12 +51,6 @@ import Dtmc.Transition.Matrix (
     TransitionMatrix,
     toRows,
  )
-import GHC.TypeNats (
-    KnownNat,
-    natVal,
- )
-import Numeric.LinearAlgebra qualified as LA
-import Numeric.LinearAlgebra.Static qualified as S
 import Test.QuickCheck (
     Gen,
     choose,
@@ -74,24 +64,22 @@ hitProbabilityByState ::
     DiscreteEvent ->
     TransitionMatrix state ->
     [state] ->
-    S.R (Cardinality state)
+    [Double]
 hitProbabilityByState event matrix targets =
-    S.vector
-        [ Hit.probabilityGivenInitialState event matrix (`elem` targets) initial
-        | initial <- finiteStates
-        ]
+    [ Hit.probabilityGivenInitialState event matrix (`elem` targets) initial
+    | initial <- finiteStates
+    ]
 
 hitEventualProbabilityByState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     [state] ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError [Double]
 hitEventualProbabilityByState matrix targets =
-    S.vector
-        <$> traverse
-            (Hit.eventualProbabilityGivenInitialState matrix targets)
-            finiteStates
+    traverse
+        (Hit.eventualProbabilityGivenInitialState matrix targets)
+        finiteStates
 
 hitRaceProbabilityByState ::
     forall state.
@@ -99,12 +87,11 @@ hitRaceProbabilityByState ::
     TransitionMatrix state ->
     [state] ->
     [state] ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError [Double]
 hitRaceProbabilityByState matrix successful competing =
-    S.vector
-        <$> traverse
-            (Hit.raceProbabilityGivenInitialState matrix successful competing)
-            finiteStates
+    traverse
+        (Hit.raceProbabilityGivenInitialState matrix successful competing)
+        finiteStates
 
 hitExpectationByState ::
     forall state.
@@ -122,23 +109,21 @@ returnProbabilityByState ::
     (FiniteState state) =>
     DiscreteEvent ->
     TransitionMatrix state ->
-    S.R (Cardinality state)
+    [Double]
 returnProbabilityByState event matrix =
-    S.vector
-        [ Return.probabilityGivenInitialState event matrix initial
-        | initial <- finiteStates
-        ]
+    [ Return.probabilityGivenInitialState event matrix initial
+    | initial <- finiteStates
+    ]
 
 returnEventualProbabilityByState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError [Double]
 returnEventualProbabilityByState matrix =
-    S.vector
-        <$> traverse
-            (Return.eventualProbabilityGivenInitialState matrix)
-            finiteStates
+    traverse
+        (Return.eventualProbabilityGivenInitialState matrix)
+        finiteStates
 
 returnExpectationByState ::
     forall state.
@@ -156,24 +141,22 @@ visitTotalProbabilityByState ::
     DiscreteEvent ->
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError [Double]
 visitTotalProbabilityByState event matrix target =
-    S.vector
-        <$> traverse
-            (Visit.totalProbabilityGivenInitialState event matrix target)
-            finiteStates
+    traverse
+        (Visit.totalProbabilityGivenInitialState event matrix target)
+        finiteStates
 
 visitInfiniteProbabilityByState ::
     forall state.
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError [Double]
 visitInfiniteProbabilityByState matrix target =
-    S.vector
-        <$> traverse
-            (Visit.infiniteProbabilityGivenInitialState matrix target)
-            finiteStates
+    traverse
+        (Visit.infiniteProbabilityGivenInitialState matrix target)
+        finiteStates
 
 visitTotalExpectationByState ::
     forall state.
@@ -191,12 +174,11 @@ absorptionProbabilityByState ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
-    Either LinearSystemError (S.R (Cardinality state))
+    Either LinearSystemError [Double]
 absorptionProbabilityByState matrix target =
-    S.vector
-        <$> traverse
-            (Absorption.probabilityGivenInitialState matrix target)
-            finiteStates
+    traverse
+        (Absorption.probabilityGivenInitialState matrix target)
+        finiteStates
 
 absorptionExpectationByState ::
     forall state.
@@ -236,27 +218,20 @@ genSimplexPoint dimension = do
             , (7, choose (0, 1000))
             ]
 
-genTransitionMatrix ::
-    forall n.
-    (KnownNat n) =>
-    Gen (S.Sq n)
-genTransitionMatrix = do
-    rows <- vectorOf dimension (genSimplexPoint dimension)
-    pure (S.matrix (concat rows))
-  where
-    dimension = fromIntegral (natVal (Proxy @n))
+{- | Generate a square grid of weights whose rows are probability vectors,
+ready for 'Dtmc.Transition.Matrix.fromRows'.
+-}
+genTransitionRows :: Int -> Gen [[Double]]
+genTransitionRows dimension =
+    vectorOf dimension (genSimplexPoint dimension)
 
-modifyMatrixRows ::
-    (KnownNat n) =>
-    ([[Double]] -> [[Double]]) ->
-    S.Sq n ->
-    S.Sq n
-modifyMatrixRows transform =
-    S.matrix
-        . concat
-        . transform
-        . LA.toLists
-        . S.extract
+-- | Split a flat row-major list into rows of the given width.
+chunksOf :: Int -> [value] -> [[value]]
+chunksOf width values
+    | width <= 0 || null values = []
+    | otherwise = row : chunksOf width rest
+  where
+    (row, rest) = splitAt width values
 
 bumpSmallest :: Double -> [Double] -> [Double]
 bumpSmallest _ [] = []

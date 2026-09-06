@@ -3,17 +3,19 @@ Module      : Dtmc.Transition.Matrix
 Description : Row-stochastic matrices over finite state types.
 
 One-step transition probabilities for a DTMC over a 'FiniteState' type.
-'fromKernel' turns an already-validated finite-state kernel into a dense
-matrix; 'compose', 'identity', and 'power' provide
-multi-step transitions. Explicit @hmatrix@ interoperability lives in
-"Dtmc.Transition.Matrix.HMatrix".
+'fromRows' builds one from a grid of weights and 'fromKernel' from an
+already-validated finite-state kernel; 'compose', 'identity', and 'power'
+provide multi-step transitions. 'toRows' reads the stored probabilities back
+as plain lists.
 -}
 module Dtmc.Transition.Matrix (
     -- * Representation
     TransitionMatrix,
+    TransitionMatrixError (..),
 
     -- * Construction and inspection
     fromKernel,
+    fromRows,
     toRows,
     rowAt,
 
@@ -23,6 +25,9 @@ module Dtmc.Transition.Matrix (
     power,
 ) where
 
+import Data.Bifunctor (
+    first,
+ )
 import Data.Semigroup (
     mtimesDefault,
  )
@@ -32,9 +37,18 @@ import Dtmc.Distribution.Map.Internal (
 import Dtmc.Distribution.Vector.Internal (
     DistributionVector,
  )
+import Dtmc.Simplex (
+    SimplexError,
+ )
+import Dtmc.Simplex.Internal (
+    canonicaliseSimplexEntries,
+ )
 import Dtmc.State (
     FiniteState,
     finiteStates,
+ )
+import Dtmc.State.Internal (
+    stateCardinalityInt,
  )
 import Dtmc.Transition (
     Transition (transitionLaw),
@@ -53,6 +67,53 @@ import Numeric.LinearAlgebra.Static qualified as S
 import Numeric.Natural (
     Natural,
  )
+
+{- | Why a supplied grid of weights is not a transition matrix. Row and column
+indices are zero-based and follow the canonical state order of the
+'FiniteState' instance.
+-}
+data TransitionMatrixError
+    = -- | A row failed simplex validation: its index and the underlying
+      -- failure, whose coordinate index is the zero-based column.
+      InRow Int SimplexError
+    | -- | The state cardinality and the supplied number of rows.
+      WrongRowCount Int Int
+    | -- | A row of the wrong width: its index, the state cardinality, and the
+      -- supplied width.
+      WrongRowWidth Int Int Int
+    deriving (Eq, Show)
+
+{- | Construct a row-stochastic matrix from a grid of weights in canonical
+state order, stopping at the first problem. Within each accepted row,
+tolerated coordinate error is clamped to @[0, 1]@ and the repaired row is
+normalised. The support graph remains lazy, and the empty @0 x 0@ matrix is
+accepted.
+
+This inverts 'toRows' up to that repair and needs no @hmatrix@ value: the
+shape is checked here and reported as 'WrongRowCount' or 'WrongRowWidth'
+rather than raised by the array backend.
+
+Complexity: @O(n^2)@ time and @O(n^2)@ temporary and result space.
+-}
+fromRows ::
+    forall state.
+    (FiniteState state) =>
+    [[Double]] ->
+    Either TransitionMatrixError (TransitionMatrix state)
+fromRows rows
+    | suppliedRows /= dimension = Left (WrongRowCount dimension suppliedRows)
+    | otherwise =
+        unsafeTransitionMatrix . S.matrix . concat
+            <$> traverse canonicaliseRow (zip [0 ..] rows)
+  where
+    dimension = stateCardinalityInt @state
+    suppliedRows = length rows
+
+    canonicaliseRow (index, row)
+        | width /= dimension = Left (WrongRowWidth index dimension width)
+        | otherwise = first (InRow index) (canonicaliseSimplexEntries row)
+      where
+        width = length row
 
 {- | Materialise a finite-state kernel as a dense transition matrix. Kernel
 rows are already validated 'Dtmc.Distribution.Map.DistributionMap' values, so
