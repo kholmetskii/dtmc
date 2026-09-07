@@ -195,8 +195,8 @@ power = mtimesDefault
 revalidation, so any floating-point drift from matrix arithmetic is
 preserved.
 
-Complexity: excluding 'Dtmc.State.stateIndex', @O(n^2)@ worst-case time and
-@O(n^2)@ result space for state cardinality @n@.
+Complexity: excluding 'Dtmc.State.stateIndex', @O(n)@ time and @O(n)@ result
+space for state cardinality @n@.
 -}
 rowAt ::
     (FiniteState state) =>

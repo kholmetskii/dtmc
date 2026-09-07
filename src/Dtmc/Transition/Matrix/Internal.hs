@@ -107,17 +107,24 @@ unsafeTransitionMatrix matrix =
 {- | Wrap one stored matrix row as a distribution vector without revalidation.
 The finite-state index makes the lookup total.
 
-Complexity: excluding 'Dtmc.State.stateIndex', @O(n^2)@ worst-case time and
-@O(n^2)@ result space for state cardinality @n@.
+Complexity: excluding 'Dtmc.State.stateIndex', @O(n)@ time and @O(n)@ result
+space for state cardinality @n@.
 -}
 matrixRowAt ::
     (FiniteState state) =>
     TransitionMatrix state ->
     state ->
     DistributionVector state
-matrixRowAt matrix state =
-    DistributionVector
-        (LA.toRows (unTransitionMatrix matrix) !! stateIndexInt state)
+matrixRowAt matrix state = DistributionVector row
+  where
+    stored = unTransitionMatrix matrix
+    row =
+        LA.flatten
+            ( LA.subMatrix
+                (stateIndexInt state, 0)
+                (1, LA.cols stored)
+                stored
+            )
 
 instance (FiniteState state) => Transition (TransitionMatrix state) where
     type TransitionState (TransitionMatrix state) = state
