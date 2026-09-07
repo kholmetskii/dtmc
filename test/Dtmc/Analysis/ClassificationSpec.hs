@@ -20,24 +20,18 @@ import Dtmc.Analysis.Classification (
     accessible,
     aperiodic,
     chainPeriod,
-    classesOf,
-    classify,
     communicates,
     communicatingClasses,
     cyclicClasses,
+    ergodic,
     irreducible,
-    isAperiodic,
-    isErgodic,
-    isIrreducible,
     period,
     reachesAny,
     recurrentState,
     recurrentStates,
-    recurrentStatesOf,
     supportEdge,
     transientState,
     transientStates,
-    transientStatesOf,
  )
 import Dtmc.State (
     FiniteState,
@@ -263,7 +257,7 @@ referencePeriod s i =
     returns = [k | (k, m) <- zip [1 :: Int ..] powers, (m !! i) !! i]
 
 classesAsInts :: (KnownNat n) => TransitionMatrix (Finite n) -> [[Integer]]
-classesAsInts = map (map getFinite) . communicatingClasses
+classesAsInts = map (map getFinite . classMembers) . communicatingClasses
 
 cyclicClassesAsInts :: (KnownNat n) => TransitionMatrix (Finite n) -> Maybe [[Integer]]
 cyclicClassesAsInts = fmap (map (map getFinite)) . cyclicClasses
@@ -397,7 +391,7 @@ spec = do
                         Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
                         let states = finites :: [Finite 4]
-                            classIx = communicatingClasses p
+                            classIx = map classMembers (communicatingClasses p)
                             sameClass i j = or [i `elem` c && j `elem` c | c <- classIx]
                          in conjoin
                                 [ counterexample (show (i, j)) $
@@ -448,19 +442,19 @@ spec = do
             irreducible bipartiteTwo `shouldBe` True
             irreducible sevenState `shouldBe` False
 
-    describe "classify" $ do
+    describe "communicatingClasses details" $ do
         it "records members, periods, and closedness for the seven-state chain" $ do
-            let cs = classesOf (classify sevenState)
+            let cs = communicatingClasses sevenState
             map (map getFinite . classMembers) cs
                 `shouldBe` [[0, 1], [2, 3, 4, 5], [6]]
             map classPeriod cs `shouldBe` [Just 2, Just 1, Just 1]
             map classClosed cs `shouldBe` [True, False, True]
 
-    describe "classify report" $ do
+    describe "absorbingStates" $ do
         it "finds the absorbing states" $ do
-            map getFinite (absorbingStates (classify sevenState)) `shouldBe` [6]
-            map getFinite (absorbingStates (classify identityThree)) `shouldBe` [0, 1, 2]
-            map getFinite (absorbingStates (classify threeCycle)) `shouldBe` []
+            map getFinite (absorbingStates sevenState) `shouldBe` [6]
+            map getFinite (absorbingStates identityThree) `shouldBe` [0, 1, 2]
+            map getFinite (absorbingStates threeCycle) `shouldBe` []
 
         prop "absorbing states have only a self-loop (random @4)" $
             forAll (genTransitionRows 4) $ \matrix ->
@@ -470,41 +464,57 @@ spec = do
                         conjoin
                             [ counterexample (show i) $
                                 [j | j <- finites :: [Finite 4], supportEdge p i j] === [i]
-                            | i <- absorbingStates (classify p)
+                            | i <- absorbingStates p
                             ]
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False
 
-        prop "report fields agree with their class summaries (random @4)" $
+    describe "whole-chain queries agree with the class summaries" $ do
+        -- These are not restatements of one definition: the left-hand sides
+        -- reach the support graph through G.components and G.componentPeriod,
+        -- the right-hand sides through G.periodOf and per-class closedness.
+        prop "on random @4 chains" $
             forAll (genTransitionRows 4) $ \matrix ->
                 case fromRows matrix ::
                         Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
                     Right p ->
-                        let report = classify p
-                            cs = classesOf report
+                        let cs = communicatingClasses p
                             closed = filter classClosed cs
                             open = filter (not . classClosed) cs
                          in conjoin
-                                [ counterexample "isIrreducible" $
-                                    isIrreducible report === (length cs == 1)
-                                , counterexample "isAperiodic" $
-                                    isAperiodic report
+                                [ counterexample "irreducible" $
+                                    irreducible p === (length cs == 1)
+                                , counterexample "aperiodic" $
+                                    aperiodic p
                                         === (not (null cs) && all ((== Just 1) . classPeriod) cs)
-                                , counterexample "isErgodic" $
-                                    isErgodic report
-                                        === (isIrreducible report && isAperiodic report)
-                                , counterexample "recurrentStatesOf" $
-                                    recurrentStatesOf report
+                                , counterexample "ergodic" $
+                                    ergodic p === (irreducible p && aperiodic p)
+                                , counterexample "recurrentStates" $
+                                    recurrentStates p
                                         === concatMap classMembers closed
-                                , counterexample "transientStatesOf" $
-                                    transientStatesOf report
+                                , counterexample "transientStates" $
+                                    transientStates p
                                         === concatMap classMembers open
                                 , counterexample "chainPeriod" $
-                                    chainPeriod report
+                                    chainPeriod p
                                         === case cs of
                                             [singleClass] -> classPeriod singleClass
                                             _ -> Nothing
                                 ]
+                    Left err ->
+                        counterexample ("generated matrix was rejected: " <> show err) False
+
+        prop "chainPeriod is the shared period of an irreducible chain (random @4)" $
+            forAll (genTransitionRows 4) $ \matrix ->
+                case fromRows matrix ::
+                        Either TransitionMatrixError (TransitionMatrix (Finite 4)) of
+                    Right p
+                        | irreducible p ->
+                            conjoin
+                                [ counterexample (show i) (chainPeriod p === period p i)
+                                | i <- finites :: [Finite 4]
+                                ]
+                        | otherwise -> property True
                     Left err ->
                         counterexample ("generated matrix was rejected: " <> show err) False
 
@@ -575,7 +585,7 @@ spec = do
 
     describe "named finite states" $ do
         it "reports communication and periods with named constructors" $ do
-            communicatingClasses namedThreeCycle
+            map classMembers (communicatingClasses namedThreeCycle)
                 `shouldBe` [[ClassA, ClassB, ClassC]]
             map (period namedThreeCycle) [ClassA, ClassB, ClassC]
                 `shouldBe` replicate 3 (Just 3)
@@ -584,8 +594,10 @@ spec = do
             recurrentStates namedThreeCycle
                 `shouldBe` [ClassA, ClassB, ClassC]
 
-        it "builds a named classification report" $ do
-            let report = classify namedThreeCycle
-            map classMembers (classesOf report)
+        it "answers whole-chain queries with named constructors" $ do
+            map classMembers (communicatingClasses namedThreeCycle)
                 `shouldBe` [[ClassA, ClassB, ClassC]]
-            recurrentStatesOf report `shouldBe` [ClassA, ClassB, ClassC]
+            recurrentStates namedThreeCycle `shouldBe` [ClassA, ClassB, ClassC]
+            absorbingStates namedThreeCycle `shouldBe` []
+            chainPeriod namedThreeCycle `shouldBe` Just 3
+            ergodic namedThreeCycle `shouldBe` False

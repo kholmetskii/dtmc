@@ -67,7 +67,7 @@ data Classification state = Classification
     {- ^ Whether the chain is irreducible and aperiodic. For a finite DTMC this
     implies convergence to its unique stationary distribution.
     -}
-    , chainPeriod :: Maybe Natural
+    , chainPeriodOf :: Maybe Natural
     {- ^ The period of an irreducible chain (@Just d@), or @Nothing@ for a
     reducible chain, where period is a per-class notion, or when the single
     class has no cycles.
@@ -76,7 +76,7 @@ data Classification state = Classification
     -- ^ States in closed classes, which are recurrent in a finite chain.
     , transientStatesOf :: [state]
     -- ^ States in non-closed classes, which are transient.
-    , absorbingStates :: [state]
+    , absorbingStatesOf :: [state]
     {- ^ Singleton closed classes. For exact stochastic rows these are
     absorbing states with @P(i,i) = 1@; numerically derived or otherwise
     unchecked rows are classified only by strict-positive support.

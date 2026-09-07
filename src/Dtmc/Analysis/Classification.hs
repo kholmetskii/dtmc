@@ -30,11 +30,13 @@ module Dtmc.Analysis.Classification (
     communicates,
 
     -- * Communicating classes
+    type CommClass (..),
     communicatingClasses,
     irreducible,
 
     -- * Periodicity
     period,
+    chainPeriod,
     aperiodic,
     cyclicClasses,
 
@@ -43,19 +45,10 @@ module Dtmc.Analysis.Classification (
     transientState,
     recurrentStates,
     transientStates,
-
-    -- * Classification summary
-    type CommClass (..),
-    type Classification,
-    classesOf,
-    isIrreducible,
-    isAperiodic,
-    isErgodic,
-    chainPeriod,
-    recurrentStatesOf,
-    transientStatesOf,
     absorbingStates,
-    classify,
+
+    -- * Ergodicity
+    ergodic,
 ) where
 
 import Data.Array qualified as Array
@@ -150,18 +143,23 @@ communicates p i j =
     G.sameComponent (tmSupport p) (toIndex i) (toIndex j)
 
 {- | Return the communicating classes, equivalently the strongly connected
-components of the support graph. States within each class are ascending, and
-classes are ordered by their least member.
+components of the support graph, each with its period and whether it is
+closed. States within each class are ascending, and classes are ordered by
+their least member. For the members alone, use
+@map 'classMembers' . communicatingClasses@.
 
-This is a focused projection of the complete 'classify' report.
+Whole-chain queries in this module share one pass over the support graph.
 
 Complexity: excluding shared support-graph construction, the first full
 evaluation takes @O(n + E + n log(n + 1))@ time and @O(n + E)@ temporary
 space and retains @O(n)@ component cache; subsequent evaluations take
 @O(n)@ time and temporary space. Result space is @O(n)@.
 -}
-communicatingClasses :: (FiniteState state) => TransitionMatrix state -> [[state]]
-communicatingClasses = map classMembers . classesOf . classify
+communicatingClasses ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    [CommClass state]
+communicatingClasses = classesOf . classify
 
 {- | Test whether every state communicates with every other state. The empty
 chain is not irreducible.
@@ -282,7 +280,7 @@ transientState p i = not (recurrentState p i)
 state index. Every non-empty finite DTMC has at least one; the empty chain
 returns the empty list.
 
-This is a focused projection of the complete 'classify' report.
+Whole-chain queries in this module share one pass over the support graph.
 
 Complexity: excluding shared support-graph construction, the first full
 evaluation takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space
@@ -295,7 +293,7 @@ recurrentStates = recurrentStatesOf . classify
 {- | Return the members of non-closed communicating classes, ordered by class
 and state index. The result is empty exactly when every class is closed.
 
-This is a focused projection of the complete 'classify' report.
+Whole-chain queries in this module share one pass over the support graph.
 
 Complexity: excluding shared support-graph construction, the first full
 evaluation takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space
@@ -304,6 +302,47 @@ and retains @O(n)@ component and closedness cache; later evaluations take
 -}
 transientStates :: (FiniteState state) => TransitionMatrix state -> [state]
 transientStates = transientStatesOf . classify
+
+{- | Return the states that form a communicating class on their own and cannot
+be left. For exact stochastic rows these are the absorbing states, those with
+@P(i,i) = 1@; numerically derived or otherwise unchecked rows are classified
+only by strict-positive support.
+
+Whole-chain queries in this module share one pass over the support graph.
+
+Complexity: excluding shared support-graph construction, the first full
+evaluation takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space
+and retains @O(n)@ component and closedness cache; later evaluations take
+@O(n)@ time and temporary space. Result space is @O(n)@.
+-}
+absorbingStates :: (FiniteState state) => TransitionMatrix state -> [state]
+absorbingStates = absorbingStatesOf . classify
+
+{- | Return the period shared by every state of an irreducible chain. Returns
+'Nothing' for a reducible chain, where period is a per-class notion and
+'period' should be used instead, and for a single class whose period is
+undefined.
+
+Whole-chain queries in this module share one pass over the support graph.
+
+Complexity: excluding shared support-graph construction, the first query takes
+@O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space and retains @O(n)@
+component and period cache; later queries take @O(1)@ time. Temporary and
+result space per cached query are @O(1)@.
+-}
+chainPeriod :: (FiniteState state) => TransitionMatrix state -> Maybe Natural
+chainPeriod = chainPeriodOf . classify
+
+{- | Test whether the chain is irreducible and aperiodic. For a finite DTMC
+this is the hypothesis under which @P^k@ converges to a matrix whose every row
+is the unique stationary distribution, so 'Dtmc.Analysis.Limiting.converges'
+holds and 'Dtmc.Analysis.Stationary.stationaryDistributions' returns exactly
+one distribution.
+
+Complexity: as 'irreducible' and 'aperiodic' together.
+-}
+ergodic :: TransitionMatrix state -> Bool
+ergodic p = irreducible p && aperiodic p
 
 {- | Build the complete class, period, recurrence, absorbing-state,
 irreducibility, and aperiodicity report from one shared support graph. The
@@ -323,10 +362,10 @@ classify p =
         , isIrreducible = irreducible'
         , isAperiodic = aperiodic'
         , isErgodic = irreducible' && aperiodic'
-        , chainPeriod = chainPeriod'
+        , chainPeriodOf = chainPeriodOf'
         , recurrentStatesOf = concatMap classMembers (filter classClosed cs)
         , transientStatesOf = concatMap classMembers (filter (not . classClosed) cs)
-        , absorbingStates = [i | cc <- cs, classClosed cc, [i] <- [classMembers cc]]
+        , absorbingStatesOf = [i | cc <- cs, classClosed cc, [i] <- [classMembers cc]]
         }
   where
     g = tmSupport p
@@ -340,6 +379,6 @@ classify p =
         ]
     irreducible' = graphIrreducible g
     aperiodic' = graphAperiodic g
-    chainPeriod' = case cs of
+    chainPeriodOf' = case cs of
         [c] -> classPeriod c
         _ -> Nothing

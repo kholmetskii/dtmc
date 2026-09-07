@@ -42,8 +42,7 @@ import Dtmc.Analysis.Classification (
     classClosed,
     classMembers,
     classPeriod,
-    classesOf,
-    classify,
+    communicatingClasses,
     transientStates,
  )
 import Dtmc.Analysis.LinearSystem (
@@ -96,7 +95,7 @@ converges :: (FiniteState state) => TransitionMatrix state -> Bool
 converges p =
     all
         ((== Just 1) . classPeriod)
-        [c | c <- classesOf (classify p), classClosed c]
+        [c | c <- communicatingClasses p, classClosed c]
 
 {- | Compute the entrywise limit of @P^n@, with rows and columns in the
 canonical order of the 'FiniteState' instance. Return 'Nothing' exactly when
@@ -216,7 +215,7 @@ limitDecomposition p = do
     transientIndices = map toIndex transient
     closedClasses =
         [ classMembers recurrentClass'
-        | recurrentClass' <- classesOf (classify p)
+        | recurrentClass' <- communicatingClasses p
         , classClosed recurrentClass'
         ]
     classCount = length closedClasses
@@ -301,7 +300,7 @@ cyclicLimits p
             lcm
             1
             [ classPeriodValue
-            | recurrentClass <- classesOf (classify p)
+            | recurrentClass <- communicatingClasses p
             , classClosed recurrentClass
             , Just classPeriodValue <- [classPeriod recurrentClass]
             ]

@@ -6,7 +6,6 @@ module Dtmc.IntegrationSpec (
 
 import Dtmc.Analysis.Classification (
     absorbingStates,
-    classify,
     reachesAny,
  )
 import Dtmc.Analysis.Event (
@@ -272,7 +271,7 @@ spec =
         it "runs the seven-state cafe analysis entirely with named states" $ do
             probabilityAt cafeInitial Thinking `shouldBe` 1
             reachesAny cafeTransition Thinking [Leave] `shouldBe` True
-            absorbingStates (classify cafeTransition) `shouldBe` [Leave]
+            absorbingStates cafeTransition `shouldBe` [Leave]
             abs
                 (checked (Hit.eventualProbabilityGivenInitialState cafeTransition [Leave] Thinking) - 1)
                 < 1e-12

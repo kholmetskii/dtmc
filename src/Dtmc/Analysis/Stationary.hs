@@ -45,8 +45,7 @@ import Data.Array.Unboxed qualified as Unboxed
 import Dtmc.Analysis.Classification (
     classClosed,
     classMembers,
-    classesOf,
-    classify,
+    communicatingClasses,
  )
 import Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
@@ -209,8 +208,8 @@ reduceGth n entries = runST $ do
 
 {- | Compute the extremal stationary distributions, one per recurrent class
 and paired with the class on which each lives. Classes come in the order of
-'Dtmc.Analysis.Classification.classify', that is by least member. An empty
-chain returns an empty list.
+'Dtmc.Analysis.Classification.communicatingClasses', that is by least member.
+An empty chain returns an empty list.
 
 Each distribution is returned over the whole state space, carrying exact zeros
 outside its class. This is correct rather than merely convenient: a recurrent
@@ -242,7 +241,7 @@ stationaryDistributions p =
     dim = stateCardinalityInt @state
     matrix = unTransitionMatrix p
     closedClasses =
-        [classMembers c | c <- classesOf (classify p), classClosed c]
+        [classMembers c | c <- communicatingClasses p, classClosed c]
     distributionOn members = do
         solution <- stationaryOfBlock (subMatrix indices indices matrix)
         let placed :: Unboxed.UArray Int Double

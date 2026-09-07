@@ -55,8 +55,7 @@ import Dtmc.Analysis.Absorption (
 import Dtmc.Analysis.Classification (
     classClosed,
     classMembers,
-    classesOf,
-    classify,
+    communicatingClasses,
     recurrentState,
  )
 import Dtmc.Analysis.Classification.Internal (
@@ -697,7 +696,7 @@ occupationMatrix p = do
                 ]
         closedClasses =
             [ classMembers recurrentClass
-            | recurrentClass <- classesOf (classify p)
+            | recurrentClass <- communicatingClasses p
             , classClosed recurrentClass
             ]
         classCount = length closedClasses

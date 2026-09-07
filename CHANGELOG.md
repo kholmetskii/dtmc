@@ -40,3 +40,10 @@ First Hackage release.
   Labelled construction, where duplicates combine and missing states default
   to zero, remains `Dtmc.Distribution.Map.fromList`.
 - Supports GHC 9.6 through 9.14.
+- Narrowed `Dtmc.Analysis.Classification` to the queries themselves. The
+  `Classification` report and `classify` are no longer exported, and with them
+  the `Of` suffixes that existed only to keep record fields from colliding
+  with the standalone functions. `absorbingStates`, `chainPeriod` and
+  `ergodic` are now functions on a matrix, and `communicatingClasses` returns
+  `[CommClass state]`, carrying each class's period and closedness rather than
+  its members alone.
