@@ -121,7 +121,11 @@ stationaryOfBlock block
     dimension = LA.rows block
     normalise weights
         | not (all isFinite weights) = Left NonFiniteSolution
+        | scale <= 0 = Left SingularSystem
+        | not (isFinite total) = Left NonFiniteSolution
         | total <= 0 = Left SingularSystem
+        | not (all isFinite stationaryWeights) = Left NonFiniteSolution
+        | not (isFinite residual) = Left NonFiniteSolution
         | residual > limit =
             Left
                 ( ResidualTooLarge
@@ -132,8 +136,11 @@ stationaryOfBlock block
         | otherwise = Right stationary
       where
         limit = 1e-9
-        total = sum weights
-        stationary = LA.fromList (map (/ total) weights)
+        scale = maximum weights
+        scaledWeights = map (/ scale) weights
+        total = sum scaledWeights
+        stationaryWeights = map (/ total) scaledWeights
+        stationary = LA.fromList stationaryWeights
         residual =
             foldr (max . abs) 0 (LA.toList (LA.tr block LA.#> stationary - stationary))
 

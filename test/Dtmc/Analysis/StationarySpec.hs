@@ -211,6 +211,33 @@ spec = do
             Vector.toList (onlyStationary matrix)
                 `shouldSatisfy` allCloseTo [0.75, 0.25]
 
+        it "normalises extreme finite GTH weights without overflow" $ do
+            let epsilon = 5e-309
+                matrix =
+                    checked
+                        ( fromRows @(Finite 3)
+                            ( chunksOf
+                                3
+                                [ 0
+                                , 0.5
+                                , 0.5
+                                , epsilon
+                                , 0
+                                , 1
+                                , epsilon
+                                , 1
+                                , 0
+                                ]
+                            )
+                        )
+                weights = Vector.toList (onlyStationary matrix)
+            weights `shouldSatisfy` all isFinite
+            sum weights `shouldSatisfy` approxEq testTolerance 1
+            weights `shouldSatisfy` allCloseTo [0, 0.5, 0.5]
+            case weights of
+                first : _ -> first `shouldSatisfy` (> 0)
+                [] -> expectationFailure "expected three stationary weights"
+
     describe "multiple recurrent classes" $ do
         it "returns one distribution per recurrent class, by least member" $
             fmap (map fst) (stationaryDistributions twoClosedClasses)
@@ -291,6 +318,9 @@ allCloseTo :: [Double] -> [Double] -> Bool
 allCloseTo expected actual =
     length expected == length actual
         && and (zipWith (approxEq testTolerance) expected actual)
+
+isFinite :: Double -> Bool
+isFinite value = not (isNaN value || isInfinite value)
 
 inverts :: Double -> Either error Expectation -> Bool
 inverts probability (Right (FiniteExpectation mean)) =
