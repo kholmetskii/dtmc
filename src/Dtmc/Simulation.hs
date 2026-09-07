@@ -19,6 +19,7 @@ import Control.Monad.Primitive (
     PrimMonad,
     PrimState,
  )
+import Data.List qualified as List
 import Dtmc.Distribution (
     Distribution (..),
  )
@@ -85,7 +86,7 @@ prepareEntries :: [(state, Double)] -> Either SimulationError ([state], LA.Vecto
 prepareEntries [] = Left EmptySupport
 prepareEntries entries = do
     repaired <- traverse repairWeight (zip [0 ..] (map snd entries))
-    let total = foldl' (+) 0 repaired
+    let total = List.foldl' (+) 0 repaired
     validateTotal total
     pure (map fst entries, LA.fromList repaired)
 

@@ -18,6 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         ghc:
+          - '9.6.7'
+          - '9.8.4'
           - '9.10.3'
           - '9.12.4'
           - '9.14.1'
@@ -110,23 +112,23 @@ jobs:
       - uses: haskell-actions/setup@v2
         id: setup
         with:
-          ghc-version: '9.10.3'
+          ghc-version: '9.6.7'
           cabal-version: 'latest'
 
       - name: Cache Cabal packages
         uses: actions/cache@v4
         with:
           path: ${{ steps.setup.outputs.cabal-store }}
-          key: linux-ghc-9.10.3-direct-floors-${{ hashFiles('dtmc.cabal') }}
+          key: linux-ghc-9.6.7-direct-floors-${{ hashFiles('dtmc.cabal') }}
           restore-keys: |
-            linux-ghc-9.10.3-direct-floors-
+            linux-ghc-9.6.7-direct-floors-
 
       - name: Build at direct dependency floors
         run: >-
           cabal build lib:dtmc
           --ghc-options=-Werror
-          --constraint='array == 0.5.8.0'
-          --constraint='containers == 0.6.8'
+          --constraint='array == 0.5.5.0'
+          --constraint='containers == 0.6.7'
           --constraint='finite-typelits == 0.2.0.1'
           --constraint='hmatrix == 0.20.2'
           --constraint='mwc-random == 0.15.0.1'

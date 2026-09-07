@@ -39,3 +39,4 @@ First Hackage release.
   and reports a length mismatch through the new `DistributionVectorError`.
   Labelled construction, where duplicates combine and missing states default
   to zero, remains `Dtmc.Distribution.Map.fromList`.
+- Supports GHC 9.6 through 9.14.

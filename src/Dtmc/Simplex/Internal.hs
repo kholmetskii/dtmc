@@ -12,6 +12,7 @@ module Dtmc.Simplex.Internal (
     canonicaliseSimplexEntries,
 ) where
 
+import Data.List qualified as List
 import Dtmc.Simplex (
     SimplexError (..),
  )
@@ -53,9 +54,9 @@ canonicaliseSimplexEntries entries =
                 Right (map (/ repairedTotal) repaired)
             | otherwise -> Left (SumOffBy total)
   where
-    total = foldl' (+) 0 entries
+    total = List.foldl' (+) 0 entries
     repaired = map repair entries
-    repairedTotal = foldl' (+) 0 repaired
+    repairedTotal = List.foldl' (+) 0 repaired
 
     repair entry
         | entry < 0 = 0
