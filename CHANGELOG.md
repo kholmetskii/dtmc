@@ -30,6 +30,10 @@ First Hackage release.
   distributions, combining the weights of states that share a target.
 - Added `Dtmc.Transition.Matrix.fromRows`, which builds a matrix from a grid
   of weights and reports shape mismatches as typed errors.
+- Made GTH stationary-distribution normalisation robust when finite weights
+  have a sum that overflows `Double`.
+- Reduced dense transition-row lookup from quadratic to linear time and
+  space.
 - Made `Dtmc.Distribution.Vector.fromList` positional: it now takes one weight
   per state in canonical state order, so it is the exact inverse of `toList`,
   and reports a length mismatch through the new `DistributionVectorError`.

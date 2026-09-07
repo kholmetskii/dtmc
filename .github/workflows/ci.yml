@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: linux / ghc ${{ matrix.ghc }}
@@ -46,6 +49,51 @@ jobs:
 
       - name: Test
         run: cabal test all --test-show-details=direct --ghc-options=-Werror
+
+  package:
+    name: linux / package checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LAPACK and BLAS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libblas-dev liblapack-dev
+
+      - uses: haskell-actions/setup@v2
+        id: setup
+        with:
+          ghc-version: '9.10.3'
+          cabal-version: 'latest'
+
+      - name: Cache Cabal packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: linux-ghc-9.10.3-package-${{ hashFiles('dtmc.cabal') }}
+          restore-keys: |
+            linux-ghc-9.10.3-package-
+
+      - name: Check package metadata
+        run: cabal check
+
+      - name: Build documentation
+        run: cabal haddock lib:dtmc --haddock-all
+
+      - name: Build source distribution
+        run: |
+          mkdir -p dist-sdist
+          cabal sdist all --output-directory=dist-sdist
+
+      - name: Build and test source distribution
+        run: |
+          mkdir -p dist-sdist/unpacked
+          tar -xzf dist-sdist/dtmc-*.tar.gz --strip-components=1 -C dist-sdist/unpacked
+          cd dist-sdist/unpacked
+          cabal build all --enable-tests --ghc-options=-Werror
+          cabal test all --test-show-details=direct --ghc-options=-Werror
 
   direct-dependency-floors:
     name: linux / direct dependency floors

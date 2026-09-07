@@ -6,7 +6,6 @@ description:
   Type-safe finite discrete-time Markov chains with matrix and kernel
   representations, plus locally finite countable-state kernels for exact
   finite-horizon analysis and simulation.
-  .
   The package provides validated probability laws, finite-time joint and
   conditional probabilities, hitting and return quantities, visit counts,
   communicating-class analysis, canonical decomposition, absorption,
