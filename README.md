@@ -29,7 +29,7 @@ Add the package to your Cabal file:
 build-depends: dtmc ^>=0.2.0.0
 ```
 
-The package requires GHC 9.10 or newer and a BLAS/LAPACK implementation for
+The package requires GHC 9.6 or newer and a BLAS/LAPACK implementation for
 its internal use of `hmatrix`. On Ubuntu or Debian:
 
 ```bash
@@ -91,6 +91,13 @@ main = do
 Constructor order is the canonical state order. The rows and columns above
 therefore represent `Dry` followed by `Wet`; `Vector.fromList` uses the same
 order. Invalid dimensions, weights, or row sums are returned as typed errors.
+
+The two hitting queries take their target differently, and the difference is
+not cosmetic. A bounded query walks forward a fixed number of steps, so it
+works through any `Transition` — including a kernel over an infinite state
+space — and takes a predicate. An eventual query solves a linear system over
+the whole state space, so it requires a finite `TransitionMatrix`, takes an
+explicit target list, and returns `Either LinearSystemError`.
 
 Analysis modules intentionally use concise, overlapping names such as
 `probability` and `expectation`. Import them qualified, as in the example.
@@ -229,14 +236,16 @@ Generate local API documentation with:
 cabal haddock all --haddock-hyperlink-source
 ```
 
-The package is tested with GHC 9.10.3, 9.12.4, and 9.14.1.
+The package is tested with GHC 9.6.7, 9.8.4, 9.10.3, 9.12.4, and 9.14.1.
 
 ## Documentation and support
 
 - Browse the [Haddock API documentation](https://hackage.haskell.org/package/dtmc/docs/Dtmc.html).
 - Report bugs or request features in the [issue tracker](https://github.com/kholmetskii/dtmc/issues).
-- See [CHANGELOG.md](CHANGELOG.md) for release notes.
+- See the [changelog](https://hackage.haskell.org/package/dtmc/changelog) for
+  release notes.
 
 ## License
 
-`dtmc` is distributed under the [BSD 3-Clause License](LICENSE).
+`dtmc` is distributed under the BSD 3-Clause License; see the `LICENSE` file
+in the source distribution.
