@@ -128,16 +128,16 @@ test-suite spec
       Dtmc.TestSupport
 
   build-depends:
-      base >=4.20 && <5
-    , containers >=0.6 && <0.8
+      base
+    , containers
     , dtmc
     , finite-typelits
-    , hspec
+    , hspec >=2.11.17 && <2.12
     , mwc-random
-    , QuickCheck
+    , QuickCheck >=2.18 && <2.19
 
   build-tool-depends:
-      hspec-discover:hspec-discover
+      hspec-discover:hspec-discover >=2.11.17 && <2.12
 
 source-repository head
   type:             git
