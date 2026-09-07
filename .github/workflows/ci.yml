@@ -123,12 +123,15 @@ jobs:
           restore-keys: |
             linux-ghc-9.6.7-direct-floors-
 
+      # array and containers are boot libraries: other boot packages depend on
+      # the installed instances, so cabal cannot substitute a different
+      # version and pinning them tests nothing. Their effective floor is
+      # whatever the oldest GHC in the matrix ships, which the 9.6.7 job
+      # already exercises.
       - name: Build at direct dependency floors
         run: >-
           cabal build lib:dtmc
           --ghc-options=-Werror
-          --constraint='array == 0.5.5.0'
-          --constraint='containers == 0.6.7'
           --constraint='finite-typelits == 0.2.0.1'
           --constraint='hmatrix == 0.20.2'
           --constraint='mwc-random == 0.15.0.1'

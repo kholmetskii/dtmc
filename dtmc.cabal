@@ -86,7 +86,7 @@ library
 
   build-depends:
       base >=4.18 && <5
-    , array >=0.5.5 && <0.6
+    , array >=0.5.8 && <0.6
     , containers >=0.6.7 && <0.8
     , finite-typelits >=0.2.0.1 && <0.3
     , hmatrix >=0.20.2 && <0.21
