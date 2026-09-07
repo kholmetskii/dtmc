@@ -20,14 +20,23 @@ For finite-matrix bounds, @n@ is the state count and @E@ the support-edge
 count.
 -}
 module Dtmc.Analysis.HittingTime (
+    -- * Result types
     LinearSystemError (..),
     Expectation (..),
+
+    -- * Hitting-time distribution
     probability,
     probabilityGivenInitialState,
+
+    -- * Eventual hitting
     eventualProbability,
     eventualProbabilityGivenInitialState,
+
+    -- * Competing targets
     raceProbability,
     raceProbabilityGivenInitialState,
+
+    -- * Expected hitting time
     expectation,
     expectationGivenInitialState,
 ) where

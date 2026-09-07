@@ -20,12 +20,19 @@ For finite-matrix bounds, @n@ is the state count and @E@ the support-edge
 count.
 -}
 module Dtmc.Analysis.ReturnTime (
+    -- * Result types
     LinearSystemError (..),
     Expectation (..),
+
+    -- * First-return-time distribution
     probability,
     probabilityGivenInitialState,
+
+    -- * Eventual return
     eventualProbability,
     eventualProbabilityGivenInitialState,
+
+    -- * Expected return time
     expectation,
     expectationGivenInitialState,
 ) where

@@ -23,19 +23,26 @@ Unless a declaration states otherwise, complexity bounds exclude
 or transitions also identify excluded typeclass-method and predicate costs.
 -}
 module Dtmc.Analysis.VisitCount (
+    -- * Result types
     LinearSystemError (..),
     Expectation (..),
+
+    -- * Total visits over an infinite horizon
     totalProbability,
     totalProbabilityGivenInitialState,
     infiniteProbability,
     infiniteProbabilityGivenInitialState,
     totalExpectation,
     totalExpectationGivenInitialState,
+
+    -- * Visits within a bounded horizon
     boundedLaw,
     boundedProbability,
     boundedProbabilityGivenInitialState,
     boundedExpectation,
     boundedExpectationGivenInitialState,
+
+    -- * Occupation matrix
     occupationMatrix,
 ) where
 

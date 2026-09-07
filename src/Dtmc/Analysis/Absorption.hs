@@ -33,12 +33,19 @@ costs. For those bounds, @n@ is the state count, @E@ the support-edge count,
 support size.
 -}
 module Dtmc.Analysis.Absorption (
+    -- * Result types
     LinearSystemError (..),
     Expectation (..),
+
+    -- * Canonical decomposition
     canonicalOrder,
     fundamentalMatrix,
+
+    -- * Absorption probabilities
     probability,
     probabilityGivenInitialState,
+
+    -- * Expected time to absorption
     expectation,
     expectationGivenInitialState,
 ) where
