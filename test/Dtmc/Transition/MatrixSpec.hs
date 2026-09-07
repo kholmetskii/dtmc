@@ -121,6 +121,26 @@ spec = do
                 Right transitionMatrix -> toRows transitionMatrix `shouldBe` []
                 Left err -> expectationFailure ("expected acceptance, got " <> show err)
 
+        it "reports too few rows before inspecting their widths" $
+            case fromRows @(Finite 2) [[1]] of
+                Left err -> err `shouldBe` WrongRowCount 2 1
+                Right _ -> expectationFailure "expected rejection"
+
+        it "reports too many rows before inspecting their widths" $
+            case fromRows @(Finite 2) [[1, 0], [0, 1], [1]] of
+                Left err -> err `shouldBe` WrongRowCount 2 3
+                Right _ -> expectationFailure "expected rejection"
+
+        it "reports the first row with the wrong width" $
+            case fromRows @(Finite 2) [[1, 0, 0], [1]] of
+                Left err -> err `shouldBe` WrongRowWidth 0 2 3
+                Right _ -> expectationFailure "expected rejection"
+
+        it "reports a later row with the wrong width" $
+            case fromRows @(Finite 2) [[1, 0], [1]] of
+                Left err -> err `shouldBe` WrongRowWidth 1 2 1
+                Right _ -> expectationFailure "expected rejection"
+
         prop "stores canonical rows close to the accepted input" $
             forAll (genTransitionRows 3) $ \matrix ->
                 case fromRows @(Finite 3) matrix of
