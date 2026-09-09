@@ -59,7 +59,9 @@ commands. `profile` records Haskell RTS allocation/GC statistics and Python
 - Simulation compares throughput and validates behavior statistically; equal
   seeds do not imply equal paths because the RNG algorithms differ. PyDTMC's
   public simulation call creates its generator during the timed operation;
-  `dtmc` receives the generator required by its public API before timing.
+  `dtmc` receives the generator required by its public API before timing. The
+  `dtmc` case uses its public matrix-specialized API; its lazy row preparation
+  and cache are created inside the timed operation.
 
 ## Dataset families
 
@@ -92,10 +94,10 @@ NetworkX structural cases at 500. These caps are symmetric.
 | `fundamental-matrix` | `fundamentalMatrix` | `fundamental_matrix` |
 | `absorption-time` | all-state expectation, transient part | `mean_absorption_times` |
 | `occupation-matrix` | `occupationMatrix` | `mean_number_visits` |
-| `simulation/*` | `simulate` | `simulate` |
+| `simulation/*` | `simulateMatrix` | `simulate` |
 
-`evolveVectorN` and `redistribute(k)` intentionally expose an algorithmic
-difference: `dtmc` powers the full matrix, whereas PyDTMC performs `k`
+`evolveVectorN` chooses between `k` matrix-vector steps and matrix powering
+using the matrix dimension and requested step count; PyDTMC performs `k`
 matrix-vector steps. The comparison is a public end-to-end workload, not a
 claim that their internal primitives are identical.
 

@@ -299,5 +299,5 @@ simulationChecksum transitions matrix generator = do
     case finiteStates :: [Finite n] of
         [] -> error "benchmark simulation requires a non-empty state space"
         initial : _ -> do
-            result <- Simulation.simulate transitions matrix initial generator
+            result <- Simulation.simulateMatrix transitions matrix initial generator
             pure (checksumStates (eitherOrFail result))

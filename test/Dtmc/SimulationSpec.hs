@@ -26,6 +26,7 @@ import Dtmc.Simulation (
     SimulationError (..),
     sample,
     simulate,
+    simulateMatrix,
     step,
  )
 import Dtmc.State (FiniteState)
@@ -97,6 +98,15 @@ namedCyclicThree =
     either (error . show) id $
         fromRows @NamedSample
             (chunksOf 3 [0, 1, 0, 0, 0, 1, 1, 0, 0])
+
+iidThree :: TransitionMatrix (Finite 3)
+iidThree =
+    either (error . show) id $
+        fromRows
+            [ [0.2, 0.3, 0.5]
+            , [0.2, 0.3, 0.5]
+            , [0.2, 0.3, 0.5]
+            ]
 
 absorbingTwo :: TransitionMatrix (Finite 2)
 absorbingTwo =
@@ -174,6 +184,21 @@ zeroStepAndGeneratorState = runST $ do
         simulate
             0
             ( error "zero-step simulation evaluated its kernel" ::
+                TransitionMatrix (Finite 3)
+            )
+            0
+            generator
+    after <- MWC.save generator
+    pure (result, before == after)
+
+zeroStepMatrixAndGeneratorState :: (Either SimulationError [Finite 3], Bool)
+zeroStepMatrixAndGeneratorState = runST $ do
+    generator <- MWC.create
+    before <- MWC.save generator
+    result <-
+        simulateMatrix
+            0
+            ( error "zero-step matrix simulation evaluated its matrix" ::
                 TransitionMatrix (Finite 3)
             )
             0
@@ -285,3 +310,41 @@ spec = do
                     simulate 3 emptyKernel 0 generator
                 )
                 `shouldBe` Left EmptySupport
+
+    describe "simulateMatrix" $ do
+        it "follows a deterministic matrix cycle" $
+            let trajectory = runST $ do
+                    generator <- MWC.create
+                    checkedSimulation (simulateMatrix 4 cyclicThree 0 generator)
+             in trajectory `shouldBe` [0, 1, 2, 0, 1]
+
+        it "supports named finite states" $
+            let trajectory = runST $ do
+                    generator <- MWC.create
+                    checkedSimulation
+                        (simulateMatrix 4 namedCyclicThree FirstSample generator)
+             in trajectory
+                    `shouldBe` [ FirstSample
+                               , SecondSample
+                               , ThirdSample
+                               , FirstSample
+                               , SecondSample
+                               ]
+
+        it "samples a dense row with the expected frequencies" $
+            let trajectory = runST $ do
+                    generator <- MWC.create
+                    checkedSimulation (simulateMatrix 20000 iidThree 0 generator)
+                observed :: Finite 3 -> Double
+                observed state =
+                    fromIntegral (length (filter (== state) (drop 1 trajectory)))
+                        / 20000
+             in do
+                    (abs (observed 0 - 0.2) < 0.02) `shouldBe` True
+                    (abs (observed 1 - 0.3) < 0.02) `shouldBe` True
+                    (abs (observed 2 - 0.5) < 0.02) `shouldBe` True
+
+        it "does not inspect the matrix or advance the generator at zero steps" $ do
+            let (result, unchanged) = zeroStepMatrixAndGeneratorState
+            result `shouldBe` Right [0]
+            unchanged `shouldBe` True

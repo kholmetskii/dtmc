@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Made `evolveVectorN` choose between repeated matrix-vector multiplication
+  and matrix powering, avoiding unnecessary full matrix powers for moderate
+  step counts.
+- Added `simulateMatrix`, which lazily prepares and shares cumulative sampling
+  rows during a trajectory instead of rebuilding map-backed distributions on
+  every transition.
+
 ## 0.2.0.0
 
 First Hackage release.

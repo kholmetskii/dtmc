@@ -63,16 +63,17 @@ evolveVector ::
 evolveVector (DistributionVector v) p =
     DistributionVector (LA.tr (unTransitionMatrix p) LA.#> v)
 
-{- | Compute the distribution after @k@ transitions as
-@evolveVector mu (power k p)@. Exponent zero is the original distribution
-mathematically.
+{- | Compute the distribution after @k@ transitions. A cost model chooses
+between repeated matrix-vector multiplication and powering the matrix, so a
+moderate number of steps does not construct a full matrix power unnecessarily.
+Exponent zero returns the original distribution.
 
-This powers the matrix rather than iterating 'evolveVector', so the two
-calculations may differ by floating-point rounding. The result is not
-revalidated.
+The two strategies are mathematically equivalent but may differ by ordinary
+floating-point rounding. The result is not revalidated.
 
-Complexity: @O(n^2 + n^3 log(k + 1))@ time, @O(n^2)@ temporary space, and
-@O(n)@ result space.
+Complexity: @O(k n^2)@ time when @k <= n@ and
+@O(n^2 + n^3 log(k + 1))@ otherwise. Temporary space is @O(n)@ in the
+iterated case and @O(n^2)@ in the powered case; result space is @O(n)@.
 -}
 evolveVectorN ::
     (FiniteState state) =>
@@ -80,8 +81,25 @@ evolveVectorN ::
     DistributionVector state ->
     TransitionMatrix state ->
     DistributionVector state
-evolveVectorN k mu p =
-    evolveVector mu (power k p)
+evolveVectorN k mu@(DistributionVector initial) p
+    | k == 0 = mu
+    | useIteration = DistributionVector (iterateVector k initial)
+    | otherwise = evolveVector mu (power k p)
+  where
+    matrix = unTransitionMatrix p
+    transposed = LA.tr matrix
+    dimension = LA.rows matrix
+
+    -- A deliberately conservative threshold retains the highly tuned matrix
+    -- power path for long runs on small matrices. Focused benchmarks show the
+    -- repeated matrix-vector path winning once the matrix dimension reaches
+    -- the requested step count.
+    useIteration = toInteger k <= toInteger dimension
+
+    iterateVector 0 vector = vector
+    iterateVector remaining vector =
+        let next = transposed LA.#> vector
+         in next `seq` iterateVector (remaining - 1) next
 
 {- | Push any finite-support 'Distribution' through one locally finite kernel
 step. The result uses t'DistributionMap' because a general kernel does not

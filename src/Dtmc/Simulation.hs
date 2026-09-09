@@ -13,12 +13,15 @@ module Dtmc.Simulation (
     sample,
     step,
     simulate,
+    simulateMatrix,
 ) where
 
 import Control.Monad.Primitive (
     PrimMonad,
     PrimState,
  )
+import Data.Array qualified as Array
+import Data.Array.Unboxed qualified as Unboxed
 import Data.List qualified as List
 import Dtmc.Distribution (
     Distribution (..),
@@ -26,8 +29,19 @@ import Dtmc.Distribution (
 import Dtmc.Simplex.Internal (
     simplexTolerance,
  )
+import Dtmc.State (
+    FiniteState,
+ )
+import Dtmc.State.Internal (
+    stateFromInt,
+    stateIndexInt,
+ )
 import Dtmc.Transition (
     Transition (..),
+ )
+import Dtmc.Transition.Matrix.Internal (
+    TransitionMatrix,
+    unTransitionMatrix,
  )
 import Numeric.LinearAlgebra qualified as LA
 import Numeric.Natural (
@@ -155,3 +169,109 @@ simulate transitions kernel initial generator =
         case result of
             Left problem -> pure (Left problem)
             Right next -> go (remaining - 1) next (next : reversed)
+
+-- | A validated cumulative row used by 'simulateMatrix'. The final positive
+-- index is retained as a defensive fallback if the random generator returns
+-- the upper endpoint of its requested floating-point interval.
+data PreparedMatrixRow = PreparedMatrixRow
+    !(Unboxed.UArray Int Int)
+    !(LA.Vector Double)
+    !Double
+    !Int
+
+{- | Simulate a finite transition matrix without converting every visited row
+to a map-backed distribution. Each distinct row is validated and converted to
+a shared cumulative vector on first use; sampling that row thereafter uses a
+binary search.
+
+This has the same validation and generator-advancement contract as 'simulate':
+an invalid visited row is reported before drawing a random number, unvisited
+rows are not inspected, and a zero-step simulation inspects neither the matrix
+nor the generator.
+
+For matrix dimension @n@, @k@ transitions, and @r@ distinct visited rows,
+complexity is @O(r n + k log n)@ time, @O(r n + n + k)@ temporary space, and
+@O(k)@ result space. The row cache lives only for this simulation call.
+-}
+simulateMatrix ::
+    forall state m.
+    (FiniteState state, PrimMonad m) =>
+    Natural ->
+    TransitionMatrix state ->
+    state ->
+    MWC.Gen (PrimState m) ->
+    m (Either SimulationError [state])
+simulateMatrix 0 _ initial _ = pure (Right [initial])
+simulateMatrix transitions matrix initial generator =
+    go transitions initial [initial]
+  where
+    stored = unTransitionMatrix matrix
+    dimension = LA.rows stored
+
+    -- 'Array' is lazy in its elements, so only rows reached by the trajectory
+    -- are converted and validated. Forced entries are then shared.
+    preparedRows :: Array.Array Int (Either SimulationError PreparedMatrixRow)
+    preparedRows =
+        Array.listArray
+            (0, dimension - 1)
+            [prepareMatrixRow (LA.toList row) | row <- LA.toRows stored]
+
+    go 0 _ reversed = pure (Right (reverse reversed))
+    go remaining current reversed =
+        case preparedRows Array.! stateIndexInt current of
+            Left problem -> pure (Left problem)
+            Right prepared -> do
+                index <- samplePreparedMatrixRow prepared generator
+                case stateFromInt index of
+                    Nothing ->
+                        pure
+                            (Left (SampleIndexOutOfBounds index dimension))
+                    Just next ->
+                        go (remaining - 1) next (next : reversed)
+
+prepareMatrixRow :: [Double] -> Either SimulationError PreparedMatrixRow
+prepareMatrixRow weights = do
+    let entries = filter ((/= 0) . snd) (zip [0 ..] weights)
+    if null entries then Left EmptySupport else pure ()
+    repaired <- traverse repairWeight (zip [0 ..] (map snd entries))
+    let cumulative = drop 1 (List.scanl' (+) 0 repaired)
+        total = List.foldl' (+) 0 repaired
+    validateTotal total
+    let lastPositive =
+            List.foldl'
+                (\latest (index, weight) -> if weight > 0 then index else latest)
+                0
+                (zip [0 ..] repaired)
+        outcomes =
+            Unboxed.listArray
+                (0, length entries - 1)
+                (map fst entries)
+    pure
+        ( PreparedMatrixRow
+            outcomes
+            (LA.fromList cumulative)
+            total
+            lastPositive
+        )
+
+samplePreparedMatrixRow ::
+    (PrimMonad m) =>
+    PreparedMatrixRow ->
+    MWC.Gen (PrimState m) ->
+    m Int
+samplePreparedMatrixRow
+    (PreparedMatrixRow outcomes cumulative total lastPositive)
+    generator = do
+    target <- MWC.uniformR (0, total) generator
+    pure (outcomes Unboxed.! firstGreater target cumulative lastPositive)
+
+firstGreater :: Double -> LA.Vector Double -> Int -> Int
+firstGreater target cumulative fallback = search 0 (LA.size cumulative)
+  where
+    search lower upper
+        | lower >= upper =
+            if lower < LA.size cumulative then lower else fallback
+        | cumulative `LA.atIndex` middle > target = search lower middle
+        | otherwise = search (middle + 1) upper
+      where
+        middle = lower + (upper - lower) `quot` 2
