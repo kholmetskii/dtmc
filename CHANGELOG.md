@@ -14,6 +14,9 @@
   matrices, allowing repeated whole-chain queries to share public results.
 - Split warm-class benchmarks into cached access and fully consumed cases,
   with equivalent state traversal in Haskell and Python.
+- Reduced support-graph construction allocation by scanning the matrix's
+  storable row-major vector directly instead of materialising boxed row and
+  value lists first.
 
 ## 0.2.0.0
 

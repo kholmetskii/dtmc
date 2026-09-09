@@ -22,6 +22,7 @@ module Dtmc.Transition.Matrix.Internal (
 ) where
 
 import Data.Maybe (fromMaybe)
+import Data.Vector.Storable qualified as Storable
 import Dtmc.Analysis.Classification.Internal (
     Classification,
     classificationFromGraph,
@@ -174,15 +175,15 @@ supportGraphOf ::
     LA.Matrix Double ->
     Graph
 supportGraphOf matrix =
-    fromAdjacency
-        dim
-        [ ((i, j), entry > 0)
-        | (i, row) <- zip [0 ..] rows
-        , (j, entry) <- zip [0 ..] row
-        ]
+    fromAdjacency dim associations
   where
-    rows = LA.toLists matrix
-    dim = length rows
+    dim = LA.rows matrix
+    associations = Storable.ifoldr associationFor [] (LA.flatten matrix)
+    associationFor offset probability rest =
+        let (row, column) = offset `quotRem` dim
+         in row
+                `seq` column
+                `seq` ((row, column), probability > 0) : rest
 
 {- | Matrix multiplication as transition composition: @p '<>' q@ takes a @p@
 step followed by a @q@ step. Exact products preserve row-stochasticity and
