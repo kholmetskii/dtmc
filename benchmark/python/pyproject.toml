@@ -1,0 +1,15 @@
+[project]
+name = "dtmc-pydtmc-benchmark"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "matplotlib==3.10.6",
+  "networkx==3.5",
+  "numpy==2.3.1",
+  "pyperf==2.9.0",
+  "PyDTMC==9.0.0",
+  "scipy==1.16.1",
+]
+
+[tool.dtmc-benchmark]
+pydtmc-sdist-sha256 = "e3cbe0e192bf85e1941b0b8b85314a5ae273df04aaa7c168667d0bb4fee5c8ef"

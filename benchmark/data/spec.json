@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "families": [
+    "dense",
+    "low-outdegree",
+    "absorbing",
+    "reducible"
+  ],
+  "sizes": [10, 25, 50, 100, 250, 500, 1000],
+  "seeds": [1729, 2718, 31415],
+  "power_exponents": [2, 10, 100],
+  "evolution_steps": [1, 10, 100],
+  "simulation_steps": [10000, 100000],
+  "verification_maximum_size": 100,
+  "numeric_tolerances": {
+    "absolute": 1e-10,
+    "relative": 1e-8
+  }
+}

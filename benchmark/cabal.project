@@ -1,0 +1,7 @@
+packages: .
+
+benchmarks: True
+tests: False
+
+package dtmc
+  optimization: 2

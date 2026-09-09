@@ -1,0 +1,8 @@
+.venv/
+.cache/
+results/raw/
+results/haskell-verification.json
+__pycache__/
+*.pyc
+profiles/
+data/generated/

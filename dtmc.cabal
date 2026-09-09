@@ -29,6 +29,21 @@ extra-doc-files:
     README.md
     CHANGELOG.md
 
+extra-source-files:
+    benchmark/README.md
+    benchmark/REPORT.md
+    benchmark/cabal.project
+    benchmark/cabal.project.freeze
+    benchmark/analyse.py
+    benchmark/plot.py
+    benchmark/run.py
+    benchmark/data/generate.py
+    benchmark/data/spec.json
+    benchmark/python/bench.py
+    benchmark/python/pyproject.toml
+    benchmark/python/requirements.lock
+    benchmark/python/verify.py
+
 common lang
   default-language: GHC2021
 
@@ -140,6 +155,36 @@ test-suite spec
 
   build-tool-depends:
       hspec-discover:hspec-discover >=2.11.17 && <2.12
+
+benchmark dtmc-bench
+  import:           lang
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   benchmark/haskell
+  main-is:          Main.hs
+
+  other-modules:
+      Cases
+      Dataset
+      Force
+      Verification
+
+  ghc-options:
+      -O2
+      -threaded
+      -rtsopts
+
+  build-depends:
+      aeson >=2.2 && <2.3
+    , base
+    , binary >=0.8.9 && <0.9
+    , bytestring >=0.11 && <0.13
+    , criterion >=1.6.4 && <1.7
+    , deepseq >=1.4.8 && <1.6
+    , dtmc
+    , finite-typelits
+    , filepath >=1.4 && <1.6
+    , mwc-random
+    , vector >=0.13 && <0.14
 
 source-repository head
   type:             git
