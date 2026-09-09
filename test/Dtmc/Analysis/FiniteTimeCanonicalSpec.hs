@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Dtmc.Analysis.FiniteTimeCanonicalSpec (
     spec,

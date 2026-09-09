@@ -17,6 +17,7 @@ import Data.Finite (
     getFinite,
  )
 import Data.List (
+    elemIndex,
     findIndex,
  )
 import Data.Map.Strict (
@@ -178,7 +179,7 @@ returnLaw horizon matrix initial =
   where
     paths = weightedTrajectories horizon [(initial, 1)] matrix
     firstReturn path =
-        fromIntegral . (+ 1) <$> findIndex (== initial) (drop 1 path)
+        fromIntegral . (+ 1) <$> elemIndex initial (drop 1 path)
 
 visitLawBefore ::
     (FiniteState state) =>

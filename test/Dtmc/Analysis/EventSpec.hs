@@ -66,12 +66,10 @@ spec = do
                 let threshold = asNatural rawThreshold
                     value = asNatural rawValue
                  in property $
-                        and
-                            [ matches (GreaterThan threshold) value
-                                /= matches (AtMost threshold) value
-                            , matches (AtLeast threshold) value
+                        matches (GreaterThan threshold) value
+                            /= matches (AtMost threshold) value
+                            && matches (AtLeast threshold) value
                                 /= matches (LessThan threshold) value
-                            ]
 
     describe "includesInfiniteOutcome" $ do
         it "includes infinity exactly in upper-tail events" $ do

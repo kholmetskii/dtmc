@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Dtmc.Analysis.CanonicalDifferentialSpec (
     spec,
@@ -161,7 +160,7 @@ finiteAndBoundedChecks matrix =
         and
             [ let law = Oracle.hittingLaw 4 matrix target source
                   exact = known (Oracle.lawProbability (EqualTo time) law)
-                  dense = (hitProbabilityByState (EqualTo time) matrix [2])
+                  dense = hitProbabilityByState (EqualTo time) matrix [2]
                in close (Hit.probabilityGivenInitialState (EqualTo time) matrix target source) exact
                     && close (dense !! fromIntegral source) exact
             | source <- finites
@@ -170,7 +169,7 @@ finiteAndBoundedChecks matrix =
             && and
                 [ let law = Oracle.hittingLaw 4 matrix target source
                       bounded = known (Oracle.lawProbability (LessThan bound) law)
-                      dense = (hitProbabilityByState (LessThan bound) matrix [2])
+                      dense = hitProbabilityByState (LessThan bound) matrix [2]
                    in close
                         (Hit.probabilityGivenInitialState (LessThan bound) matrix target source)
                         bounded
@@ -182,7 +181,7 @@ finiteAndBoundedChecks matrix =
         and
             [ let law = Oracle.returnLaw 4 matrix source
                   exact = known (Oracle.lawProbability (EqualTo time) law)
-                  dense = (returnProbabilityByState (EqualTo time) matrix)
+                  dense = returnProbabilityByState (EqualTo time) matrix
                in close (Return.probabilityGivenInitialState (EqualTo time) matrix source) exact
                     && close (dense !! fromIntegral source) exact
             | source <- finites
@@ -191,7 +190,7 @@ finiteAndBoundedChecks matrix =
             && and
                 [ let law = Oracle.returnLaw 4 matrix source
                       bounded = known (Oracle.lawProbability (LessThan bound) law)
-                      dense = (returnProbabilityByState (LessThan bound) matrix)
+                      dense = returnProbabilityByState (LessThan bound) matrix
                    in close
                         (Return.probabilityGivenInitialState (LessThan bound) matrix source)
                         bounded
@@ -263,7 +262,7 @@ terminalChecks =
         case hitEventualProbabilityByState terminalChain [1] of
             Left _ -> False
             Right dense ->
-                and (zipWith close (dense) hitValues)
+                and (zipWith close dense hitValues)
                     && and
                         [ rightClose expected (Hit.eventualProbabilityGivenInitialState terminalChain [1] state)
                         | (state, expected) <- zip states hitValues
@@ -281,7 +280,7 @@ terminalChecks =
         case hitRaceProbabilityByState terminalChain [1] [2] of
             Left _ -> False
             Right dense ->
-                and (zipWith close (dense) raceValues)
+                and (zipWith close dense raceValues)
                     && and
                         [ rightClose
                             expected
@@ -305,7 +304,7 @@ terminalChecks =
         case returnEventualProbabilityByState terminalChain of
             Left _ -> False
             Right dense ->
-                and (zipWith close (dense) returnValues)
+                and (zipWith close dense returnValues)
                     && and
                         [ rightClose expected (Return.eventualProbabilityGivenInitialState terminalChain state)
                         | (state, expected) <- zip states returnValues
@@ -373,5 +372,6 @@ spec = do
                     Right matrix -> property (finiteAndBoundedChecks matrix)
 
     describe "canonical infinite-horizon differential baseline" $ do
-        it "all eventual, race, expectation, and total-visit queries match a completed path law" $
+        it
+            "all eventual, race, expectation, and total-visit queries match a completed path law"
             terminalChecks

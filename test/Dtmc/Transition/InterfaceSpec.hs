@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Dtmc.Transition.InterfaceSpec (
     spec,
 ) where

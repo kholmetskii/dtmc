@@ -47,7 +47,7 @@ verifySome dataRoot maxSize (SomeEntry (_ :: Proxy n) entry)
                 , "skipped" .= True
                 ]
             )
-    | otherwise = loadDataset @n dataRoot entry >>= pure . verifyDataset
+    | otherwise = verifyDataset <$> loadDataset @n dataRoot entry
 
 verifyDataset :: forall n. (KnownNat n) => Dataset n -> Value
 verifyDataset dataset =

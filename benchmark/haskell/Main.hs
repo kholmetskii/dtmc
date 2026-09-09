@@ -3,8 +3,10 @@
 module Main (main) where
 
 import Cases (benchmarksFor)
+import Control.Monad (when)
 import Criterion.Main (defaultMain)
 import Criterion.Types (Benchmark)
+import Data.Maybe (fromMaybe)
 import Dataset
 import System.Environment (getArgs, lookupEnv)
 import Text.Read (readMaybe)
@@ -13,19 +15,18 @@ import Verification (writeVerification)
 main :: IO ()
 main = do
     arguments <- getArgs
-    dataRoot <- maybe "benchmark/data/generated" id <$> lookupEnv "DTMC_BENCH_DATA"
+    dataRoot <- fromMaybe "benchmark/data/generated" <$> lookupEnv "DTMC_BENCH_DATA"
     manifest <- loadManifest (dataRoot ++ "/manifest.json")
     family <- lookupEnv "DTMC_BENCH_FAMILY"
     size <- readEnvironment "DTMC_BENCH_SIZE"
     seed <- readEnvironment "DTMC_BENCH_SEED"
     let selected = selectEntries family size seed manifest
-    if null selected
-        then fail "no datasets matched DTMC_BENCH_FAMILY/DTMC_BENCH_SIZE/DTMC_BENCH_SEED"
-        else pure ()
+    when (null selected) $
+        fail "no datasets matched DTMC_BENCH_FAMILY/DTMC_BENCH_SIZE/DTMC_BENCH_SEED"
     typed <- traverse (either fail pure . toSomeEntry) selected
     case arguments of
         ["--verify-json", outputPath] -> do
-            maximumSize <- maybe 100 id <$> readEnvironment "DTMC_VERIFY_MAX_SIZE"
+            maximumSize <- fromMaybe 100 <$> readEnvironment "DTMC_VERIFY_MAX_SIZE"
             writeVerification outputPath dataRoot maximumSize typed
         _ -> defaultMain (map (benchmarkFor dataRoot) typed)
 

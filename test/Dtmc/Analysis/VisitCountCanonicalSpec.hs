@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Dtmc.Analysis.VisitCountCanonicalSpec (
     spec,
 ) where
@@ -143,7 +141,7 @@ generatedTotalChecks :: TransitionMatrix (Finite 3) -> Bool
 generatedTotalChecks matrix =
     and
         [ let scalar = checked (Visit.totalProbabilityGivenInitialState event matrix 0 initial)
-              dense = (checked (visitTotalProbabilityByState event matrix 0))
+              dense = checked (visitTotalProbabilityByState event matrix 0)
            in close (dense !! fromIntegral initial) scalar
                 && scalar >= negate testTolerance
                 && scalar <= 1 + testTolerance

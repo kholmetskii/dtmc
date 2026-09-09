@@ -16,6 +16,7 @@ module Dtmc.Simulation (
     simulateMatrix,
 ) where
 
+import Control.Monad (when)
 import Control.Monad.Primitive (
     PrimMonad,
     PrimState,
@@ -232,7 +233,7 @@ simulateMatrix transitions matrix initial generator =
 prepareMatrixRow :: [Double] -> Either SimulationError PreparedMatrixRow
 prepareMatrixRow weights = do
     let entries = filter ((/= 0) . snd) (zip [0 ..] weights)
-    if null entries then Left EmptySupport else pure ()
+    when (null entries) (Left EmptySupport)
     repaired <- traverse repairWeight (zip [0 ..] (map snd entries))
     let cumulative = drop 1 (List.scanl' (+) 0 repaired)
         total = List.foldl' (+) 0 repaired

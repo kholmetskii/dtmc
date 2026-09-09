@@ -320,7 +320,7 @@ hittingTimeSpec = do
                 Right result ->
                     sequence_
                         [ x `shouldSatisfy` closeTo (1 - fromIntegral i / 4)
-                        | (i, x) <- zip [0 :: Int ..] (result)
+                        | (i, x) <- zip [0 :: Int ..] result
                         ]
 
         it "solves the oscillator race to a single absorbing state" $ do
@@ -329,7 +329,7 @@ hittingTimeSpec = do
                 Right result ->
                     sequence_
                         [ x `shouldSatisfy` closeTo v
-                        | (x, v) <- zip (result) [2 / 3, 1 / 3, 1, 0]
+                        | (x, v) <- zip result [2 / 3, 1 / 3, 1, 0]
                         ]
 
         it "is all zero for an empty target" $
@@ -355,7 +355,7 @@ hittingTimeSpec = do
                                                 (x >= -testTolerance && x <= 1 + testTolerance)
                                         | otherwise -> x === 0
                                 | (i, x) <-
-                                    zip (finites :: [Finite 4]) (result)
+                                    zip (finites :: [Finite 4]) result
                                 ]
 
         prop "satisfies the first-step equations off the target (random @4)" $
@@ -371,42 +371,42 @@ hittingTimeSpec = do
                              in conjoin
                                     [ property (closeTo hi pi_)
                                     | (i, hi, pi_) <-
-                                        zip3 (finites :: [Finite 4]) (h) pushed
+                                        zip3 (finites :: [Finite 4]) h pushed
                                     , i /= 0
                                     ]
 
     describe "bounded hitting times" $ do
         it "returns an empty result for the empty chain" $
-            ((hitProbabilityByState . LessThan) 3 (identity @(Finite 0)) [])
+            (hitProbabilityByState . LessThan) 3 (identity @(Finite 0)) []
                 `shouldBe` []
 
         it "places all time-zero mass on the target" $
-            ((hitProbabilityByState . EqualTo) 0 oscillator [2])
+            (hitProbabilityByState . EqualTo) 0 oscillator [2]
                 `shouldBe` [0, 0, 1, 0]
 
         it "gives zero exact-time mass for an empty target" $
-            ((hitProbabilityByState . EqualTo) 5 oscillator [])
+            (hitProbabilityByState . EqualTo) 5 oscillator []
                 `shouldBe` [0, 0, 0, 0]
 
         it "matches a one-step gambler's-ruin hit" $
-            ((hitProbabilityByState . EqualTo) 1 (gambler 0.5) [0])
+            (hitProbabilityByState . EqualTo) 1 (gambler 0.5) [0]
                 `shouldBe` [0, 0.5, 0, 0, 0]
 
         it "uses a strict time bound" $ do
-            ((hitProbabilityByState . LessThan) 0 oscillator [2])
+            (hitProbabilityByState . LessThan) 0 oscillator [2]
                 `shouldBe` [0, 0, 0, 0]
-            ((hitProbabilityByState . LessThan) 1 oscillator [2])
+            (hitProbabilityByState . LessThan) 1 oscillator [2]
                 `shouldBe` [0, 0, 1, 0]
             (Hit.probabilityGivenInitialState . LessThan) 2 (gambler 0.5) (== 0) 1
                 `shouldSatisfy` closeTo 0.5
 
         it "ignores duplicate and reordered targets" $
-            ((hitProbabilityByState . LessThan) 4 oscillator [2, 3, 2])
-                `shouldBe` ((hitProbabilityByState . LessThan) 4 oscillator [3, 2])
+            (hitProbabilityByState . LessThan) 4 oscillator [2, 3, 2]
+                `shouldBe` (hitProbabilityByState . LessThan) 4 oscillator [3, 2]
 
         it "single-state queries look up the all-state results" $ do
-            let exact = ((hitProbabilityByState . EqualTo) 3 oscillator [2])
-                bounded = ((hitProbabilityByState . LessThan) 4 oscillator [2])
+            let exact = (hitProbabilityByState . EqualTo) 3 oscillator [2]
+                bounded = (hitProbabilityByState . LessThan) 4 oscillator [2]
             sequence_
                 [ (Hit.probabilityGivenInitialState . EqualTo) 3 oscillator (== 2) i
                     `shouldSatisfy` closeTo exactAt
@@ -464,11 +464,10 @@ hittingTimeSpec = do
                 `shouldBe` Right 0
 
         it "gives all zeros for identical successful and competing sets" $
-            ( hitRaceProbabilityByState
+            hitRaceProbabilityByState
                 oscillator
                 [2, 3]
                 [2, 3]
-            )
                 `shouldBe` Right (replicate 4 0)
 
         it "gives all zeros for an empty successful set" $
@@ -487,7 +486,7 @@ hittingTimeSpec = do
                 (Right before, Right plain) ->
                     sequence_
                         [ x `shouldSatisfy` closeTo y
-                        | (x, y) <- zip (before) (plain)
+                        | (x, y) <- zip before plain
                         ]
 
         it "is exactly zero when the successful set is unreachable" $
@@ -514,7 +513,7 @@ hittingTimeSpec = do
                 (Right withDuplicates, Right once) ->
                     sequence_
                         [ x `shouldSatisfy` closeTo y
-                        | (x, y) <- zip (withDuplicates) (once)
+                        | (x, y) <- zip withDuplicates once
                         ]
 
         it "ignores target order" $ do
@@ -532,7 +531,7 @@ hittingTimeSpec = do
                 (Right reordered, Right ordered) ->
                     sequence_
                         [ x `shouldSatisfy` closeTo y
-                        | (x, y) <- zip (reordered) (ordered)
+                        | (x, y) <- zip reordered ordered
                         ]
 
         it "single-state lookups match the all-state vector" $
@@ -550,7 +549,7 @@ hittingTimeSpec = do
                             i
                             `shouldSatisfy` either (const False) (closeTo x)
                         | (i, x) <-
-                            zip (finites :: [Finite 4]) (result)
+                            zip (finites :: [Finite 4]) result
                         ]
 
         it "solves the oscillator race against a competing absorber" $ do
@@ -559,7 +558,7 @@ hittingTimeSpec = do
                 Right result ->
                     sequence_
                         [ x `shouldSatisfy` closeTo v
-                        | (x, v) <- zip (result) [2 / 3, 1 / 3, 1, 0]
+                        | (x, v) <- zip result [2 / 3, 1 / 3, 1, 0]
                         ]
 
         it "matches a hand-computed symmetric race (gambler p = 0.5)" $ do
@@ -568,7 +567,7 @@ hittingTimeSpec = do
                 Right result ->
                     sequence_
                         [ x `shouldSatisfy` closeTo (fromIntegral i / 4)
-                        | (i, x) <- zip [0 :: Int ..] (result)
+                        | (i, x) <- zip [0 :: Int ..] result
                         ]
 
         it "disjoint races sum to one when the union is hit almost surely" $
@@ -581,7 +580,7 @@ hittingTimeSpec = do
                     (Right wins, Right losses) ->
                         sequence_
                             [ (x + y) `shouldSatisfy` closeTo 1
-                            | (x, y) <- zip (wins) (losses)
+                            | (x, y) <- zip wins losses
                             ]
                 | pp <- [0.3, 0.5, 0.7]
                 , let g = gambler pp
@@ -676,38 +675,38 @@ returnTimeSpec :: Spec
 returnTimeSpec = do
     describe "bounded first-return times" $ do
         it "returns an empty result for the empty chain" $
-            ((returnProbabilityByState . LessThan) 3 (identity @(Finite 0)))
+            (returnProbabilityByState . LessThan) 3 (identity @(Finite 0))
                 `shouldBe` []
 
         it "has no return mass at time zero" $
-            ((returnProbabilityByState . EqualTo) 0 oscillator)
+            (returnProbabilityByState . EqualTo) 0 oscillator
                 `shouldBe` [0, 0, 0, 0]
 
         it "uses the transition diagonal at time one" $
-            ((returnProbabilityByState . EqualTo) 1 nonUniformRecurrent)
+            (returnProbabilityByState . EqualTo) 1 nonUniformRecurrent
                 `shouldBe` [0.9, 0.6]
 
         it "counts only the first return" $ do
-            ((returnProbabilityByState . EqualTo) 1 oscillator)
+            (returnProbabilityByState . EqualTo) 1 oscillator
                 `shouldBe` [0, 0, 1, 1]
-            ((returnProbabilityByState . EqualTo) 2 oscillator)
+            (returnProbabilityByState . EqualTo) 2 oscillator
                 `shouldBe` [0.25, 0.25, 0, 0]
-            ((returnProbabilityByState . EqualTo) 2 twoCycle)
+            (returnProbabilityByState . EqualTo) 2 twoCycle
                 `shouldBe` [1, 1]
 
         it "uses a strict time bound" $ do
-            ((returnProbabilityByState . LessThan) 0 oscillator)
+            (returnProbabilityByState . LessThan) 0 oscillator
                 `shouldBe` [0, 0, 0, 0]
-            ((returnProbabilityByState . LessThan) 1 oscillator)
+            (returnProbabilityByState . LessThan) 1 oscillator
                 `shouldBe` [0, 0, 0, 0]
-            ((returnProbabilityByState . LessThan) 2 oscillator)
+            (returnProbabilityByState . LessThan) 2 oscillator
                 `shouldBe` [0, 0, 1, 1]
-            ((returnProbabilityByState . LessThan) 3 twoCycle)
+            (returnProbabilityByState . LessThan) 3 twoCycle
                 `shouldBe` [1, 1]
 
         it "single-state queries look up the all-state results" $ do
-            let exact = ((returnProbabilityByState . EqualTo) 3 oscillator)
-                bounded = ((returnProbabilityByState . LessThan) 4 oscillator)
+            let exact = (returnProbabilityByState . EqualTo) 3 oscillator
+                bounded = (returnProbabilityByState . LessThan) 4 oscillator
             sequence_
                 [ (Return.probabilityGivenInitialState . EqualTo) 3 oscillator i
                     `shouldSatisfy` closeTo exactAt
@@ -788,7 +787,7 @@ returnTimeSpec = do
                                                         ( zipWith
                                                             (*)
                                                             row
-                                                            (hits)
+                                                            hits
                                                         )
                                              in counterexample
                                                     (show (i, f, firstStep))
@@ -797,7 +796,7 @@ returnTimeSpec = do
                                         zip3
                                             (finites :: [Finite 4])
                                             rows
-                                            (returns)
+                                            returns
                                     ]
 
         it "is one for an absorbing state" $
@@ -934,7 +933,7 @@ returnTimeSpec = do
                 `shouldSatisfy` either (const False) (closeTo 0.5)
 
         it "solves bounded hitting queries in named state order" $
-            ((hitProbabilityByState . LessThan) 3 namedGambler [Won])
+            (hitProbabilityByState . LessThan) 3 namedGambler [Won]
                 `shouldBe` [0, 0, 0.25, 0.5, 1]
 
         it "solves named expected hitting and return times" $ do

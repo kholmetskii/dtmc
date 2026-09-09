@@ -195,7 +195,7 @@ instance Semigroup (TransitionMatrix state) where
         TransitionMatrix state ->
         TransitionMatrix state ->
         TransitionMatrix state
-    p@(TransitionMatrix _ _ _) <> q =
+    p@TransitionMatrix{} <> q =
         unsafeTransitionMatrix (unTransitionMatrix p LA.<> unTransitionMatrix q)
 
 {- | The identity matrix represents zero transitions and is the unit of the

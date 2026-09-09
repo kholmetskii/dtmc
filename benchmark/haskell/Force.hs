@@ -1,5 +1,4 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Force (
     checksumClasses,
@@ -49,7 +48,7 @@ checksumExpectations = foldl' step 0
                 FiniteExpectation finite -> finite
                 InfiniteExpectation -> 1
             next = total + value
-         in next `seq` next
+         in next
 
 checksumFundamental :: ([state], [[Double]]) -> Double
 checksumFundamental (_, rows) = checksumValues (concat rows)
@@ -68,7 +67,7 @@ checksumStationary = foldl' step 0
                 checksumValues
                     (map (fromIntegral . getFinite . stateIndex) members)
             next = total + memberTotal + checksumVector distribution
-         in next `seq` next
+         in next
 
 eitherOrFail :: (Show problem) => Either problem value -> value
 eitherOrFail = either (error . ("benchmark operation failed: " ++) . show) id

@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Dtmc.Analysis.VisitCountSpec (
     spec,
 ) where
@@ -147,7 +145,7 @@ spec = do
     describe "totalProbabilityByState" $ do
         it "matches the geometric law for a transient target" $ do
             let probabilities count =
-                    (checked ((visitTotalProbabilityByState . EqualTo) count transientVisitChain 0))
+                    checked ((visitTotalProbabilityByState . EqualTo) count transientVisitChain 0)
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
@@ -163,7 +161,7 @@ spec = do
                 | (actual, expected) <-
                     zip (probabilities 3) [3 / 64, 3 / 128, 0]
                 ]
-            (checked (visitInfiniteProbabilityByState transientVisitChain 0))
+            checked (visitInfiniteProbabilityByState transientVisitChain 0)
                 `shouldBe` [0, 0, 0]
 
         it "puts all positive recurrent-target mass at infinity" $ do
@@ -173,14 +171,14 @@ spec = do
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
                     zip
-                        ((checked (visitInfiniteProbabilityByState recurrentVisitChain 2)))
+                        (checked (visitInfiniteProbabilityByState recurrentVisitChain 2))
                         [2 / 3, 1 / 3, 1, 0]
                 ]
             sequence_
                 [ actual `shouldSatisfy` closeTo expected
                 | (actual, expected) <-
                     zip
-                        ((checked ((visitTotalProbabilityByState . EqualTo) 0 recurrentVisitChain 2)))
+                        (checked ((visitTotalProbabilityByState . EqualTo) 0 recurrentVisitChain 2))
                         [1 / 3, 2 / 3, 0, 1]
                 ]
 
@@ -205,7 +203,7 @@ spec = do
                                             [ (Visit.totalProbabilityGivenInitialState . EqualTo) count matrix 0 initial
                                                 === Right probability
                                             | (initial, probability) <-
-                                                zip (finites :: [Finite 3]) (probabilities)
+                                                zip (finites :: [Finite 3]) probabilities
                                             ]
                                 | count <- [0, 1, 3]
                                 ]
@@ -216,7 +214,7 @@ spec = do
                                         [ Visit.infiniteProbabilityGivenInitialState matrix 0 initial
                                             === Right probability
                                         | (initial, probability) <-
-                                            zip (finites :: [Finite 3]) (probabilities)
+                                            zip (finites :: [Finite 3]) probabilities
                                         ]
                             ]
 

@@ -55,7 +55,7 @@ benchmarksFor ::
     Entry ->
     Benchmark
 benchmarksFor _ dataRoot entry =
-    env (loadDataset @n dataRoot entry) $ \ ~dataset ->
+    env (loadDataset @n dataRoot entry) $ \dataset ->
         bgroup
             (entryId entry)
             ( commonBenchmarks entry dataset
@@ -287,11 +287,10 @@ absorptionExpectationChecksum matrix =
     lookupExpectation = Absorption.expectationGivenInitialState matrix
 
 weightedEither :: (Show problem) => [Either problem Double] -> Double
-weightedEither values =
+weightedEither =
     foldl'
-        (\total value -> let next = total + eitherOrFail value in next `seq` next)
+        (\total value -> total + eitherOrFail value)
         0
-        values
 
 simulationChecksum ::
     forall n.

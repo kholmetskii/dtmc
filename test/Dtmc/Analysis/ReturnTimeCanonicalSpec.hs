@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Dtmc.Analysis.ReturnTimeCanonicalSpec (
     spec,
@@ -112,7 +111,7 @@ generatedChecks matrix =
         [ let law = Oracle.returnLaw 4 matrix initial
               oracle = known (Oracle.lawProbability event law)
               scalar = Return.probabilityGivenInitialState event matrix initial
-              dense = (returnProbabilityByState event matrix)
+              dense = returnProbabilityByState event matrix
            in close scalar oracle
                 && close (dense !! fromIntegral initial) oracle
         | initial <- finites
@@ -123,28 +122,28 @@ spec :: Spec
 spec = do
     describe "canonical return probability" $ do
         it "enforces the time-zero exclusion exactly" $ do
-            (returnProbabilityByState (EqualTo 0) terminalChain)
+            returnProbabilityByState (EqualTo 0) terminalChain
                 `shouldBe` [0, 0, 0]
-            (returnProbabilityByState (LessThan 1) terminalChain)
+            returnProbabilityByState (LessThan 1) terminalChain
                 `shouldBe` [0, 0, 0]
-            (returnProbabilityByState (AtMost 0) terminalChain)
+            returnProbabilityByState (AtMost 0) terminalChain
                 `shouldBe` [0, 0, 0]
-            (returnProbabilityByState (GreaterThan 0) terminalChain)
+            returnProbabilityByState (GreaterThan 0) terminalChain
                 `shouldBe` [1, 1, 1]
-            (returnProbabilityByState (AtLeast 0) terminalChain)
+            returnProbabilityByState (AtLeast 0) terminalChain
                 `shouldBe` [1, 1, 1]
-            (returnProbabilityByState (AtLeast 1) terminalChain)
+            returnProbabilityByState (AtLeast 1) terminalChain
                 `shouldBe` [1, 1, 1]
 
         it "implements every relation and carries non-return mass in upper tails" $ do
             Return.probabilityGivenInitialState (EqualTo 1) terminalChain 2 `shouldBe` 1
             Return.probabilityGivenInitialState (AtMost 1) terminalChain 2 `shouldBe` 1
             Return.probabilityGivenInitialState (GreaterThan 1) terminalChain 2 `shouldBe` 0
-            (returnProbabilityByState (AtMost 1) terminalChain)
+            returnProbabilityByState (AtMost 1) terminalChain
                 `shouldBe` [0, 0, 1]
-            (returnProbabilityByState (GreaterThan 1) terminalChain)
+            returnProbabilityByState (GreaterThan 1) terminalChain
                 `shouldBe` [1, 1, 0]
-            (returnProbabilityByState (AtLeast 2) terminalChain)
+            returnProbabilityByState (AtLeast 2) terminalChain
                 `shouldBe` [1, 1, 0]
 
         it "preserves locally finite kernels and tiny survivor mass directly" $ do

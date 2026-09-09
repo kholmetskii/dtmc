@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Dtmc.Analysis.AbsorptionSpec (
     spec,
@@ -73,7 +72,7 @@ twoCycle =
         fromRows (chunksOf 2 [0, 1, 1, 0])
 
 closeTo :: Double -> Double -> Bool
-closeTo expected actual = approxEq testTolerance expected actual
+closeTo = approxEq testTolerance
 
 finiteCloseTo :: Double -> E.Expectation -> Bool
 finiteCloseTo expected (E.FiniteExpectation x) = closeTo expected x

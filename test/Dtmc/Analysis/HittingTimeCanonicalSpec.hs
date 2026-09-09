@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Dtmc.Analysis.HittingTimeCanonicalSpec (
     spec,
@@ -115,7 +114,7 @@ generatedChecks matrix =
         [ let law = Oracle.hittingLaw 4 matrix isTarget initial
               oracle = known (Oracle.lawProbability event law)
               scalar = Hit.probabilityGivenInitialState event matrix isTarget initial
-              dense = (hitProbabilityByState event matrix [2])
+              dense = hitProbabilityByState event matrix [2]
            in close scalar oracle
                 && close (dense !! fromIntegral initial) oracle
         | initial <- finites
@@ -138,19 +137,19 @@ spec = do
             Hit.probabilityGivenInitialState (AtLeast 0) terminalChain target 0 `shouldBe` 1
             Hit.probabilityGivenInitialState (AtLeast 1) terminalChain target 0 `shouldBe` 1
             Hit.probabilityGivenInitialState (AtLeast 2) terminalChain target 0 `shouldBe` 0.5
-            (hitProbabilityByState (GreaterThan 1) terminalChain [1])
+            hitProbabilityByState (GreaterThan 1) terminalChain [1]
                 `shouldBe` [0.5, 0, 1]
-            (hitProbabilityByState (AtMost 1) terminalChain [1])
+            hitProbabilityByState (AtMost 1) terminalChain [1]
                 `shouldBe` [0.5, 1, 0]
 
         it "keeps empty-target and time-zero boundaries structural" $ do
-            (hitProbabilityByState (EqualTo 3) terminalChain [])
+            hitProbabilityByState (EqualTo 3) terminalChain []
                 `shouldBe` [0, 0, 0]
-            (hitProbabilityByState (AtMost 3) terminalChain [])
+            hitProbabilityByState (AtMost 3) terminalChain []
                 `shouldBe` [0, 0, 0]
-            (hitProbabilityByState (GreaterThan 3) terminalChain [])
+            hitProbabilityByState (GreaterThan 3) terminalChain []
                 `shouldBe` [1, 1, 1]
-            (hitProbabilityByState (AtLeast 0) terminalChain [1])
+            hitProbabilityByState (AtLeast 0) terminalChain [1]
                 `shouldBe` [1, 1, 1]
             Hit.probabilityGivenInitialState (EqualTo 0) terminalChain (== 1) 1 `shouldBe` 1
             Hit.probabilityGivenInitialState (GreaterThan 0) terminalChain (== 1) 1 `shouldBe` 0

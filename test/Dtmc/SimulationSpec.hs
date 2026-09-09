@@ -18,8 +18,8 @@ import Dtmc.Distribution (
     Distribution (..),
  )
 import Dtmc.Distribution.Map (
-    pointMass,
     fromDistribution,
+    pointMass,
  )
 import Dtmc.Distribution.Vector qualified as Vector
 import Dtmc.Simulation (
@@ -71,9 +71,7 @@ instance Distribution UncheckedDistribution where
     distributionWeights (UncheckedDistribution entries) = entries
 
 checkedSimulation :: (Monad m) => m (Either SimulationError value) -> m value
-checkedSimulation action = do
-    result <- action
-    pure (either (error . show) id result)
+checkedSimulation action = either (error . show) id <$> action
 
 cyclicThree :: TransitionMatrix (Finite 3)
 cyclicThree =
