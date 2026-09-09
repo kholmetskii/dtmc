@@ -1,11 +1,13 @@
+{-# LANGUAGE GADTs #-}
+
 {- |
 Module      : Dtmc.Transition.Matrix.Internal
 Description : Raw carrier for transition matrices (unsafe underbelly).
 
 Raw carrier behind t'Dtmc.Transition.Matrix.TransitionMatrix': an hmatrix
-matrix paired with its lazy support graph. The public smart constructor
-validates its square shape and canonicalises rows; this internal module
-exposes unchecked construction.
+matrix paired with its lazy support graph and complete classification. The
+public smart constructor validates its square shape and canonicalises rows;
+this internal module exposes unchecked construction.
 
 The constructor is positional so the public matrix projection cannot act as a
 record-update setter and desynchronise the matrix from its cached graph.
@@ -14,10 +16,16 @@ module Dtmc.Transition.Matrix.Internal (
     TransitionMatrix (TransitionMatrix),
     unTransitionMatrix,
     tmSupport,
+    tmClassification,
     unsafeTransitionMatrix,
     matrixRowAt,
 ) where
 
+import Data.Maybe (fromMaybe)
+import Dtmc.Analysis.Classification.Internal (
+    Classification,
+    classificationFromGraph,
+ )
 import Dtmc.Distribution.Map (
     fromDistribution,
  )
@@ -29,6 +37,7 @@ import Dtmc.State (
  )
 import Dtmc.State.Internal (
     stateCardinalityInt,
+    stateFromInt,
     stateIndexInt,
  )
 import Dtmc.Transition (
@@ -47,14 +56,19 @@ already-validated rows, while 'Dtmc.Transition.Matrix.fromRows' applies
 tolerant row validation and canonicalisation. The internal constructor and
 arithmetic instances do not revalidate.
 
-Each value also carries its support graph as a /lazy/ second argument, so any
-graph-based analyses on the same value share one build. Construct internal
-values with @unsafeTransitionMatrix@ rather than pairing a matrix and graph
-directly.
+Each value also carries its support graph and complete typed classification as
+/lazy/ arguments, so graph-based analyses on the same value share both the
+graph build and public classification results. Construct internal values with
+@unsafeTransitionMatrix@ rather than pairing these fields directly.
 -}
-data TransitionMatrix state
-    = -- | Unchecked matrix/cache pair; the graph must match the matrix.
-      TransitionMatrix (LA.Matrix Double) Graph
+data TransitionMatrix state where
+    -- | Unchecked matrix/cache triple; both caches must match the matrix.
+    TransitionMatrix ::
+        (FiniteState state) =>
+        LA.Matrix Double ->
+        Graph ->
+        Classification state ->
+        TransitionMatrix state
 
 -- Nominal role prevents coercion between distinct state types, including
 -- state types with the same cardinality.
@@ -67,7 +81,7 @@ Complexity: @O(1)@ time and @O(1)@ space.
 unTransitionMatrix ::
     TransitionMatrix state ->
     LA.Matrix Double
-unTransitionMatrix (TransitionMatrix matrix _) = matrix
+unTransitionMatrix (TransitionMatrix matrix _ _) = matrix
 
 {- | Return the lazy support graph, with edge @i -> j@ exactly when the stored
 entry is strictly positive. No tolerance is applied: a tiny positive rounding
@@ -80,7 +94,20 @@ analysis that forces the graph takes @O(n^2)@ time and @O(n^2)@ temporary
 space; the resulting graph occupies @O(n + E)@ space for @E@ support edges.
 -}
 tmSupport :: TransitionMatrix state -> Graph
-tmSupport (TransitionMatrix _ support) = support
+tmSupport (TransitionMatrix _ support _) = support
+
+{- | Return the lazy complete classification associated with the matrix.
+Whole-chain classification queries on the same matrix therefore share their
+typed classes and state lists as well as the underlying graph facts.
+
+Complexity: @O(1)@ projection time and space. The first full evaluation takes
+the classification cost documented by
+'Dtmc.Analysis.Classification.communicatingClasses'; later projections reuse
+the retained @O(n)@ classification.
+-}
+tmClassification :: TransitionMatrix state -> Classification state
+tmClassification (TransitionMatrix _ _ classification) = classification
+{-# INLINE tmClassification #-}
 
 -- Manual 'Show': 'Graph' has no 'Show', and the derived cache should not
 -- appear in the rendering.
@@ -90,19 +117,28 @@ instance Show (TransitionMatrix state) where
             showString "TransitionMatrix "
                 . showsPrec 11 (unTransitionMatrix p)
 
-{- | Pair a raw matrix with its lazy support graph. This performs no
-row-stochastic, finiteness, or simplex validation; internal callers must
-establish the required invariant.
+{- | Pair a raw matrix with its lazy support graph and classification. This
+performs no row-stochastic, finiteness, or simplex validation; internal
+callers must establish the required invariant.
 
 Complexity: @O(1)@ construction time and @O(1)@ construction space. Forcing
 the support graph takes @O(n^2)@ time and @O(n^2)@ temporary space; the graph
 occupies @O(n + E)@ space for @E@ support edges.
 -}
 unsafeTransitionMatrix ::
+    (FiniteState state) =>
     LA.Matrix Double ->
     TransitionMatrix state
 unsafeTransitionMatrix matrix =
-    TransitionMatrix matrix (supportGraphOf matrix)
+    TransitionMatrix matrix support classification
+  where
+    support = supportGraphOf matrix
+    classification = classificationFromGraph toState support
+    toState index =
+        fromMaybe
+            (error "Dtmc.Transition.Matrix.Internal: graph vertex out of bounds")
+            (stateFromInt index)
+{-# INLINE unsafeTransitionMatrix #-}
 
 {- | Wrap one stored matrix row as a distribution vector without revalidation.
 The finite-state index makes the lookup total.
@@ -158,7 +194,8 @@ instance Semigroup (TransitionMatrix state) where
         TransitionMatrix state ->
         TransitionMatrix state ->
         TransitionMatrix state
-    p <> q = unsafeTransitionMatrix (unTransitionMatrix p LA.<> unTransitionMatrix q)
+    p@(TransitionMatrix _ _ _) <> q =
+        unsafeTransitionMatrix (unTransitionMatrix p LA.<> unTransitionMatrix q)
 
 {- | The identity matrix represents zero transitions and is the unit of the
 transition-composition monoid.

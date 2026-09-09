@@ -2,34 +2,18 @@
 
 {- |
 Module      : Dtmc.Analysis.Classification.Internal
-Description : Internal carriers and graph operations for chain classification.
+Description : Internal carriers and construction for chain classification.
 
-Raw carrier types and solver-oriented graph operations behind
-"Dtmc.Analysis.Classification": the per-class summary t'CommClass' and the
-whole-chain structural report t'Classification'. This module exposes the
-report constructor for trusted internal use; constructing it here may produce
-summary fields inconsistent with its communicating classes.
+Raw carrier types behind "Dtmc.Analysis.Classification": the per-class summary
+t'CommClass' and whole-chain structural report t'Classification'. The report
+builder is shared with the transition-matrix cache.
 -}
 module Dtmc.Analysis.Classification.Internal (
     type CommClass (..),
     type Classification (..),
-    backwardReachable,
+    classificationFromGraph,
 ) where
 
-import Data.Maybe (
-    fromMaybe,
- )
-import Dtmc.State (
-    FiniteState,
- )
-import Dtmc.State.Internal (
-    stateFromInt,
-    stateIndexInt,
- )
-import Dtmc.Transition.Matrix.Internal (
-    TransitionMatrix,
-    tmSupport,
- )
 import Dtmc.Transition.Matrix.Internal.Graph qualified as G
 import Numeric.Natural (
     Natural,
@@ -89,32 +73,52 @@ deriving instance (Eq state) => Eq (Classification state)
 
 deriving instance (Show state) => Show (Classification state)
 
-toState :: (FiniteState state) => Int -> state
-toState index =
-    fromMaybe
-        (error "Dtmc.Analysis.Classification.Internal: graph vertex out of bounds")
-        (stateFromInt index)
+{- | Build a complete typed classification from an index-to-state conversion
+and a shared support graph. Supplying the canonical conversion of a
+'Dtmc.State.FiniteState' instance produces the public classification.
 
-toIndex :: (FiniteState state) => state -> Int
-toIndex = stateIndexInt
+The result is deliberately lazy so a transition matrix can carry it without
+forcing graph construction. Once forced, all whole-chain projections share
+the same classes and state lists.
 
-{- | Return states from which an allowed seed is reachable along a support
-path containing only states accepted by @allowed@. Disallowed seeds are
-ignored; the result is duplicate-free and ordered by state index.
-
-For the complexity bounds, @n@ is the state count, @E@ the support-edge count,
-@s@ the number of supplied seeds, and @r@ the number of returned states.
-
-Complexity: excluding @n@ evaluations of @allowed@, 'FiniteState' method
-costs, and shared support-graph construction, @O(n + E + s)@ time,
-@O(n + E + s)@ temporary space, and @O(r)@ result space. The first reverse
-traversal also retains @O(n + E)@ predecessor-cache space.
+Complexity: @O(n + E)@ time after the graph's component and period caches are
+available, @O(n)@ temporary space, and @O(n)@ retained result space.
 -}
-backwardReachable ::
-    (FiniteState state) =>
-    TransitionMatrix state ->
-    (state -> Bool) ->
-    [state] ->
-    [state]
-backwardReachable p allowed seeds =
-    map toState (G.backwardReachable (tmSupport p) (allowed . toState) (map toIndex seeds))
+classificationFromGraph :: (Int -> state) -> G.Graph -> Classification state
+classificationFromGraph toState graph =
+    Classification
+        { classesOf = communicating
+        , isIrreducible = irreducible'
+        , isAperiodic = aperiodic'
+        , isErgodic = irreducible' && aperiodic'
+        , chainPeriodOf = case communicating of
+            [communicatingClass] -> classPeriod communicatingClass
+            _ -> Nothing
+        , recurrentStatesOf =
+            concatMap classMembers (filter classClosed communicating)
+        , transientStatesOf =
+            concatMap classMembers (filter (not . classClosed) communicating)
+        , absorbingStatesOf =
+            [ state
+            | communicatingClass <- communicating
+            , classClosed communicatingClass
+            , [state] <- [classMembers communicatingClass]
+            ]
+        }
+  where
+    components = G.components graph
+    communicating =
+        [ CommClass
+            { classMembers = map toState component
+            , classPeriod = G.periodOf graph first
+            , classClosed = G.inClosedComponent graph first
+            }
+        | component@(first : _) <- components
+        ]
+    irreducible' = case components of
+        [component] -> not (null component)
+        _ -> False
+    aperiodic' =
+        not (null components)
+            && all ((== Just 1) . G.componentPeriod graph) components
+{-# INLINE classificationFromGraph #-}

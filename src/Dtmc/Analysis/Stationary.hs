@@ -29,24 +29,11 @@ module Dtmc.Analysis.Stationary (
     stationaryDistributions,
 ) where
 
-import Control.Monad.ST (
-    ST,
-    runST,
- )
-import Data.Array.MArray (
-    newListArray,
-    readArray,
-    writeArray,
- )
-import Data.Array.ST (
-    STUArray,
- )
+import Control.Monad.ST (runST)
 import Data.Array.Unboxed qualified as Unboxed
-import Dtmc.Analysis.Classification (
-    classClosed,
-    classMembers,
-    communicatingClasses,
- )
+import Data.Maybe (fromMaybe)
+import Data.Vector.Storable qualified as Storable
+import Data.Vector.Storable.Mutable qualified as Mutable
 import Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
  )
@@ -61,18 +48,23 @@ import Dtmc.State (
  )
 import Dtmc.State.Internal (
     stateCardinalityInt,
-    stateIndexInt,
+    stateFromInt,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
  )
 import Dtmc.Transition.Matrix.Internal (
+    tmSupport,
     unTransitionMatrix,
  )
+import Dtmc.Transition.Matrix.Internal.Graph qualified as G
 import Numeric.LinearAlgebra qualified as LA
 
-toIndex :: (FiniteState state) => state -> Int
-toIndex = stateIndexInt
+toState :: (FiniteState state) => Int -> state
+toState index =
+    fromMaybe
+        (error "Dtmc.Analysis.Stationary: graph vertex out of bounds")
+        (stateFromInt index)
 
 {- | Compute the stationary vector of a non-empty irreducible stochastic
 block, in the block's own ordering, by Grassmann-Taksar-Heyman state
@@ -111,19 +103,33 @@ stationaryOfBlock ::
     Either LinearSystemError (LA.Vector Double)
 stationaryOfBlock block
     | dimension == 0 = Left SingularSystem
-    | not (all isFinite (LA.toList (LA.flatten block))) = Left NonFiniteSystem
+    | not (Storable.all isFinite flattened) = Left NonFiniteSystem
+    | dimension == 1 = singletonSolution
     | otherwise =
-        case reduceGth dimension (LA.toList (LA.flatten block)) of
+        case reduceGth dimension flattened of
             Nothing -> Left SingularSystem
             Just weights -> normalise weights
   where
     dimension = LA.rows block
+    flattened = LA.flatten block
+    singletonSolution
+        | residual > limit =
+            Left
+                ( ResidualTooLarge
+                    { relativeResidual = residual
+                    , residualLimit = limit
+                    }
+                )
+        | otherwise = Right (Storable.singleton 1)
+      where
+        limit = 1e-9
+        residual = abs (flattened Storable.! 0 - 1)
     normalise weights
-        | not (all isFinite weights) = Left NonFiniteSolution
+        | not (Storable.all isFinite weights) = Left NonFiniteSolution
         | scale <= 0 = Left SingularSystem
         | not (isFinite total) = Left NonFiniteSolution
         | total <= 0 = Left SingularSystem
-        | not (all isFinite stationaryWeights) = Left NonFiniteSolution
+        | not (Storable.all isFinite stationary) = Left NonFiniteSolution
         | not (isFinite residual) = Left NonFiniteSolution
         | residual > limit =
             Left
@@ -135,21 +141,18 @@ stationaryOfBlock block
         | otherwise = Right stationary
       where
         limit = 1e-9
-        scale = maximum weights
-        scaledWeights = map (/ scale) weights
-        total = sum scaledWeights
-        stationaryWeights = map (/ total) scaledWeights
-        stationary = LA.fromList stationaryWeights
+        scale = Storable.maximum weights
+        scaledWeights = Storable.map (/ scale) weights
+        total = Storable.sum scaledWeights
+        stationary = Storable.map (/ total) scaledWeights
         residual =
-            foldr (max . abs) 0 (LA.toList (LA.tr block LA.#> stationary - stationary))
+            Storable.foldl'
+                (\largest value -> max largest (abs value))
+                0
+                (LA.tr block LA.#> stationary - stationary)
 
 isFinite :: Double -> Bool
 isFinite value = not (isNaN value || isInfinite value)
-
--- Allocating through a signature that quantifies the state thread keeps the
--- array type unambiguous without local annotations inside 'runST'.
-newFlatArray :: (Int, Int) -> [Double] -> ST s (STUArray s Int Double)
-newFlatArray = newListArray
 
 {- | Compute the unnormalised GTH weights of an @n x n@ block supplied in
 row-major order. Return 'Nothing' when an elimination step finds no positive
@@ -161,25 +164,41 @@ finiteness, stochasticity, or irreducibility validation.
 Complexity: @O(n^3)@ time, @O(n^2)@ temporary space, and @O(n)@ result
 space.
 -}
-reduceGth :: Int -> [Double] -> Maybe [Double]
+reduceGth :: Int -> Storable.Vector Double -> Maybe (Storable.Vector Double)
 reduceGth n entries = runST $ do
-    a <- newFlatArray (0, n * n - 1) entries
+    a <- Storable.thaw entries
     let index i j = i * n + j
 
-        exitMass k =
-            sum <$> mapM (readArray a . index k) [0 .. k - 1]
+        exitMass k = sumRow 0 0
+          where
+            sumRow j total
+                | j >= k = pure total
+                | otherwise = do
+                    value <- Mutable.unsafeRead a (index k j)
+                    let next = total + value
+                    next `seq` sumRow (j + 1) next
 
         absorbRow k s i = do
-            entering <- readArray a (index i k)
+            entering <- Mutable.unsafeRead a (index i k)
             let scaled = entering / s
-            writeArray a (index i k) scaled
-            mapM_
-                ( \j -> do
-                    leaving <- readArray a (index k j)
-                    current <- readArray a (index i j)
-                    writeArray a (index i j) (current + scaled * leaving)
-                )
-                [0 .. k - 1]
+            Mutable.unsafeWrite a (index i k) scaled
+            updateColumns 0 scaled
+          where
+            updateColumns j scaled
+                | j >= k = pure ()
+                | otherwise = do
+                    leaving <- Mutable.unsafeRead a (index k j)
+                    current <- Mutable.unsafeRead a (index i j)
+                    Mutable.unsafeWrite a (index i j) (current + scaled * leaving)
+                    updateColumns (j + 1) scaled
+
+        absorbRows k s = updateRow 0
+          where
+            updateRow i
+                | i >= k = pure ()
+                | otherwise = do
+                    absorbRow k s i
+                    updateRow (i + 1)
 
         eliminate k
             | k < 1 = pure True
@@ -188,22 +207,33 @@ reduceGth n entries = runST $ do
                 if s <= 0
                     then pure False
                     else do
-                        mapM_ (absorbRow k s) [0 .. k - 1]
+                        absorbRows k s
                         eliminate (k - 1)
 
-        -- visits holds x(0) .. x(k-1) in order.
-        substitute k visits
-            | k >= n = pure visits
+        substitute visits k
+            | k >= n = pure ()
             | otherwise = do
-                terms <-
-                    mapM
-                        (\(i, x) -> (x *) <$> readArray a (index i k))
-                        (zip [0 ..] visits)
-                substitute (k + 1) (visits ++ [sum terms])
+                value <- substitutionTerm visits k
+                Mutable.unsafeWrite visits k value
+                substitute visits (k + 1)
+
+        substitutionTerm visits k = accumulate 0 0
+          where
+            accumulate i total
+                | i >= k = pure total
+                | otherwise = do
+                    visitsAtI <- Mutable.unsafeRead visits i
+                    factor <- Mutable.unsafeRead a (index i k)
+                    let next = total + visitsAtI * factor
+                    next `seq` accumulate (i + 1) next
 
     feasible <- eliminate (n - 1)
     if feasible
-        then Just <$> substitute 1 [1]
+        then do
+            visits <- Mutable.replicate n 0
+            Mutable.unsafeWrite visits 0 1
+            substitute visits 1
+            Just <$> Storable.freeze visits
         else pure Nothing
 
 {- | Compute the extremal stationary distributions, one per recurrent class
@@ -240,9 +270,13 @@ stationaryDistributions p =
   where
     dim = stateCardinalityInt @state
     matrix = unTransitionMatrix p
+    graph = tmSupport p
     closedClasses =
-        [classMembers c | c <- communicatingClasses p, classClosed c]
-    distributionOn members = do
+        [ (map toState indices, indices)
+        | indices@(first : _) <- G.components graph
+        , G.inClosedComponent graph first
+        ]
+    distributionOn (members, indices) = do
         solution <- stationaryOfBlock (subMatrix indices indices matrix)
         let placed :: Unboxed.UArray Int Double
             placed =
@@ -255,5 +289,3 @@ stationaryDistributions p =
             ( members
             , DistributionVector (LA.fromList [placed Unboxed.! i | i <- [0 .. dim - 1]])
             )
-      where
-        indices = map toIndex members

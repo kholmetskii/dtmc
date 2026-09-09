@@ -17,7 +17,8 @@ of strictly positive entries. The stated per-operation bounds exclude
 'FiniteState' method costs and construction of the shared support graph. Its
 first use adds @O(n^2)@ time and temporary space and retains @O(n + E)@ cache
 space. Strong components, closedness, periods, and phases are also computed
-lazily and shared by later queries on the same matrix.
+lazily. The complete typed classification is retained after first use, so
+whole-chain queries share public classes and state lists as well as the graph.
 
 A @0 x 0@ matrix has no communicating classes and is neither irreducible nor
 aperiodic here.
@@ -66,7 +67,11 @@ import Dtmc.State.Internal (
     stateFromInt,
     stateIndexInt,
  )
-import Dtmc.Transition.Matrix.Internal (TransitionMatrix, tmSupport)
+import Dtmc.Transition.Matrix.Internal (
+    TransitionMatrix,
+    tmClassification,
+    tmSupport,
+ )
 import Dtmc.Transition.Matrix.Internal.Graph qualified as G
 import Numeric.Natural (Natural)
 
@@ -152,11 +157,11 @@ Whole-chain queries in this module share one pass over the support graph.
 
 Complexity: excluding shared support-graph construction, the first full
 evaluation takes @O(n + E + n log(n + 1))@ time and @O(n + E)@ temporary
-space and retains @O(n)@ component cache; subsequent evaluations take
-@O(n)@ time and temporary space. Result space is @O(n)@.
+space and retains @O(n)@ classification space. Subsequent calls take @O(1)@
+time and space before traversal of the shared result; traversing every member
+still takes @O(n)@ time. The @O(n)@ result is retained by the matrix.
 -}
 communicatingClasses ::
-    (FiniteState state) =>
     TransitionMatrix state ->
     [CommClass state]
 communicatingClasses = classesOf . classify
@@ -284,10 +289,10 @@ Whole-chain queries in this module share one pass over the support graph.
 
 Complexity: excluding shared support-graph construction, the first full
 evaluation takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space
-and retains @O(n)@ component and closedness cache; later evaluations take
-@O(n)@ time and temporary space. Result space is @O(n)@.
+and retains @O(n)@ graph and classification space. Later calls take @O(1)@
+time and space before traversal of the shared @O(n)@ result.
 -}
-recurrentStates :: (FiniteState state) => TransitionMatrix state -> [state]
+recurrentStates :: TransitionMatrix state -> [state]
 recurrentStates = recurrentStatesOf . classify
 
 {- | Return the members of non-closed communicating classes, ordered by class
@@ -297,10 +302,10 @@ Whole-chain queries in this module share one pass over the support graph.
 
 Complexity: excluding shared support-graph construction, the first full
 evaluation takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space
-and retains @O(n)@ component and closedness cache; later evaluations take
-@O(n)@ time and temporary space. Result space is @O(n)@.
+and retains @O(n)@ graph and classification space. Later calls take @O(1)@
+time and space before traversal of the shared @O(n)@ result.
 -}
-transientStates :: (FiniteState state) => TransitionMatrix state -> [state]
+transientStates :: TransitionMatrix state -> [state]
 transientStates = transientStatesOf . classify
 
 {- | Return the states that form a communicating class on their own and cannot
@@ -312,10 +317,10 @@ Whole-chain queries in this module share one pass over the support graph.
 
 Complexity: excluding shared support-graph construction, the first full
 evaluation takes @O((n + E) log(n + 1))@ time and @O(n + E)@ temporary space
-and retains @O(n)@ component and closedness cache; later evaluations take
-@O(n)@ time and temporary space. Result space is @O(n)@.
+and retains @O(n)@ graph and classification space. Later calls take @O(1)@
+time and space before traversal of the shared result.
 -}
-absorbingStates :: (FiniteState state) => TransitionMatrix state -> [state]
+absorbingStates :: TransitionMatrix state -> [state]
 absorbingStates = absorbingStatesOf . classify
 
 {- | Return the period shared by every state of an irreducible chain. Returns
@@ -330,7 +335,7 @@ Complexity: excluding shared support-graph construction, the first query takes
 component and period cache; later queries take @O(1)@ time. Temporary and
 result space per cached query are @O(1)@.
 -}
-chainPeriod :: (FiniteState state) => TransitionMatrix state -> Maybe Natural
+chainPeriod :: TransitionMatrix state -> Maybe Natural
 chainPeriod = chainPeriodOf . classify
 
 {- | Test whether the chain is irreducible and aperiodic. For a finite DTMC
@@ -351,34 +356,8 @@ reachability, period, and recurrence queries remain direct graph lookups.
 
 Complexity: full evaluation on an unforced matrix takes
 @O(n^2 + (n + E) log(n + 1))@ time, @O(n^2 + n + E)@ temporary space,
-@O(n + E)@ retained graph-cache space, and @O(n)@ result space. With all
-graph facts cached, it takes @O(n)@ time and @O(n)@ temporary and result
-space.
+and @O(n + E)@ retained graph and classification space. Later calls take
+@O(1)@ time and space before traversal of the shared result.
 -}
-classify :: (FiniteState state) => TransitionMatrix state -> Classification state
-classify p =
-    Classification
-        { classesOf = cs
-        , isIrreducible = irreducible'
-        , isAperiodic = aperiodic'
-        , isErgodic = irreducible' && aperiodic'
-        , chainPeriodOf = chainPeriodOf'
-        , recurrentStatesOf = concatMap classMembers (filter classClosed cs)
-        , transientStatesOf = concatMap classMembers (filter (not . classClosed) cs)
-        , absorbingStatesOf = [i | cc <- cs, classClosed cc, [i] <- [classMembers cc]]
-        }
-  where
-    g = tmSupport p
-    cs =
-        [ CommClass
-            { classMembers = map toState c
-            , classPeriod = G.periodOf g v
-            , classClosed = G.inClosedComponent g v
-            }
-        | c@(v : _) <- G.components g
-        ]
-    irreducible' = graphIrreducible g
-    aperiodic' = graphAperiodic g
-    chainPeriodOf' = case cs of
-        [c] -> classPeriod c
-        _ -> Nothing
+classify :: TransitionMatrix state -> Classification state
+classify = tmClassification

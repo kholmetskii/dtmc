@@ -58,7 +58,7 @@ import Dtmc.Analysis.Classification (
     communicatingClasses,
     recurrentState,
  )
-import Dtmc.Analysis.Classification.Internal (
+import Dtmc.Analysis.Classification.Reachability.Internal (
     backwardReachable,
  )
 import Dtmc.Analysis.Event (

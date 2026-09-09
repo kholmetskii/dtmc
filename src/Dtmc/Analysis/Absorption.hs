@@ -103,7 +103,6 @@ and result space. On an unforced matrix, the first full evaluation takes
 retains @O(n + E)@ graph-cache space.
 -}
 canonicalOrder ::
-    (FiniteState state) =>
     TransitionMatrix state ->
     ([state], [state])
 canonicalOrder p =

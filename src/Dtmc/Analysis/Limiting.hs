@@ -91,7 +91,7 @@ Complexity: on an unforced matrix, the first query takes
 retains @O(n + E)@ graph and classification caches. With those facts cached,
 it takes @O(c)@ time, @O(c)@ temporary space, and @O(1)@ result space.
 -}
-converges :: (FiniteState state) => TransitionMatrix state -> Bool
+converges :: TransitionMatrix state -> Bool
 converges p =
     all
         ((== Just 1) . classPeriod)

@@ -45,9 +45,11 @@ commands. `profile` records Haskell RTS allocation/GC statistics and Python
   builds its NetworkX graph, while `dtmc` leaves its support graph lazy.
 - `structure/classes-lifecycle` measures construction through the first SCC
   answer. `classes-cold` excludes transition-matrix construction and graph
-  materialization; `classes-warm` reports cached lookup separately.
-- Cached PyDTMC properties and lazy `dtmc` graph fields are recreated for each
-  cold sample. Fixture setup is excluded from those samples.
+  materialization. `classes-warm/access` measures cached property access;
+  `classes-warm/consumed` traverses every returned state in both libraries.
+- Cached PyDTMC properties and lazy `dtmc` graph/classification fields are
+  recreated for each cold sample. Fixture setup is excluded from those
+  samples.
 - Pyperf records 30 fresh full-operation values per normal cell (three worker
   processes, ten values each). Warm-cache lookups are internally batched;
   Criterion uses its calibrated sample schedule. Smoke mode intentionally uses

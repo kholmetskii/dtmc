@@ -92,7 +92,11 @@ def consume_chain(chain: MarkovChain) -> float:
 
 
 def consume_classes(classes: list[list[str]]) -> int:
-    return sum(len(group) for group in classes)
+    return sum(int(state) - 1 for group in classes for state in group)
+
+
+def consume_classes_access(classes: list[list[str]]) -> bool:
+    return classes is not None
 
 
 def consume_bool(value: bool) -> int:
@@ -225,7 +229,14 @@ def register_benchmarks(runner: pyperf.Runner, dataset: Dataset) -> None:
         consume_classes(warm_classes.communicating_classes)
         register_warm(
             runner,
-            f"{prefix}/structure/classes-warm",
+            f"{prefix}/structure/classes-warm/access",
+            warm_classes,
+            lambda chain: chain.communicating_classes,
+            consume_classes_access,
+        )
+        register_warm(
+            runner,
+            f"{prefix}/structure/classes-warm/consumed",
             warm_classes,
             lambda chain: chain.communicating_classes,
             consume_classes,

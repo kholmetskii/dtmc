@@ -111,10 +111,15 @@ commonBenchmarks entry dataset =
                             checksumClasses
                                 (Classification.communicatingClasses (unPrepared prepared))
                 , env (preparedWarmClasses dataset) $ \ ~(Prepared matrix) ->
-                    bench "classes-warm" $
-                        nf
-                            (checksumClasses . Classification.communicatingClasses)
-                            matrix
+                    bgroup
+                        "classes-warm"
+                        [ bench "access" $
+                            whnf Classification.communicatingClasses matrix
+                        , bench "consumed" $
+                            nf
+                                (checksumClasses . Classification.communicatingClasses)
+                                matrix
+                        ]
                 , bench "irreducible-cold" $
                     perRunEnv (preparedGraph dataset) $ \prepared ->
                         evaluate $! Classification.irreducible (unPrepared prepared)

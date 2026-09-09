@@ -256,7 +256,7 @@ referencePeriod s i =
     powers = take bound (drop 1 (iterate (boolMul s) (boolIdentity dim)))
     returns = [k | (k, m) <- zip [1 :: Int ..] powers, (m !! i) !! i]
 
-classesAsInts :: (KnownNat n) => TransitionMatrix (Finite n) -> [[Integer]]
+classesAsInts :: TransitionMatrix (Finite n) -> [[Integer]]
 classesAsInts = map (map getFinite . classMembers) . communicatingClasses
 
 cyclicClassesAsInts :: (KnownNat n) => TransitionMatrix (Finite n) -> Maybe [[Integer]]

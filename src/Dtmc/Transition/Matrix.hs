@@ -85,8 +85,8 @@ data TransitionMatrixError
 {- | Construct a row-stochastic matrix from a grid of weights in canonical
 state order, stopping at the first problem. Within each accepted row,
 tolerated coordinate error is clamped to @[0, 1]@ and the repaired row is
-normalised. The support graph remains lazy, and the empty @0 x 0@ matrix is
-accepted.
+normalised. The support graph and classification cache remain lazy, and the
+empty @0 x 0@ matrix is accepted.
 
 This inverts 'toRows' up to that repair and needs no @hmatrix@ value: the
 shape is checked here and reported as 'WrongRowCount' or 'WrongRowWidth'
@@ -117,8 +117,8 @@ fromRows rows
 {- | Materialise a finite-state kernel as a dense transition matrix. Kernel
 rows are already validated 'Dtmc.Distribution.Map.DistributionMap' values, so
 this conversion is total and performs no additional clamping or
-renormalisation. Missing coordinates become exact zeros. The support graph
-remains lazy, and the empty @0 x 0@ matrix is accepted.
+renormalisation. Missing coordinates become exact zeros. The support graph and
+classification cache remain lazy, and the empty @0 x 0@ matrix is accepted.
 
 Complexity: excluding evaluation of 'finiteStates' and the kernel laws,
 @O(n^2)@ time and @O(n^2)@ temporary and result space.
@@ -155,7 +155,7 @@ The product is not revalidated. Row-stochastic matrices are closed under
 multiplication mathematically, but floating-point rounding can accumulate.
 
 Complexity: @O(n^3)@ worst-case time and @O(n^2)@ temporary and result space.
-The support graph is built lazily.
+The support graph and classification cache are built lazily.
 -}
 compose ::
     TransitionMatrix state ->

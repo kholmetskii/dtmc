@@ -8,6 +8,12 @@
 - Added `simulateMatrix`, which lazily prepares and shares cumulative sampling
   rows during a trajectory instead of rebuilding map-backed distributions on
   every transition.
+- Reworked the GTH stationary solver around strict indexed mutable-vector
+  loops, substantially reducing allocation in large irreducible classes.
+- Cached complete communicating-class classifications lazily in transition
+  matrices, allowing repeated whole-chain queries to share public results.
+- Split warm-class benchmarks into cached access and fully consumed cases,
+  with equivalent state traversal in Haskell and Python.
 
 ## 0.2.0.0
 

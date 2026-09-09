@@ -50,7 +50,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (
     fromMaybe,
  )
-import Dtmc.Analysis.Classification.Internal (
+import Dtmc.Analysis.Classification.Reachability.Internal (
     backwardReachable,
  )
 import Dtmc.Analysis.Event (
