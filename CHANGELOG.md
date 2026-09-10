@@ -17,6 +17,10 @@
 - Reduced support-graph construction allocation by scanning the matrix's
   storable row-major vector directly instead of materialising boxed row and
   value lists first.
+- Added adaptive dense finite-horizon paths for bounded return probabilities
+  and visit expectations. Branching transition-matrix rows use BLAS-backed
+  vector propagation, while deterministic matrices and general locally finite
+  kernels retain the existing sparse recurrence and public API.
 
 ## 0.2.0.0
 

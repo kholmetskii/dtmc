@@ -35,13 +35,15 @@ import Dtmc.Distribution.Vector.Internal (
  )
 import Dtmc.State (
     FiniteState,
+    finiteStates,
  )
 import Dtmc.State.Internal (
     stateCardinalityInt,
     stateFromInt,
     stateIndexInt,
  )
-import Dtmc.Transition (
+import Dtmc.Transition.Internal (
+    DenseTransitionBackend (..),
     Transition (..),
  )
 import Dtmc.Transition.Matrix.Internal.Graph (
@@ -169,6 +171,14 @@ instance (FiniteState state) => Transition (TransitionMatrix state) where
     transitionLaw matrix =
         fromDistribution . matrixRowAt matrix
 
+    transitionDenseBackend matrix =
+        Just
+            DenseTransitionBackend
+                { denseTransitionMatrix = unTransitionMatrix matrix
+                , denseTransitionStates = finiteStates
+                , denseTransitionIndex = stateIndexInt
+                }
+
 -- Use strict positivity without tolerance so graph queries reflect the stored
 -- matrix exactly; keep construction here so the cache cannot become stale.
 supportGraphOf ::
@@ -181,9 +191,9 @@ supportGraphOf matrix =
     associations = Storable.ifoldr associationFor [] (LA.flatten matrix)
     associationFor offset probability rest =
         let (row, column) = offset `quotRem` dim
-         in row
-                `seq` column
-                `seq` ((row, column), probability > 0) : rest
+         in row `seq`
+                column `seq`
+                    ((row, column), probability > 0) : rest
 
 {- | Matrix multiplication as transition composition: @p '<>' q@ takes a @p@
 step followed by a @q@ step. Exact products preserve row-stochasticity and

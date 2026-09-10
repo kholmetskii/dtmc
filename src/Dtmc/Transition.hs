@@ -8,28 +8,9 @@ state from a supplied current state. Concrete representations live in
 "Dtmc.Transition.Matrix" and "Dtmc.Transition.Kernel".
 -}
 module Dtmc.Transition (
-    Transition (..),
+    Transition (TransitionState, transitionLaw),
 ) where
 
-import Dtmc.Distribution.Map (DistributionMap)
-
-{- | A time-homogeneous transition rule whose law from any supplied state has
-finite support. The complete state space may be finite or infinite.
-
-This capability is sufficient for exact finite-horizon map-backed algorithms.
-It does not imply that states can be enumerated, so it cannot by itself support
-generic classification, stationary, eventual-hitting, or expectation
-algorithms.
--}
-class Transition transition where
-    -- | State type governed by this transition representation.
-    type TransitionState transition
-
-    {- | Return the validated finite-support law of the next state.
-
-    Complexity: implementation-dependent.
-    -}
-    transitionLaw ::
-        transition ->
-        TransitionState transition ->
-        DistributionMap (TransitionState transition)
+import Dtmc.Transition.Internal (
+    Transition (TransitionState, transitionLaw),
+ )

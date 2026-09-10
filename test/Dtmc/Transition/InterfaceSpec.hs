@@ -16,6 +16,9 @@ import Dtmc.TestSupport (
     chunksOf,
     genTransitionRows,
  )
+import Dtmc.Transition (
+    Transition (..),
+ )
 import Dtmc.Transition qualified as Transition
 import Dtmc.Transition.Kernel qualified as Kernel
 import Dtmc.Transition.Matrix (
@@ -40,6 +43,14 @@ import Test.QuickCheck (
 
 checked :: (Show error) => Either error value -> value
 checked = either (error . show) id
+
+data PublicCustomTransition = PublicCustomTransition
+
+-- A downstream instance needs to implement only the documented public
+-- method; internal optimization hooks keep their library defaults.
+instance Transition PublicCustomTransition where
+    type TransitionState PublicCustomTransition = Int
+    transitionLaw _ = DistributionMap.pointMass . (+ 1)
 
 finiteChain :: TransitionMatrix (Finite 3)
 finiteChain =
@@ -73,6 +84,11 @@ asTransitionKernel matrix =
 spec :: Spec
 spec =
     describe "Transition interface" $ do
+        it "keeps custom transition instances source-compatible" $
+            Distribution.distributionWeights
+                (transitionLaw PublicCustomTransition 4)
+                `shouldBe` [(5, 1)]
+
         it "exposes a matrix row as a finite-support transition law" $
             Distribution.distributionWeights (Transition.transitionLaw finiteChain 1)
                 `shouldBe` [(1, 0.2), (2, 0.8)]

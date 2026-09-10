@@ -49,6 +49,7 @@ module Dtmc.Analysis.VisitCount (
 import Data.Array qualified as Array
 import Data.Array.Unboxed qualified as Unboxed
 import Data.Map.Strict qualified as Map
+import Data.Vector.Storable qualified as Storable
 import Dtmc.Analysis.Absorption (
     fundamentalMatrix,
  )
@@ -100,6 +101,11 @@ import Dtmc.State.Internal (
  )
 import Dtmc.Transition (
     Transition (..),
+ )
+import Dtmc.Transition.Internal (
+    DenseTransitionBackend (..),
+    denseRowBranches,
+    transitionDenseBackend,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -377,7 +383,12 @@ For the complexity bounds, @k@ is the time bound, @s@ the initial stored
 support size, and @w@, @e@, and @u@ are per-step upper bounds on stored source
 states, traversed transition edges, and accumulated destination states.
 
-Complexity: excluding the initial 'distributionWeights' call,
+For a 'TransitionMatrix' with a branching row in the initial support, an
+internal adaptive path uses dense matrix-vector multiplication in
+@O(n log(s + 1) + k n^2)@ time and @O(n)@ temporary space. Deterministic
+initial rows retain the sparse recurrence.
+
+Generic complexity: excluding the initial 'distributionWeights' call,
 'transitionLaw', and predicate evaluation,
 @O(s log(s + 1) + k (w + e log(u + 1) + u))@ time, @O(w + u)@ temporary
 space, and @O(1)@ result space. At @k = 0@ the function takes @O(1)@ time and
@@ -394,9 +405,26 @@ boundedExpectation ::
     transition ->
     (TransitionState transition -> Bool) ->
     Double
+boundedExpectation 0 _ _ _ = 0
 boundedExpectation bound initial transition isVisited =
-    go bound (Map.fromList (distributionWeights initial)) 0
+    case optimizedExpectation of
+        Just expectation -> expectation
+        Nothing -> go bound initialWeights 0
   where
+    initialWeights = Map.fromList (distributionWeights initial)
+    optimizedExpectation = do
+        backend <- transitionDenseBackend transition
+        if any (denseRowBranches backend) (Map.keys initialWeights)
+            then
+                Just
+                    ( denseBoundedVisitExpectation
+                        bound
+                        initialWeights
+                        backend
+                        isVisited
+                    )
+            else Nothing
+
     go 0 _ expectation = expectation
     go remaining weights expectation =
         let visitProbability =
@@ -411,6 +439,35 @@ boundedExpectation bound initial transition isVisited =
                 then cumulative
                 else
                     let next = pushSparseWeights weights transition
+                     in cumulative `seq` next `seq` go (remaining - 1) next cumulative
+
+denseBoundedVisitExpectation ::
+    (Ord state) =>
+    Natural ->
+    Map.Map state Double ->
+    DenseTransitionBackend state ->
+    (state -> Bool) ->
+    Double
+denseBoundedVisitExpectation 0 _ _ _ = 0
+denseBoundedVisitExpectation bound weights backend isVisited =
+    go bound initialWeights 0
+  where
+    states = denseTransitionStates backend
+    initialWeights =
+        Storable.fromList
+            [Map.findWithDefault 0 state weights | state <- states]
+    visitedMask =
+        Storable.fromList
+            [if isVisited state then 1 else 0 | state <- states]
+    storedTransposed = LA.tr (denseTransitionMatrix backend)
+
+    go remaining current expectation =
+        let visitProbability = visitedMask LA.<.> current
+            cumulative = expectation + visitProbability
+         in if remaining == 1
+                then cumulative
+                else
+                    let next = storedTransposed LA.#> current
                      in cumulative `seq` next `seq` go (remaining - 1) next cumulative
 
 {- | Compute, under an arbitrary initial distribution, the probability of a

@@ -89,6 +89,7 @@ library
   other-modules:
       Dtmc.Distribution.Vector.Internal
       Dtmc.Distribution.Map.Internal
+      Dtmc.Transition.Internal
       Dtmc.Transition.Matrix.Internal
       Dtmc.Simplex.Internal
       Dtmc.Analysis.FiniteTime.Internal
