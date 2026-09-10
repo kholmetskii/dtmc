@@ -24,6 +24,7 @@ FAMILY_OFFSETS = {
     "low-outdegree": 20_000_000,
     "absorbing": 30_000_000,
     "reducible": 40_000_000,
+    "periodic": 50_000_000,
 }
 
 
@@ -104,6 +105,18 @@ def make_reducible(
     return matrix, class_a, []
 
 
+def make_periodic(
+    n: int, rng: np.random.Generator
+) -> tuple[np.ndarray, list[int], list[int]]:
+    del rng
+    matrix = np.zeros((n, n), dtype=np.float64)
+    for source in range(n):
+        matrix[source, (source + 1) % n] = 1.0
+    width = max(1, n // 20)
+    targets = list(range(n // 2, min(n, n // 2 + width)))
+    return matrix, targets, []
+
+
 GENERATORS: dict[
     str, Callable[[int, np.random.Generator], tuple[np.ndarray, list[int], list[int]]]
 ] = {
@@ -111,6 +124,7 @@ GENERATORS: dict[
     "low-outdegree": make_low_outdegree,
     "absorbing": make_absorbing,
     "reducible": make_reducible,
+    "periodic": make_periodic,
 }
 
 

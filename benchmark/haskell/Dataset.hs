@@ -10,6 +10,8 @@ module Dataset (
     Entry (..),
     Manifest (..),
     SomeEntry (..),
+    datasetAbsorbing,
+    datasetCompeting,
     datasetTargets,
     loadDataset,
     loadManifest,
@@ -131,7 +133,19 @@ loadDataset dataRoot entry = do
             }
 
 datasetTargets :: forall n. (KnownNat n) => Dataset n -> [Finite n]
-datasetTargets dataset = map stateAtIndex (entryTargetIndices (datasetEntry dataset))
+datasetTargets dataset = statesAtIndices (entryTargetIndices (datasetEntry dataset))
+
+datasetAbsorbing :: forall n. (KnownNat n) => Dataset n -> [Finite n]
+datasetAbsorbing dataset = statesAtIndices (entryAbsorbingIndices (datasetEntry dataset))
+
+datasetCompeting :: forall n. (KnownNat n) => Dataset n -> [Finite n]
+datasetCompeting dataset =
+    take (max 1 (length targets)) [state | state <- finiteStates, state `notElem` targets]
+  where
+    targets = datasetTargets dataset
+
+statesAtIndices :: forall n. (KnownNat n) => [Int] -> [Finite n]
+statesAtIndices = map stateAtIndex
   where
     states = finiteStates :: [Finite n]
     stateAtIndex index

@@ -121,6 +121,14 @@ def split_name(name: str, metadata: dict[str, dict[str, Any]]) -> tuple[str, str
     raise ValueError(f"benchmark name does not begin with a manifest dataset id: {name}")
 
 
+def active_result_paths(engine: str, datasets: Iterable[str]) -> Iterable[Path]:
+    directory = RESULTS / "raw" / engine
+    for dataset in sorted(datasets):
+        path = directory / f"{dataset}.json"
+        if path.is_file():
+            yield path
+
+
 def main() -> None:
     manifest = json.loads(
         (ROOT / "data" / "generated" / "manifest.json").read_text(encoding="utf-8")
@@ -128,11 +136,11 @@ def main() -> None:
     metadata = {entry["id"]: entry for entry in manifest["datasets"]}
     grouped: dict[tuple[str, str, str], list[float]] = defaultdict(list)
 
-    for path in sorted((RESULTS / "raw" / "haskell").glob("*.json")):
+    for path in active_result_paths("haskell", metadata):
         for name, value in criterion_samples(path):
             dataset, operation = split_name(name, metadata)
             grouped[("dtmc", dataset, operation)].append(value)
-    for path in sorted((RESULTS / "raw" / "python").glob("*.json")):
+    for path in active_result_paths("python", metadata):
         for name, value in pyperf_samples(path):
             dataset, operation = split_name(name, metadata)
             grouped[("pydtmc", dataset, operation)].append(value)

@@ -13,7 +13,13 @@ from typing import Any
 import numpy as np
 from pydtmc import MarkovChain
 
-from bench import Dataset, data_root, occupation_including_initial
+from bench import (
+    Dataset,
+    bounded_return_probability,
+    bounded_visit_expectation,
+    data_root,
+    occupation_including_initial,
+)
 
 
 @dataclass
@@ -90,6 +96,10 @@ def state_index(label: str) -> int:
     return int(label) - 1
 
 
+def normalized_partition(groups: list[list[int]]) -> list[list[int]]:
+    return sorted(sorted(group) for group in groups)
+
+
 def compare_dataset(
     record: dict[str, Any],
     dataset: Dataset,
@@ -99,6 +109,8 @@ def compare_dataset(
     name = dataset.name
     chain = MarkovChain(dataset.matrix)
     targets = dataset.targets
+    rewards = np.zeros(dataset.size, dtype=np.float64)
+    rewards[targets[0]] = 1.0
     comparisons = [
         compare_numeric(
             name,
@@ -140,7 +152,69 @@ def compare_dataset(
             atol,
             rtol,
         ),
+        compare_numeric(
+            name,
+            "return_bounded_10",
+            [record["return_bounded_10"]],
+            [bounded_return_probability(chain, 10)],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "return_bounded_100",
+            [record["return_bounded_100"]],
+            [bounded_return_probability(chain, 100)],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "visits_bounded_expectation_10",
+            [record["visits_bounded_expectation_10"]],
+            [bounded_visit_expectation(chain, 10, rewards)],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "visits_bounded_expectation_100",
+            [record["visits_bounded_expectation_100"]],
+            [bounded_visit_expectation(chain, 100, rewards)],
+            atol,
+            rtol,
+        ),
     ]
+
+    if dataset.family in {"dense", "low-outdegree"}:
+        py_race = chain.committor_probabilities(
+            "forward", dataset.competing, targets
+        )
+        if py_race is None:
+            raise AssertionError(f"{name}: PyDTMC returned no committor probabilities")
+        comparisons.append(
+            compare_numeric(
+                name,
+                "race_probability",
+                record["race_probability"],
+                py_race,
+                atol,
+                rtol,
+            )
+        )
+        py_return_mean = chain.mean_recurrence_times()
+        if py_return_mean is None:
+            raise AssertionError(f"{name}: PyDTMC returned no mean recurrence times")
+        comparisons.append(
+            compare_numeric(
+                name,
+                "return_mean",
+                expectation_array(record["return_mean"]),
+                py_return_mean,
+                atol,
+                rtol,
+            )
+        )
 
     haskell_classes = sorted(sorted(group) for group in record["classes"])
     python_classes = sorted(sorted(state_index(state) for state in group) for group in chain.communicating_classes)
@@ -148,6 +222,16 @@ def compare_dataset(
         raise AssertionError(f"{name}: communicating classes differ")
     if bool(record["irreducible"]) != bool(chain.is_irreducible):
         raise AssertionError(f"{name}: irreducibility differs")
+
+    if dataset.family == "periodic":
+        if int(record["chain_period"]) != int(chain.period):
+            raise AssertionError(f"{name}: chain periods differ")
+        haskell_cyclic = normalized_partition(record["cyclic_classes"])
+        python_cyclic = normalized_partition(
+            [[state_index(state) for state in group] for group in chain.cyclic_classes]
+        )
+        if haskell_cyclic != python_cyclic:
+            raise AssertionError(f"{name}: cyclic classes differ")
 
     haskell_stationary = {
         tuple(item["members"]): np.asarray(item["weights"], dtype=float)
@@ -183,6 +267,26 @@ def compare_dataset(
                 "fundamental",
                 fundamental["values"],
                 py_fundamental,
+                atol,
+                rtol,
+            )
+        )
+        absorption_probability = record["absorption_probability"]
+        py_absorbing = [state_index(state) for state in chain.absorbing_states]
+        py_transient = [state_index(state) for state in chain.transient_states]
+        if absorption_probability["absorbing"] != py_absorbing:
+            raise AssertionError(f"{name}: absorbing-state order differs")
+        if absorption_probability["transient"] != py_transient:
+            raise AssertionError(f"{name}: transient-state order differs")
+        py_absorption_probability = chain.absorption_probabilities()
+        if py_absorption_probability is None:
+            raise AssertionError(f"{name}: PyDTMC returned no absorption probabilities")
+        comparisons.append(
+            compare_numeric(
+                name,
+                "absorption_probability",
+                absorption_probability["values"],
+                py_absorption_probability,
                 atol,
                 rtol,
             )

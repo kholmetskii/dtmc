@@ -12,8 +12,10 @@ import Data.Proxy (Proxy)
 import Dataset
 import Dtmc.Analysis.Absorption qualified as Absorption
 import Dtmc.Analysis.Classification qualified as Classification
+import Dtmc.Analysis.Event (DiscreteEvent (AtMost))
 import Dtmc.Analysis.Expectation (Expectation (..))
 import Dtmc.Analysis.HittingTime qualified as Hitting
+import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.Stationary qualified as Stationary
 import Dtmc.Analysis.VisitCount qualified as VisitCount
 import Dtmc.Distribution.Vector qualified as Vector
@@ -65,8 +67,17 @@ verifyDataset dataset =
         , "stationary" .= stationary
         , "hitting_probability" .= hittingProbabilities
         , "hitting_time" .= map expectationValue hittingTimes
+        , "race_probability" .= raceProbabilities
+        , "return_mean" .= map expectationValue returnMeans
+        , "return_bounded_10" .= returnBounded 10
+        , "return_bounded_100" .= returnBounded 100
+        , "visits_bounded_expectation_10" .= visitsBounded 10
+        , "visits_bounded_expectation_100" .= visitsBounded 100
+        , "chain_period" .= chainPeriod
+        , "cyclic_classes" .= cyclicClasses
         , "fundamental" .= fundamental
         , "absorption_time" .= absorptionTimes
+        , "absorption_probability" .= absorptionProbabilities
         , "occupation" .= occupation
         ]
   where
@@ -77,7 +88,16 @@ verifyDataset dataset =
     initial :: Vector.DistributionVector (Finite n)
     initial = eitherOrFail (Vector.fromList (datasetInitialWeights dataset))
     targets = datasetTargets dataset
+    competing = datasetCompeting dataset
     states = finiteStates :: [Finite n]
+    initialState =
+        case states of
+            [] -> error "verification requires a non-empty state space"
+            first : _ -> first
+    visitTarget =
+        case targets of
+            [] -> error "verification requires at least one target"
+            target : _ -> target
     index :: Finite n -> Int
     index = fromIntegral . getFinite
     classes =
@@ -97,6 +117,30 @@ verifyDataset dataset =
         eitherOrFail (sequence [hittingProbabilityAt state | state <- states])
     hittingTimeAt = Hitting.expectationGivenInitialState matrix targets
     hittingTimes = eitherOrFail (sequence [hittingTimeAt state | state <- states])
+    raceProbabilities
+        | family `notElem` ["dense", "low-outdegree"] = Null
+        | otherwise =
+            let atState = Hitting.raceProbabilityGivenInitialState matrix targets competing
+             in toJSON (eitherOrFail (sequence [atState state | state <- states]))
+    returnMeanAt = Return.expectationGivenInitialState matrix
+    returnMeans = eitherOrFail (sequence [returnMeanAt state | state <- states])
+    returnBounded bound =
+        Return.probabilityGivenInitialState (AtMost bound) matrix initialState
+    visitsBounded bound =
+        VisitCount.boundedExpectationGivenInitialState
+            bound
+            initialState
+            matrix
+            (== visitTarget)
+    chainPeriod
+        | family /= "periodic" = Null
+        | otherwise = toJSON (Classification.chainPeriod matrix)
+    cyclicClasses
+        | family /= "periodic" = Null
+        | otherwise =
+            case Classification.cyclicClasses matrix of
+                Nothing -> Null
+                Just groups -> toJSON (map (map index) groups)
     fundamental
         | family /= "absorbing" = Null
         | otherwise =
@@ -108,6 +152,23 @@ verifyDataset dataset =
             let atState = Absorption.expectationGivenInitialState matrix
                 values = eitherOrFail (sequence [atState state | state <- states])
              in toJSONExpectations values
+    absorptionProbabilities
+        | family /= "absorbing" = Null
+        | otherwise =
+            let absorbing = datasetAbsorbing dataset
+                transient = Classification.transientStates matrix
+                valuesFor target =
+                    eitherOrFail
+                        ( sequence
+                            [ Absorption.probabilityGivenInitialState matrix target state
+                            | state <- transient
+                            ]
+                        )
+             in object
+                    [ "absorbing" .= map index absorbing
+                    , "transient" .= map index transient
+                    , "values" .= map valuesFor absorbing
+                    ]
     occupation
         | family `notElem` ["absorbing", "reducible"] = Null
         | otherwise =

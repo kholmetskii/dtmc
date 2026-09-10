@@ -253,7 +253,14 @@ def profile() -> None:
     environment = benchmark_environment(entry)
     profile_root = BENCHMARK_ROOT / "profiles"
     profile_root.mkdir(parents=True, exist_ok=True)
-    for operation in ("stationary", "hitting-probability", "simulation/100000"):
+    for operation in (
+        "stationary",
+        "hitting-probability/cold-all-states",
+        "race/forward-committor",
+        "return/mean-recurrence",
+        "visits/bounded-expectation/k-100",
+        "simulation/100000",
+    ):
         safe = operation.replace("/", "-")
         haskell_path = profile_root / f"haskell-{safe}.txt"
         with haskell_path.open("w", encoding="utf-8") as stream:

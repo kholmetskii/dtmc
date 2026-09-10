@@ -12,7 +12,9 @@ import Data.Vector.Unboxed qualified as U
 import Dataset
 import Dtmc.Analysis.Absorption qualified as Absorption
 import Dtmc.Analysis.Classification qualified as Classification
+import Dtmc.Analysis.Event (DiscreteEvent (AtMost))
 import Dtmc.Analysis.HittingTime qualified as Hitting
+import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.Stationary qualified as Stationary
 import Dtmc.Analysis.VisitCount qualified as VisitCount
 import Dtmc.Distribution.Vector qualified as Vector
@@ -47,6 +49,17 @@ newtype PreparedGen = PreparedGen {unPreparedGen :: MWC.Gen RealWorld}
 instance NFData PreparedGen where
     rnf (PreparedGen generator) = generator `seq` ()
 
+data PreparedScalarLookup n = PreparedScalarLookup
+    { scalarLookup :: Finite n -> Double
+    , scalarLookupState :: Finite n
+    }
+
+instance NFData (PreparedScalarLookup n) where
+    rnf prepared =
+        scalarLookup prepared
+            `seq` scalarLookupState prepared
+            `seq` ()
+
 benchmarksFor ::
     forall n.
     (KnownNat n) =>
@@ -61,6 +74,8 @@ benchmarksFor _ dataRoot entry =
             ( commonBenchmarks entry dataset
                 ++ absorptionBenchmarks entry dataset
                 ++ occupationBenchmarks entry dataset
+                ++ returnBenchmarks entry dataset
+                ++ visitBenchmarks entry dataset
                 ++ simulationBenchmarks entry dataset
             )
 
@@ -87,6 +102,7 @@ commonBenchmarks entry dataset =
         ++ numericalCases
   where
     targets = datasetTargets dataset
+    competing = datasetCompeting dataset
     powerCases
         | entrySize entry > 500 = []
         | otherwise =
@@ -103,7 +119,7 @@ commonBenchmarks entry dataset =
         | otherwise =
             [ bgroup
                 "structure"
-                [ bench "classes-lifecycle" $
+                ( [ bench "classes-lifecycle" $
                     nf (classesLifecycle (Proxy @n)) (datasetRows dataset)
                 , bench "classes-cold" $
                     perRunEnv (preparedGraph dataset) $ \prepared ->
@@ -126,8 +142,33 @@ commonBenchmarks entry dataset =
                 , env (preparedWarmIrreducible dataset) $ \ ~(Prepared matrix) ->
                     bench "irreducible-warm" $
                         nf Classification.irreducible matrix
-                ]
+                  ]
+                    ++ periodicStructureCases
+                )
             ]
+      where
+        periodicStructureCases
+            | entryFamily entry /= "periodic" = []
+            | otherwise =
+                [ bench "period-cold" $
+                    perRunEnv (preparedGraph dataset) $ \prepared ->
+                        evaluate $!
+                            checksumPeriod
+                                (Classification.chainPeriod (unPrepared prepared))
+                , env (preparedWarmPeriod dataset) $ \ ~(Prepared matrix) ->
+                    bench "period-warm" $
+                        nf (checksumPeriod . Classification.chainPeriod) matrix
+                , bench "cyclic-classes-cold" $
+                    perRunEnv (preparedGraph dataset) $ \prepared ->
+                        evaluate $!
+                            checksumCyclicClasses
+                                (Classification.cyclicClasses (unPrepared prepared))
+                , env (preparedWarmCyclicClasses dataset) $ \ ~(Prepared matrix) ->
+                    bench "cyclic-classes-warm" $
+                        nf
+                            (checksumCyclicClasses . Classification.cyclicClasses)
+                            matrix
+                ]
     numericalCases
         | entrySize entry > 500 = []
         | otherwise =
@@ -138,15 +179,44 @@ commonBenchmarks entry dataset =
                             ( eitherOrFail
                                 (Stationary.stationaryDistributions (unPrepared prepared))
                             )
-            , bench "hitting-probability" $
-                perRunEnv (preparedGraph dataset) $ \prepared ->
-                    evaluate $!
-                        hittingProbabilityChecksum targets (unPrepared prepared)
-            , bench "hitting-time" $
-                perRunEnv (preparedGraph dataset) $ \prepared ->
-                    evaluate $!
-                        hittingExpectationChecksum targets (unPrepared prepared)
+            , bgroup
+                "hitting-probability"
+                [ bench "cold-all-states" $
+                    perRunEnv (preparedGraph dataset) $ \prepared ->
+                        evaluate $!
+                            hittingProbabilityChecksum targets (unPrepared prepared)
+                , env (preparedWarmHittingProbability dataset) $ \prepared ->
+                    bench "warm-lookup" $
+                        whnf
+                            (\fixture -> scalarLookup fixture (scalarLookupState fixture))
+                            prepared
+                ]
+            , bgroup
+                "hitting-time"
+                [ bench "cold-all-states" $
+                    perRunEnv (preparedGraph dataset) $ \prepared ->
+                        evaluate $!
+                            hittingExpectationChecksum targets (unPrepared prepared)
+                , env (preparedWarmHittingExpectation dataset) $ \prepared ->
+                    bench "warm-lookup" $
+                        whnf
+                            (\fixture -> scalarLookup fixture (scalarLookupState fixture))
+                            prepared
+                ]
             ]
+                ++ raceCases
+      where
+        raceCases
+            | entryFamily entry `notElem` ["dense", "low-outdegree"] = []
+            | otherwise =
+                [ bench "race/forward-committor" $
+                    perRunEnv (preparedGraph dataset) $ \prepared ->
+                        evaluate $!
+                            raceProbabilityChecksum
+                                targets
+                                competing
+                                (unPrepared prepared)
+                ]
 
 absorptionBenchmarks :: forall n. (KnownNat n) => Entry -> Dataset n -> [Benchmark]
 absorptionBenchmarks entry dataset
@@ -163,6 +233,12 @@ absorptionBenchmarks entry dataset
         , bench "absorption-time" $
             perRunEnv (preparedGraph dataset) $ \prepared ->
                 evaluate $! absorptionExpectationChecksum (unPrepared prepared)
+        , bench "absorption/probabilities" $
+            perRunEnv (preparedGraph dataset) $ \prepared ->
+                evaluate $!
+                    absorptionProbabilityChecksum
+                        (datasetAbsorbing dataset)
+                        (unPrepared prepared)
         ]
 
 occupationBenchmarks :: forall n. (KnownNat n) => Entry -> Dataset n -> [Benchmark]
@@ -178,6 +254,47 @@ occupationBenchmarks entry dataset
                             (VisitCount.occupationMatrix (unPrepared prepared))
                         )
         ]
+
+returnBenchmarks :: forall n. (KnownNat n) => Entry -> Dataset n -> [Benchmark]
+returnBenchmarks entry dataset = meanRecurrenceCase ++ boundedCases
+  where
+    meanRecurrenceCase
+        | entryFamily entry `notElem` ["dense", "low-outdegree"] = []
+        | entrySize entry > 500 = []
+        | otherwise =
+            [ bench "return/mean-recurrence" $
+                perRunEnv (preparedGraph dataset) $ \prepared ->
+                    evaluate $! returnExpectationChecksum (unPrepared prepared)
+            ]
+    boundedCases
+        | entrySize entry > 100 = []
+        | otherwise =
+            [ bench ("return/bounded/k-" ++ show bound) $
+                perRunEnv (preparedMatrix dataset) $ \prepared ->
+                    evaluate $!
+                        Return.probabilityGivenInitialState
+                            (AtMost bound)
+                            (unPrepared prepared)
+                            (benchmarkState @n)
+            | bound <- [10, 100]
+            ]
+
+visitBenchmarks :: forall n. (KnownNat n) => Entry -> Dataset n -> [Benchmark]
+visitBenchmarks entry dataset
+    | entrySize entry > 100 = []
+    | otherwise =
+        [ bench ("visits/bounded-expectation/k-" ++ show bound) $
+            perRunEnv (preparedMatrix dataset) $ \prepared ->
+                evaluate $!
+                    VisitCount.boundedExpectationGivenInitialState
+                        bound
+                        (benchmarkState @n)
+                        (unPrepared prepared)
+                        (== target)
+        | bound <- [10, 100]
+        ]
+  where
+    target = benchmarkTarget dataset
 
 simulationBenchmarks :: forall n. (KnownNat n) => Entry -> Dataset n -> [Benchmark]
 simulationBenchmarks entry dataset
@@ -236,6 +353,44 @@ preparedWarmIrreducible dataset = do
     _ <- evaluate (Classification.irreducible (unPrepared prepared))
     pure prepared
 
+preparedWarmPeriod :: forall n. (KnownNat n) => Dataset n -> IO (Prepared n)
+preparedWarmPeriod dataset = do
+    prepared <- preparedGraph dataset
+    _ <- evaluate (checksumPeriod (Classification.chainPeriod (unPrepared prepared)))
+    pure prepared
+
+preparedWarmCyclicClasses :: forall n. (KnownNat n) => Dataset n -> IO (Prepared n)
+preparedWarmCyclicClasses dataset = do
+    prepared <- preparedGraph dataset
+    _ <- evaluate (checksumCyclicClasses (Classification.cyclicClasses (unPrepared prepared)))
+    pure prepared
+
+preparedWarmHittingProbability ::
+    forall n.
+    (KnownNat n) =>
+    Dataset n ->
+    IO (PreparedScalarLookup n)
+preparedWarmHittingProbability dataset = do
+    Prepared matrix <- preparedGraph dataset
+    let rawLookup = Hitting.eventualProbabilityGivenInitialState matrix (datasetTargets dataset)
+        lookupValue = eitherOrFail . rawLookup
+        state = benchmarkState @n
+    _ <- evaluate (lookupValue state)
+    pure (PreparedScalarLookup lookupValue state)
+
+preparedWarmHittingExpectation ::
+    forall n.
+    (KnownNat n) =>
+    Dataset n ->
+    IO (PreparedScalarLookup n)
+preparedWarmHittingExpectation dataset = do
+    Prepared matrix <- preparedGraph dataset
+    let rawLookup = Hitting.expectationGivenInitialState matrix (datasetTargets dataset)
+        lookupValue queryState = checksumExpectations [eitherOrFail (rawLookup queryState)]
+        state = benchmarkState @n
+    _ <- evaluate (lookupValue state)
+    pure (PreparedScalarLookup lookupValue state)
+
 preparedGenerator :: Int -> IO PreparedGen
 preparedGenerator seed =
     PreparedGen
@@ -275,6 +430,31 @@ hittingExpectationChecksum targets matrix =
   where
     lookupExpectation = Hitting.expectationGivenInitialState matrix targets
 
+raceProbabilityChecksum ::
+    forall n.
+    (KnownNat n) =>
+    [Finite n] ->
+    [Finite n] ->
+    Matrix.TransitionMatrix (Finite n) ->
+    Double
+raceProbabilityChecksum successful competing matrix =
+    weightedEither
+        [lookupProbability state | state <- finiteStates]
+  where
+    lookupProbability =
+        Hitting.raceProbabilityGivenInitialState matrix successful competing
+
+returnExpectationChecksum ::
+    forall n.
+    (KnownNat n) =>
+    Matrix.TransitionMatrix (Finite n) ->
+    Double
+returnExpectationChecksum matrix =
+    checksumExpectations
+        (eitherOrFail (sequence [lookupExpectation state | state <- finiteStates]))
+  where
+    lookupExpectation = Return.expectationGivenInitialState matrix
+
 absorptionExpectationChecksum ::
     forall n.
     (KnownNat n) =>
@@ -285,6 +465,37 @@ absorptionExpectationChecksum matrix =
         (eitherOrFail (sequence [lookupExpectation state | state <- finiteStates]))
   where
     lookupExpectation = Absorption.expectationGivenInitialState matrix
+
+absorptionProbabilityChecksum ::
+    forall n.
+    (KnownNat n) =>
+    [Finite n] ->
+    Matrix.TransitionMatrix (Finite n) ->
+    Double
+absorptionProbabilityChecksum absorbing matrix =
+    weightedEither
+        [ Absorption.probabilityGivenInitialState matrix target initial
+        | target <- absorbing
+        , initial <- Classification.transientStates matrix
+        ]
+
+benchmarkState :: forall n. (KnownNat n) => Finite n
+benchmarkState =
+    case finiteStates of
+        [] -> error "benchmark requires a non-empty state space"
+        first : _ -> first
+
+benchmarkTarget :: forall n. (KnownNat n) => Dataset n -> Finite n
+benchmarkTarget dataset =
+    case datasetTargets dataset of
+        [] -> error "benchmark dataset requires at least one target"
+        target : _ -> target
+
+checksumPeriod :: Maybe Natural -> Double
+checksumPeriod = maybe 0 fromIntegral
+
+checksumCyclicClasses :: forall n. Maybe [[Finite n]] -> Double
+checksumCyclicClasses = maybe 0 (checksumStates . concat)
 
 weightedEither :: (Show problem) => [Either problem Double] -> Double
 weightedEither =

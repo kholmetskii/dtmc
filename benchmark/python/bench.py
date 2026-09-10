@@ -42,6 +42,17 @@ class Dataset:
     def targets(self) -> list[int]:
         return [int(value) for value in self.metadata["targets"]]
 
+    @property
+    def absorbing(self) -> list[int]:
+        return [int(value) for value in self.metadata["absorbing"]]
+
+    @property
+    def competing(self) -> list[int]:
+        targets = set(self.targets)
+        return [state for state in range(self.size) if state not in targets][
+            : max(1, len(targets))
+        ]
+
 
 def data_root() -> Path:
     return Path(os.environ.get("DTMC_BENCH_DATA", "benchmark/data/generated")).resolve()
@@ -103,6 +114,10 @@ def consume_bool(value: bool) -> int:
     return int(value)
 
 
+def consume_float(value: float) -> float:
+    return float(value)
+
+
 def consume_sequence(value: list[int]) -> int:
     return sum(map(int, value))
 
@@ -121,6 +136,17 @@ def occupation_including_initial(chain: MarkovChain) -> np.ndarray:
     adjusted = np.asarray(values, dtype=np.float64).copy()
     adjusted.flat[:: adjusted.shape[0] + 1] += 1.0
     return adjusted
+
+
+def bounded_return_probability(chain: MarkovChain, steps: int) -> float:
+    probabilities = chain.first_passage_probabilities(steps, 0, [0])
+    return float(np.sum(probabilities, dtype=np.float64))
+
+
+def bounded_visit_expectation(
+    chain: MarkovChain, steps: int, rewards: np.ndarray
+) -> float:
+    return float(chain.expected_rewards(steps - 1, rewards)[0])
 
 
 def fresh_chain(dataset: Dataset) -> MarkovChain:
@@ -178,6 +204,7 @@ def register_benchmarks(runner: pyperf.Runner, dataset: Dataset) -> None:
     matrix = dataset.matrix
     initial = dataset.initial
     targets = dataset.targets
+    competing = dataset.competing
 
     register_fresh(
         runner,
@@ -249,6 +276,40 @@ def register_benchmarks(runner: pyperf.Runner, dataset: Dataset) -> None:
             consume_bool,
         )
 
+        if dataset.family == "periodic":
+            register_fresh(
+                runner,
+                f"{prefix}/structure/period-cold",
+                lambda: fresh_chain(dataset),
+                lambda chain: chain.period,
+                consume_float,
+            )
+            warm_period = fresh_chain(dataset)
+            consume_float(warm_period.period)
+            register_warm(
+                runner,
+                f"{prefix}/structure/period-warm",
+                warm_period,
+                lambda chain: chain.period,
+                consume_float,
+            )
+            register_fresh(
+                runner,
+                f"{prefix}/structure/cyclic-classes-cold",
+                lambda: fresh_chain(dataset),
+                lambda chain: chain.cyclic_classes,
+                consume_classes,
+            )
+            warm_cyclic_classes = fresh_chain(dataset)
+            consume_classes(warm_cyclic_classes.cyclic_classes)
+            register_warm(
+                runner,
+                f"{prefix}/structure/cyclic-classes-warm",
+                warm_cyclic_classes,
+                lambda chain: chain.cyclic_classes,
+                consume_classes,
+            )
+
         warm_irreducible = fresh_chain(dataset)
         consume_bool(warm_irreducible.is_irreducible)
         register_warm(
@@ -269,18 +330,60 @@ def register_benchmarks(runner: pyperf.Runner, dataset: Dataset) -> None:
         )
         register_fresh(
             runner,
-            f"{prefix}/hitting-probability",
+            f"{prefix}/hitting-probability/cold-all-states",
             lambda: fresh_chain(dataset),
             lambda chain: chain.hitting_probabilities(targets),
             checksum_array,
         )
         register_fresh(
             runner,
-            f"{prefix}/hitting-time",
+            f"{prefix}/hitting-time/cold-all-states",
             lambda: fresh_chain(dataset),
             lambda chain: chain.hitting_times(targets),
             checksum_array,
         )
+
+        if dataset.family in {"dense", "low-outdegree"}:
+            register_fresh(
+                runner,
+                f"{prefix}/race/forward-committor",
+                lambda: fresh_chain(dataset),
+                lambda chain: chain.committor_probabilities(
+                    "forward", competing, targets
+                ),
+                consume_optional_array,
+            )
+
+    if dataset.family in {"dense", "low-outdegree"} and dataset.size <= 500:
+        register_fresh(
+            runner,
+            f"{prefix}/return/mean-recurrence",
+            lambda: fresh_chain(dataset),
+            lambda chain: chain.mean_recurrence_times(),
+            consume_optional_array,
+        )
+
+    if dataset.size <= 100:
+        rewards = np.zeros(dataset.size, dtype=np.float64)
+        rewards[targets[0]] = 1.0
+        rewards.flags.writeable = False
+        for steps in (10, 100):
+            register_fresh(
+                runner,
+                f"{prefix}/return/bounded/k-{steps}",
+                lambda: fresh_chain(dataset),
+                lambda chain, count=steps: bounded_return_probability(chain, count),
+                consume_float,
+            )
+            register_fresh(
+                runner,
+                f"{prefix}/visits/bounded-expectation/k-{steps}",
+                lambda: fresh_chain(dataset),
+                lambda chain, count=steps: bounded_visit_expectation(
+                    chain, count, rewards
+                ),
+                consume_float,
+            )
 
     if dataset.family == "absorbing" and dataset.size <= 500:
         register_fresh(
@@ -288,6 +391,13 @@ def register_benchmarks(runner: pyperf.Runner, dataset: Dataset) -> None:
             f"{prefix}/fundamental-matrix",
             lambda: fresh_chain(dataset),
             lambda chain: chain.fundamental_matrix,
+            consume_optional_array,
+        )
+        register_fresh(
+            runner,
+            f"{prefix}/absorption/probabilities",
+            lambda: fresh_chain(dataset),
+            lambda chain: chain.absorption_probabilities(),
             consume_optional_array,
         )
         register_fresh(

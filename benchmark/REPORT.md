@@ -2,12 +2,13 @@
 
 ## Status
 
-The benchmark implementation builds successfully with GHC 9.10.3. On
-2026-09-08, the untimed cross-language gate passed all 360 comparisons for
-every family, seed, and size through 100. The largest observed absolute
-discrepancy was `3.525e-12`; the largest relative discrepancy was `2.709e-14`.
-Thirty-six larger datasets were deliberately skipped by the complete-output
-verification limit.
+The expanded benchmark implementation builds successfully with GHC 9.10.3.
+A temporary five-family gate passed all 732 numeric operation comparisons for
+60 datasets through size 100, together with exact period and cyclic-class
+checks. The largest absolute discrepancy was `7.276e-11`; the largest relative
+discrepancy was `4.619e-14`. The checked-in timing results predate this
+expansion; the full performance workflow must be rerun before publishing new
+timing conclusions.
 
 These checks are not performance results. Full-machine timing results must
 only be added after running:
@@ -24,14 +25,16 @@ ratios, and log-log scaling plots.
 ## Scope
 
 The comparison covers public construction, distribution evolution, matrix
-powers, communicating classes, irreducibility, stationary distributions,
-eventual and expected hitting, conventional absorbing-chain calculations,
-occupation matrices, and simulation throughput.
+powers, communicating classes, irreducibility, periodic decomposition,
+stationary distributions, eventual and expected hitting, forward committor
+probabilities, bounded and mean return quantities, bounded visit expectations,
+conventional absorbing-chain calculations, occupation matrices, and simulation
+throughput.
 
-Locally finite kernels, multi-target first-passage distributions, and general
-per-recurrent-state absorption probabilities are excluded because PyDTMC does
-not expose semantically equivalent operations. Low-outdegree fixtures still use
-dense matrix storage in both implementations.
+Locally finite kernels and general total-visit probabilities remain excluded
+from cross-library ratios because PyDTMC does not expose semantically equivalent
+operations. Low-outdegree fixtures still use dense matrix storage in both
+implementations.
 
 ## Interpretation checklist
 
