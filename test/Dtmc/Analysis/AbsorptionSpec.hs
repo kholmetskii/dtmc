@@ -71,6 +71,33 @@ twoCycle =
     either (error . show) id $
         fromRows (chunksOf 2 [0, 1, 1, 0])
 
+illConditionedTransientBlock :: TransitionMatrix (Finite 4)
+illConditionedTransientBlock =
+    either (error . show) id $
+        fromRows
+            ( chunksOf
+                4
+                [ 1 - epsilon
+                , 0
+                , epsilon
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 1
+                , 0
+                , 0
+                , 0
+                , 0
+                , 1
+                ]
+            )
+  where
+    epsilon = 1e-14
+
 closeTo :: Double -> Double -> Bool
 closeTo = approxEq testTolerance
 
@@ -115,6 +142,12 @@ spec = do
             Absorption.probabilityGivenInitialState chain C C `shouldBe` Right 1
             Absorption.probabilityGivenInitialState chain D C `shouldBe` Right 0
 
+        it "does not force an ill-conditioned transient solve at a recurrent state" $ do
+            Absorption.probabilityGivenInitialState illConditionedTransientBlock 2 2
+                `shouldBe` Right 1
+            Absorption.probabilityGivenInitialState illConditionedTransientBlock 2 3
+                `shouldBe` Right 0
+
         it "is exactly zero for a transient target" $
             Absorption.probabilityGivenInitialState chain A B `shouldBe` Right 0
 
@@ -130,6 +163,35 @@ spec = do
                     Hitting.eventualProbabilityGivenInitialState chain [C, D] A
                         `shouldSatisfy` rightCloseTo (toC + toD)
                 other -> expectationFailure ("solve failed: " <> show other)
+
+    describe "probabilityMatrix" $ do
+        it "returns the complete closed-form absorption table" $
+            case Absorption.probabilityMatrix chain of
+                Left err -> expectationFailure ("solve failed: " <> show err)
+                Right (transient, recurrent, rows) -> do
+                    transient `shouldBe` [A, B]
+                    recurrent `shouldBe` [C, D]
+                    concat rows
+                        `shouldSatisfy` ( and
+                                            . zipWith
+                                                closeTo
+                                                [17 / 20, 3 / 20, 11 / 20, 9 / 20]
+                                        )
+
+        it "returns empty rows when no state is transient" $
+            Absorption.probabilityMatrix twoCycle
+                `shouldBe` Right ([], [False, True], [])
+
+        it "agrees with every scalar absorption probability" $
+            case Absorption.probabilityMatrix chain of
+                Left err -> expectationFailure ("solve failed: " <> show err)
+                Right (transient, recurrent, rows) ->
+                    sequence_
+                        [ Absorption.probabilityGivenInitialState chain target initial
+                            `shouldSatisfy` rightCloseTo expected
+                        | (initial, row) <- zip transient rows
+                        , (target, expected) <- zip recurrent row
+                        ]
 
     describe "expectationByState" $ do
         it "matches the closed form of the notes" $

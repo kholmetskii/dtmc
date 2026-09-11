@@ -131,5 +131,7 @@ spec = do
                 `shouldBe` Right (FiniteExpectation 0.5)
             Absorption.probability matrix 1 mixedInitial
                 `shouldBe` Right 1
+            Absorption.probabilityMatrix matrix
+                `shouldBe` Right ([0], [1], [[1]])
             Absorption.expectation matrix mixedInitial
                 `shouldBe` Right (FiniteExpectation 0.5)

@@ -42,6 +42,7 @@ module Dtmc.Analysis.Absorption (
     fundamentalMatrix,
 
     -- * Absorption probabilities
+    probabilityMatrix,
     probability,
     probabilityGivenInitialState,
 
@@ -69,6 +70,8 @@ import Dtmc.Analysis.LinearSystem (
  )
 import Dtmc.Analysis.LinearSystem.Internal (
     fundamental,
+    solveIminusQ,
+    solveIminusQVector,
     subMatrix,
  )
 import Dtmc.Distribution (
@@ -141,6 +144,42 @@ fundamentalMatrix p
     transientIdx = map toIndex transient
     matrix = unTransitionMatrix p
 
+{- | Compute the complete transient-to-recurrent absorption-probability matrix
+@B = (I - Q)^-1 R'@.
+
+The returned triple contains the transient row states, the recurrent column
+states, and the matrix rows in those respective canonical orders. Entry
+@(i,k)@ is the probability that recurrent state @k@ is the first recurrent
+state visited when starting from transient state @i@.
+
+All recurrent columns are solved together, sharing one factorisation of
+@I - Q@. A chain with no transient states returns empty matrix rows without a
+solve.
+
+Complexity: including first-time graph classification,
+@O(n^2 + (n + E) log(n + 1) + t^3 + t^2 r)@ time,
+@O(n^2 + n + E + t^2 + t r)@ temporary space, @O(n + E)@ retained
+graph-cache space, and @O(t r)@ result space for @r@ recurrent states.
+-}
+probabilityMatrix ::
+    (FiniteState state) =>
+    TransitionMatrix state ->
+    Either LinearSystemError ([state], [state], [[Double]])
+probabilityMatrix p
+    | null transient = Right ([], recurrent, [])
+    | otherwise = do
+        values <-
+            solveIminusQ
+                (subMatrix transientIdx transientIdx matrix)
+                (subMatrix transientIdx recurrentIdx matrix)
+        pure (transient, recurrent, LA.toLists values)
+  where
+    transient = transientStates p
+    recurrent = recurrentStates p
+    transientIdx = map toIndex transient
+    recurrentIdx = map toIndex recurrent
+    matrix = unTransitionMatrix p
+
 {- | Compute absorption probabilities into one recurrent state in canonical
 state order. Coordinate @i@ is the probability that the supplied target is
 the first recurrent state visited when starting from @i@.
@@ -151,8 +190,8 @@ Boundary values are exact and taken without a solve:
 * a recurrent starting state has already arrived, so its coordinate is @1@
   when it is the target and @0@ otherwise.
 
-Transient coordinates are the corresponding column of @B = G R'@ and inherit
-the numerical behaviour and errors of 'fundamentalMatrix'.
+Transient coordinates solve @(I - Q) b = R'(:,k)@ directly and inherit the
+numerical behaviour and errors of the shared linear solver.
 
 Complexity: including first-time graph classification,
 @O(n^2 + (n + E) log(n + 1) + t^3)@ worst-case time,
@@ -172,9 +211,12 @@ probabilityByState p target
     | null transientIdx =
         Right (LA.fromList [arrived i | i <- [0 .. dim - 1]])
     | otherwise = do
-        g <- fundamental (subMatrix transientIdx transientIdx matrix)
         let exits = LA.flatten (subMatrix transientIdx [targetIdx] matrix)
-            solved = LA.toList (g LA.#> exits)
+        transientProbabilities <-
+            solveIminusQVector
+                (subMatrix transientIdx transientIdx matrix)
+                exits
+        let solved = LA.toList transientProbabilities
             interior :: Unboxed.UArray Int Double
             interior =
                 Unboxed.accumArray
@@ -225,8 +267,10 @@ probability p target initial =
 state visited, conditioned on @X_0 = i@. A recurrent initial state is already
 absorbed at time zero.
 
-Partial application shares one lazy all-state table. A non-recurrent target
-produces exact zeros without a numerical solve.
+Partial application shares one lazy all-state table for transient starting
+states. Recurrent starting states return their exact boundary values without
+forcing that table. A non-recurrent target produces exact zeros without a
+numerical solve.
 
 Complexity: the first forced query takes @O(n^3)@ worst-case time and
 @O(n^2)@ temporary space and may retain an @O(n)@ all-state result and
@@ -240,8 +284,14 @@ probabilityGivenInitialState ::
     state ->
     Either LinearSystemError Double
 probabilityGivenInitialState p target =
-    \i -> (`LA.atIndex` toIndex i) <$> values
+    atInitial
   where
+    atInitial initial
+        | not targetIsRecurrent = Right 0
+        | recurrentState p initial =
+            Right (if initial == target then 1 else 0)
+        | otherwise = (`LA.atIndex` toIndex initial) <$> values
+    targetIsRecurrent = recurrentState p target
     values = probabilityByState p target
 
 {- | Compute the expected number of transitions until the chain first enters

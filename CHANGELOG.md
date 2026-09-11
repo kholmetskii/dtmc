@@ -22,6 +22,10 @@
   transition-matrix rows use BLAS-backed vector propagation, while
   deterministic matrices and general locally finite kernels retain the
   existing sparse recurrences and public API.
+- Added a batched absorption-probability matrix operation that solves every
+  recurrent destination with one shared factorisation, while scalar
+  absorption queries now solve their single right-hand side directly instead
+  of constructing the complete fundamental inverse.
 
 ## 0.2.0.0
 
