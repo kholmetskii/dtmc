@@ -35,12 +35,6 @@ THREAD_ENV = {
     "XDG_CACHE_HOME": str(BENCHMARK_ROOT / ".cache"),
     "MPLBACKEND": "Agg",
 }
-FINITE_HORIZON_OPERATIONS = (
-    "return/bounded/k-10",
-    "return/bounded/k-100",
-    "visits/bounded-expectation/k-10",
-    "visits/bounded-expectation/k-100",
-)
 
 
 def run(command: list[str], *, env: dict[str, str] | None = None) -> None:
@@ -216,83 +210,6 @@ def benchmark(mode: str) -> None:
         run(pyperf_command, env=environment)
 
 
-def finite_horizon_roots(mode: str) -> tuple[Path, Path]:
-    return (
-        DATA_ROOT / "finite-horizon" / mode,
-        RESULTS_ROOT / "finite-horizon" / mode,
-    )
-
-
-def generate_finite_horizon(mode: str, data_root: Path) -> None:
-    sizes = (10,) if mode == "smoke" else tuple(size for size in SIZES if size <= 100)
-    seeds = (SEEDS[0],) if mode == "smoke" else SEEDS
-    run(
-        [
-            str(python_executable()),
-            str(DATA_DIR / "generate.py"),
-            "--output-dir",
-            str(data_root),
-            "--sizes",
-            ",".join(map(str, sizes)),
-            "--seeds",
-            ",".join(map(str, seeds)),
-        ]
-    )
-
-
-def benchmark_finite_horizon(mode: str, data_root: Path, results_root: Path) -> None:
-    raw_haskell = results_root / "raw" / "haskell"
-    raw_python = results_root / "raw" / "python"
-    raw_haskell.mkdir(parents=True, exist_ok=True)
-    raw_python.mkdir(parents=True, exist_ok=True)
-
-    for entry in manifest_entries(mode, data_root):
-        name = str(entry["id"])
-        environment = benchmark_environment(entry, data_root)
-        haskell_json = raw_haskell / f"{name}.json"
-        haskell_csv = raw_haskell / f"{name}.csv"
-        haskell_raw = raw_haskell / f"{name}.raw"
-        python_json = raw_python / f"{name}.json"
-        for output in (haskell_json, haskell_csv, haskell_raw, python_json):
-            output.unlink(missing_ok=True)
-
-        names = [f"{name}/{operation}" for operation in FINITE_HORIZON_OPERATIONS]
-        run(
-            [
-                str(haskell_executable()),
-                "--json",
-                str(haskell_json),
-                "--csv",
-                str(haskell_csv),
-                "--raw",
-                str(haskell_raw),
-                "--time-limit",
-                "0.1" if mode == "smoke" else "5",
-                "--resamples",
-                "100" if mode == "smoke" else "10000",
-                "--match",
-                "prefix",
-                *names,
-            ],
-            env=environment,
-        )
-
-        python_environment = environment.copy()
-        python_environment["DTMC_BENCH_OPERATIONS"] = ",".join(
-            FINITE_HORIZON_OPERATIONS
-        )
-        pyperf_command = [
-            str(python_executable()),
-            str(BENCHMARK_ROOT / "python" / "bench.py"),
-            "--copy-env",
-            "-o",
-            str(python_json),
-        ]
-        if mode == "smoke":
-            pyperf_command.append("--fast")
-        run(pyperf_command, env=python_environment)
-
-
 def record_environment(
     results_root: Path = RESULTS_ROOT,
     data_root: Path = DATA_ROOT,
@@ -411,19 +328,6 @@ def analyse(
     )
 
 
-def finite_horizon(mode: str) -> None:
-    if not python_executable().exists():
-        raise RuntimeError(
-            "benchmark environment is missing; run the bootstrap command first"
-        )
-    data_root, results_root = finite_horizon_roots(mode)
-    generate_finite_horizon(mode, data_root)
-    run(["cabal", "build", f"--project-file={CABAL_PROJECT}", "dtmc-bench"])
-    benchmark_finite_horizon(mode, data_root, results_root)
-    record_environment(results_root, data_root, list(FINITE_HORIZON_OPERATIONS))
-    analyse(results_root, data_root)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -435,7 +339,6 @@ def main() -> None:
             "benchmark",
             "profile",
             "analyse",
-            "finite-horizon",
             "all",
         ),
     )
@@ -452,8 +355,6 @@ def main() -> None:
         benchmark(args.mode)
     if args.command == "profile":
         profile()
-    if args.command == "finite-horizon":
-        finite_horizon(args.mode)
     if args.command in {"analyse", "all"}:
         record_environment()
         analyse()

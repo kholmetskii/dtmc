@@ -15,10 +15,15 @@ from pydtmc import MarkovChain
 
 from bench import (
     Dataset,
+    bounded_hitting_probability,
     bounded_return_probability,
     bounded_visit_expectation,
     data_root,
+    exact_hitting_probability,
+    finite_time_probability,
     occupation_including_initial,
+    target_absorbing_matrix,
+    upper_hitting_probability,
 )
 
 
@@ -109,8 +114,11 @@ def compare_dataset(
     name = dataset.name
     chain = MarkovChain(dataset.matrix)
     targets = dataset.targets
+    hitting_chain = MarkovChain(target_absorbing_matrix(dataset.matrix, targets))
     rewards = np.zeros(dataset.size, dtype=np.float64)
     rewards[targets[0]] = 1.0
+    point_initial = np.zeros(dataset.size, dtype=np.float64)
+    point_initial[0] = 1.0
     comparisons = [
         compare_numeric(
             name,
@@ -138,6 +146,46 @@ def compare_dataset(
         ),
         compare_numeric(
             name,
+            "finite_time_step",
+            [record["finite_time_step"]],
+            [chain.p[0, targets[0]]],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "finite_time_n_step_10",
+            [record["finite_time_n_step_10"]],
+            [finite_time_probability(chain, 10, point_initial, targets[0])],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "finite_time_n_step_100",
+            [record["finite_time_n_step_100"]],
+            [finite_time_probability(chain, 100, point_initial, targets[0])],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "finite_time_observation_10",
+            [record["finite_time_observation_10"]],
+            [finite_time_probability(chain, 10, dataset.initial, targets[0])],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "finite_time_observation_100",
+            [record["finite_time_observation_100"]],
+            [finite_time_probability(chain, 100, dataset.initial, targets[0])],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
             "hitting_probability",
             record["hitting_probability"],
             chain.hitting_probabilities(targets),
@@ -149,6 +197,54 @@ def compare_dataset(
             "hitting_time",
             expectation_array(record["hitting_time"]),
             chain.hitting_times(targets),
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "hitting_bounded_exact_10",
+            [record["hitting_bounded_exact_10"]],
+            [exact_hitting_probability(hitting_chain, 10, 0, targets)],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "hitting_bounded_exact_100",
+            [record["hitting_bounded_exact_100"]],
+            [exact_hitting_probability(hitting_chain, 100, 0, targets)],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "hitting_bounded_at_most_10",
+            [record["hitting_bounded_at_most_10"]],
+            [bounded_hitting_probability(hitting_chain, 10, 0, targets)],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "hitting_bounded_at_most_100",
+            [record["hitting_bounded_at_most_100"]],
+            [bounded_hitting_probability(hitting_chain, 100, 0, targets)],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "hitting_bounded_greater_than_10",
+            [record["hitting_bounded_greater_than_10"]],
+            [upper_hitting_probability(hitting_chain, 10, 0, targets)],
+            atol,
+            rtol,
+        ),
+        compare_numeric(
+            name,
+            "hitting_bounded_greater_than_100",
+            [record["hitting_bounded_greater_than_100"]],
+            [upper_hitting_probability(hitting_chain, 100, 0, targets)],
             atol,
             rtol,
         ),

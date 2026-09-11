@@ -143,6 +143,78 @@ def bounded_return_probability(chain: MarkovChain, steps: int) -> float:
     return float(np.sum(probabilities, dtype=np.float64))
 
 
+def finite_time_probability(
+    chain: MarkovChain,
+    steps: int,
+    initial: np.ndarray,
+    destination: int,
+) -> float:
+    distribution = chain.redistribute(
+        steps,
+        initial_status=initial,
+        output_last=True,
+    )
+    return float(distribution[destination])
+
+
+def bounded_hitting_masses(
+    chain: MarkovChain,
+    steps: int,
+    initial_state: int,
+    targets: list[int],
+) -> np.ndarray:
+    return np.asarray(
+        chain.first_passage_probabilities(steps, initial_state, targets),
+        dtype=np.float64,
+    )
+
+
+def target_absorbing_matrix(
+    matrix: np.ndarray,
+    targets: list[int],
+) -> np.ndarray:
+    """Preserve first hits while making PyDTMC's target events disjoint."""
+    adjusted = matrix.copy()
+    adjusted[targets, :] = 0.0
+    adjusted[targets, targets] = 1.0
+    adjusted.flags.writeable = False
+    return adjusted
+
+
+def exact_hitting_probability(
+    chain: MarkovChain,
+    steps: int,
+    initial_state: int,
+    targets: list[int],
+) -> float:
+    masses = bounded_hitting_masses(chain, steps, initial_state, targets)
+    return float(masses[-1])
+
+
+def bounded_hitting_probability(
+    chain: MarkovChain,
+    steps: int,
+    initial_state: int,
+    targets: list[int],
+) -> float:
+    masses = bounded_hitting_masses(chain, steps, initial_state, targets)
+    return float(np.sum(masses, dtype=np.float64))
+
+
+def upper_hitting_probability(
+    chain: MarkovChain,
+    steps: int,
+    initial_state: int,
+    targets: list[int],
+) -> float:
+    return 1.0 - bounded_hitting_probability(
+        chain,
+        steps,
+        initial_state,
+        targets,
+    )
+
+
 def bounded_visit_expectation(
     chain: MarkovChain, steps: int, rewards: np.ndarray
 ) -> float:
@@ -213,6 +285,11 @@ def register_benchmarks(runner: pyperf.Runner, dataset: Dataset) -> None:
     initial = dataset.initial
     targets = dataset.targets
     competing = dataset.competing
+    target = targets[0]
+    hitting_matrix = target_absorbing_matrix(matrix, targets)
+    point_initial = np.zeros(dataset.size, dtype=np.float64)
+    point_initial[0] = 1.0
+    point_initial.flags.writeable = False
 
     register_fresh(
         runner,
@@ -233,6 +310,40 @@ def register_benchmarks(runner: pyperf.Runner, dataset: Dataset) -> None:
             ),
             checksum_array,
         )
+
+    if dataset.size <= 100:
+        register_fresh(
+            runner,
+            f"{prefix}/finite-time/step",
+            lambda: fresh_chain(dataset),
+            lambda chain: chain.p[0, target],
+            consume_float,
+        )
+        for steps in (10, 100):
+            register_fresh(
+                runner,
+                f"{prefix}/finite-time/n-step/k-{steps}",
+                lambda: fresh_chain(dataset),
+                lambda chain, count=steps: finite_time_probability(
+                    chain,
+                    count,
+                    point_initial,
+                    target,
+                ),
+                consume_float,
+            )
+            register_fresh(
+                runner,
+                f"{prefix}/finite-time/observation/k-{steps}",
+                lambda: fresh_chain(dataset),
+                lambda chain, count=steps: finite_time_probability(
+                    chain,
+                    count,
+                    initial,
+                    target,
+                ),
+                consume_float,
+            )
 
     if dataset.size <= 500:
         for exponent in (2, 10, 100):
@@ -376,6 +487,23 @@ def register_benchmarks(runner: pyperf.Runner, dataset: Dataset) -> None:
         rewards[targets[0]] = 1.0
         rewards.flags.writeable = False
         for steps in (10, 100):
+            for label, operation in (
+                ("exact", exact_hitting_probability),
+                ("at-most", bounded_hitting_probability),
+                ("greater-than", upper_hitting_probability),
+            ):
+                register_fresh(
+                    runner,
+                    f"{prefix}/hitting/bounded/{label}/k-{steps}",
+                    lambda: MarkovChain(hitting_matrix),
+                    lambda chain, count=steps, query=operation: query(
+                        chain,
+                        count,
+                        0,
+                        targets,
+                    ),
+                    consume_float,
+                )
             register_fresh(
                 runner,
                 f"{prefix}/return/bounded/k-{steps}",

@@ -27,18 +27,6 @@ plots. The full reproducible experiment is:
 python3 benchmark/run.py all --mode full
 ```
 
-To compare only the bounded return and bounded visit operations used by the
-adaptive finite-horizon optimization, run:
-
-```console
-python3 benchmark/run.py finite-horizon --mode full
-```
-
-This focused comparison uses every family, sizes 10 through 100, and all three
-seeds. Its raw data, summaries, ratios, and plots are isolated under
-`benchmark/results/finite-horizon/full/`, so it does not replace results from
-the complete suite. Use `--mode smoke` first for a short pipeline check; smoke
-results are written to `benchmark/results/finite-horizon/smoke/`.
 The main overview is `ratio-summary.csv`; ratios above one favor `dtmc`.
 
 The full suite is intentionally expensive. Individual phases are available as
@@ -74,6 +62,18 @@ visit, and long-simulation representatives.
   timed adapter sums them. Bounded visit cases ask for the expected visits to
   the first manifest target, starting in state zero. PyDTMC's reward horizon
   is one less because it includes both time zero and the named final step.
+- Scalar finite-time cases use state zero as the source and the first manifest
+  target as the destination. Timed-observation cases start from the complete
+  manifest initial distribution. PyDTMC's redistribution result is indexed at
+  the destination so both sides return and consume one scalar.
+- Bounded hitting cases start from state zero and use the complete manifest
+  target set. They compare exact, at-most, and greater-than events at steps 10
+  and 100. PyDTMC computes first passage to each destination separately, so
+  its fixture makes every target absorbing before calling the public
+  multi-target operation. This leaves first-hit probabilities unchanged while
+  making the target events disjoint. The matrix transformation and chain
+  construction are outside the timed operation. The adapters then select the
+  last mass, sum the masses, or subtract their sum from one respectively.
 - Pyperf records 30 fresh full-operation values per normal cell (three worker
   processes, ten values each). Warm-cache lookups are internally batched;
   Criterion uses its calibrated sample schedule. Smoke mode intentionally uses
@@ -104,8 +104,8 @@ visit, and long-simulation representatives.
 
 Full runs use sizes 10, 25, 50, 100, 250, 500, and 1000 with seeds 1729, 2718,
 and 31415. Cubic operations stop at 500, occupation matrices at 250, bounded
-return and visit cases at 100, and dense NetworkX structural cases at 500.
-These caps are symmetric.
+finite-horizon cases at 100, and dense NetworkX structural cases at 500. These
+caps are symmetric.
 
 ## Measured mappings
 
@@ -114,6 +114,9 @@ These caps are symmetric.
 | `construction/public-consumed` | `fromRows` | `MarkovChain(P)` |
 | `evolution/one-step` | `evolveVector` | `redistribute(1)` |
 | `evolution/k-*` | `evolveVectorN` | `redistribute(k)` |
+| `finite-time/step` | `stepProbability` | matrix entry lookup |
+| `finite-time/n-step/k-*` | `nStepProbability` | point-mass `redistribute(k)` lookup |
+| `finite-time/observation/k-*` | `probability [At k target]` | initial-law `redistribute(k)` lookup |
 | `power/*` | `power` | `to_nth_order` |
 | `structure/classes-*` | `communicatingClasses` | `communicating_classes` |
 | `structure/irreducible-*` | `irreducible` | `is_irreducible` |
@@ -122,6 +125,9 @@ These caps are symmetric.
 | `stationary` | `stationaryDistributions` | `pi` |
 | `hitting-probability/cold-all-states` | all-state eventual hitting | `hitting_probabilities` |
 | `hitting-time/cold-all-states` | all-state expected hitting | `hitting_times` |
+| `hitting/bounded/exact/k-*` | `probabilityGivenInitialState (EqualTo k)` | final `first_passage_probabilities` mass |
+| `hitting/bounded/at-most/k-*` | `probabilityGivenInitialState (AtMost k)` | summed `first_passage_probabilities` |
+| `hitting/bounded/greater-than/k-*` | `probabilityGivenInitialState (GreaterThan k)` | one minus summed `first_passage_probabilities` |
 | `race/forward-committor` | `raceProbabilityGivenInitialState` | `committor_probabilities("forward", ...)` |
 | `return/mean-recurrence` | `expectationGivenInitialState` | `mean_recurrence_times` |
 | `return/bounded/k-*` | `probabilityGivenInitialState (AtMost k)` | summed `first_passage_probabilities` |

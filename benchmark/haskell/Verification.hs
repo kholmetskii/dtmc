@@ -12,8 +12,9 @@ import Data.Proxy (Proxy)
 import Dataset
 import Dtmc.Analysis.Absorption qualified as Absorption
 import Dtmc.Analysis.Classification qualified as Classification
-import Dtmc.Analysis.Event (DiscreteEvent (AtMost))
+import Dtmc.Analysis.Event (DiscreteEvent (AtMost, EqualTo, GreaterThan))
 import Dtmc.Analysis.Expectation (Expectation (..))
+import Dtmc.Analysis.FiniteTime qualified as FiniteTime
 import Dtmc.Analysis.HittingTime qualified as Hitting
 import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.Stationary qualified as Stationary
@@ -62,11 +63,22 @@ verifyDataset dataset =
         , "evolve_1" .= Vector.toList (Dynamics.evolveVector initial matrix)
         , "evolve_10" .= Vector.toList (Dynamics.evolveVectorN 10 initial matrix)
         , "power_10" .= Matrix.toRows (Matrix.power 10 matrix)
+        , "finite_time_step" .= FiniteTime.stepProbability matrix initialState visitTarget
+        , "finite_time_n_step_10" .= finiteTimeNStep 10
+        , "finite_time_n_step_100" .= finiteTimeNStep 100
+        , "finite_time_observation_10" .= finiteTimeObservation 10
+        , "finite_time_observation_100" .= finiteTimeObservation 100
         , "classes" .= classes
         , "irreducible" .= Classification.irreducible matrix
         , "stationary" .= stationary
         , "hitting_probability" .= hittingProbabilities
         , "hitting_time" .= map expectationValue hittingTimes
+        , "hitting_bounded_exact_10" .= hittingBounded EqualTo 10
+        , "hitting_bounded_exact_100" .= hittingBounded EqualTo 100
+        , "hitting_bounded_at_most_10" .= hittingBounded AtMost 10
+        , "hitting_bounded_at_most_100" .= hittingBounded AtMost 100
+        , "hitting_bounded_greater_than_10" .= hittingBounded GreaterThan 10
+        , "hitting_bounded_greater_than_100" .= hittingBounded GreaterThan 100
         , "race_probability" .= raceProbabilities
         , "return_mean" .= map expectationValue returnMeans
         , "return_bounded_10" .= returnBounded 10
@@ -98,6 +110,20 @@ verifyDataset dataset =
         case targets of
             [] -> error "verification requires at least one target"
             target : _ -> target
+    finiteTimeNStep steps =
+        FiniteTime.nStepProbability steps matrix initialState visitTarget
+    finiteTimeObservation time =
+        FiniteTime.probability
+            initial
+            matrix
+            [FiniteTime.At time visitTarget]
+    hittingBounded event horizon =
+        Hitting.probabilityGivenInitialState
+            (event horizon)
+            matrix
+            isTarget
+            initialState
+    isTarget state = state `elem` targets
     index :: Finite n -> Int
     index = fromIntegral . getFinite
     classes =

@@ -12,7 +12,8 @@ import Data.Vector.Unboxed qualified as U
 import Dataset
 import Dtmc.Analysis.Absorption qualified as Absorption
 import Dtmc.Analysis.Classification qualified as Classification
-import Dtmc.Analysis.Event (DiscreteEvent (AtMost))
+import Dtmc.Analysis.Event (DiscreteEvent (AtMost, EqualTo, GreaterThan))
+import Dtmc.Analysis.FiniteTime qualified as FiniteTime
 import Dtmc.Analysis.HittingTime qualified as Hitting
 import Dtmc.Analysis.ReturnTime qualified as Return
 import Dtmc.Analysis.Stationary qualified as Stationary
@@ -72,6 +73,8 @@ benchmarksFor _ dataRoot entry =
         bgroup
             (entryId entry)
             ( commonBenchmarks entry dataset
+                ++ finiteTimeBenchmarks entry dataset
+                ++ boundedHittingBenchmarks entry dataset
                 ++ absorptionBenchmarks entry dataset
                 ++ occupationBenchmarks entry dataset
                 ++ returnBenchmarks entry dataset
@@ -217,6 +220,65 @@ commonBenchmarks entry dataset =
                                 competing
                                 (unPrepared prepared)
                 ]
+
+finiteTimeBenchmarks :: forall n. (KnownNat n) => Entry -> Dataset n -> [Benchmark]
+finiteTimeBenchmarks entry dataset
+    | entrySize entry > 100 = []
+    | otherwise =
+        [ bench "finite-time/step" $
+            perRunEnv (preparedMatrix dataset) $ \prepared ->
+                evaluate $!
+                    FiniteTime.stepProbability
+                        (unPrepared prepared)
+                        source
+                        target
+        ]
+            ++ [ bench ("finite-time/n-step/k-" ++ show steps) $
+                    perRunEnv (preparedMatrix dataset) $ \prepared ->
+                        evaluate $!
+                            FiniteTime.nStepProbability
+                                steps
+                                (unPrepared prepared)
+                                source
+                                target
+               | steps <- [10, 100]
+               ]
+            ++ [ bench ("finite-time/observation/k-" ++ show time) $
+                    perRunEnv (preparedDynamics dataset) $ \prepared ->
+                        evaluate $!
+                            FiniteTime.probability
+                                (dynamicsInitial prepared)
+                                (dynamicsMatrix prepared)
+                                [FiniteTime.At time target]
+               | time <- [10, 100]
+               ]
+  where
+    source = benchmarkState @n
+    target = benchmarkTarget dataset
+
+boundedHittingBenchmarks :: forall n. (KnownNat n) => Entry -> Dataset n -> [Benchmark]
+boundedHittingBenchmarks entry dataset
+    | entrySize entry > 100 = []
+    | otherwise =
+        [ bench ("hitting/bounded/" ++ label ++ "/k-" ++ show horizon) $
+            perRunEnv (preparedMatrix dataset) $ \prepared ->
+                evaluate $!
+                    Hitting.probabilityGivenInitialState
+                        (event horizon)
+                        (unPrepared prepared)
+                        isTarget
+                        initial
+        | (label, event) <-
+            [ ("exact", EqualTo)
+            , ("at-most", AtMost)
+            , ("greater-than", GreaterThan)
+            ]
+        , horizon <- [10, 100]
+        ]
+  where
+    initial = benchmarkState @n
+    targets = datasetTargets dataset
+    isTarget state = state `elem` targets
 
 absorptionBenchmarks :: forall n. (KnownNat n) => Entry -> Dataset n -> [Benchmark]
 absorptionBenchmarks entry dataset
