@@ -49,7 +49,6 @@ module Dtmc.Analysis.VisitCount (
 import Data.Array qualified as Array
 import Data.Array.Unboxed qualified as Unboxed
 import Data.Map.Strict qualified as Map
-import Data.Vector.Storable qualified as Storable
 import Dtmc.Analysis.Absorption (
     fundamentalMatrix,
  )
@@ -68,6 +67,10 @@ import Dtmc.Analysis.Event (
  )
 import Dtmc.Analysis.Expectation (
     Expectation (..),
+ )
+import Dtmc.Analysis.FiniteHorizon.Internal (
+    branchingDenseBackend,
+    denseBoundedVisitExpectation,
  )
 import Dtmc.Analysis.HittingTime qualified as Hit
 import Dtmc.Analysis.Initial.Internal (
@@ -101,11 +104,6 @@ import Dtmc.State.Internal (
  )
 import Dtmc.Transition (
     Transition (..),
- )
-import Dtmc.Transition.Internal (
-    DenseTransitionBackend (..),
-    denseRowBranches,
-    transitionDenseBackend,
  )
 import Dtmc.Transition.Matrix (
     TransitionMatrix,
@@ -413,17 +411,14 @@ boundedExpectation bound initial transition isVisited =
   where
     initialWeights = Map.fromList (distributionWeights initial)
     optimizedExpectation = do
-        backend <- transitionDenseBackend transition
-        if any (denseRowBranches backend) (Map.keys initialWeights)
-            then
-                Just
-                    ( denseBoundedVisitExpectation
-                        bound
-                        initialWeights
-                        backend
-                        isVisited
-                    )
-            else Nothing
+        backend <- branchingDenseBackend transition (Map.keys initialWeights)
+        pure
+            ( denseBoundedVisitExpectation
+                bound
+                initialWeights
+                backend
+                isVisited
+            )
 
     go 0 _ expectation = expectation
     go remaining weights expectation =
@@ -439,35 +434,6 @@ boundedExpectation bound initial transition isVisited =
                 then cumulative
                 else
                     let next = pushSparseWeights weights transition
-                     in cumulative `seq` next `seq` go (remaining - 1) next cumulative
-
-denseBoundedVisitExpectation ::
-    (Ord state) =>
-    Natural ->
-    Map.Map state Double ->
-    DenseTransitionBackend state ->
-    (state -> Bool) ->
-    Double
-denseBoundedVisitExpectation 0 _ _ _ = 0
-denseBoundedVisitExpectation bound weights backend isVisited =
-    go bound initialWeights 0
-  where
-    states = denseTransitionStates backend
-    initialWeights =
-        Storable.fromList
-            [Map.findWithDefault 0 state weights | state <- states]
-    visitedMask =
-        Storable.fromList
-            [if isVisited state then 1 else 0 | state <- states]
-    storedTransposed = LA.tr (denseTransitionMatrix backend)
-
-    go remaining current expectation =
-        let visitProbability = visitedMask LA.<.> current
-            cumulative = expectation + visitProbability
-         in if remaining == 1
-                then cumulative
-                else
-                    let next = storedTransposed LA.#> current
                      in cumulative `seq` next `seq` go (remaining - 1) next cumulative
 
 {- | Compute, under an arbitrary initial distribution, the probability of a

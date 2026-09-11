@@ -59,6 +59,12 @@ import Dtmc.Analysis.Event (
 import Dtmc.Analysis.Expectation (
     Expectation (..),
  )
+import Dtmc.Analysis.FiniteHorizon.Internal (
+    branchingDenseBackend,
+    denseExactHittingProbability,
+    denseLowerHittingProbability,
+    denseUpperHittingProbability,
+ )
 import Dtmc.Analysis.Initial.Internal (
     expectationUnderEither,
     probabilityUnder,
@@ -147,8 +153,13 @@ exactProbabilityAt ::
 exactProbabilityAt time kernel isTarget initialState
     | time == 0 = if isTarget initialState then 1 else 0
     | isTarget initialState = 0
-    | otherwise = go time (Map.singleton initialState 1)
+    | otherwise = fromMaybe genericProbability optimizedProbability
   where
+    optimizedProbability = do
+        backend <- branchingDenseBackend kernel [initialState]
+        pure (denseExactHittingProbability time backend isTarget initialState)
+    genericProbability = go time (Map.singleton initialState 1)
+
     go 0 _ = 0
     go _ survivors | Map.null survivors = 0
     go remaining survivors =
@@ -178,8 +189,19 @@ lowerTailProbability ::
 lowerTailProbability bound kernel isTarget initialState
     | bound == 0 = 0
     | isTarget initialState = 1
-    | otherwise = go (bound - 1) (Map.singleton initialState 1) 0
+    | otherwise = fromMaybe genericProbability optimizedProbability
   where
+    optimizedProbability = do
+        backend <- branchingDenseBackend kernel [initialState]
+        pure
+            ( denseLowerHittingProbability
+                (bound - 1)
+                backend
+                isTarget
+                initialState
+            )
+    genericProbability = go (bound - 1) (Map.singleton initialState 1) 0
+
     go 0 _ total = total
     go _ survivors total | Map.null survivors = total
     go remaining survivors total =
@@ -469,8 +491,14 @@ upperTailProbability ::
     Double
 upperTailProbability time kernel isTarget initialState
     | isTarget initialState = 0
-    | otherwise = go time (Map.singleton initialState 1)
+    | time == 0 = 1
+    | otherwise = fromMaybe genericProbability optimizedProbability
   where
+    optimizedProbability = do
+        backend <- branchingDenseBackend kernel [initialState]
+        pure (denseUpperHittingProbability time backend isTarget initialState)
+    genericProbability = go time (Map.singleton initialState 1)
+
     go 0 survivors = sum (Map.elems survivors)
     go _ survivors | Map.null survivors = 0
     go remaining survivors =
@@ -524,6 +552,10 @@ accumulated destinations.
 Complexity: excluding 'transitionLaw' and predicate evaluation,
 @O(k (w + e log(u + 1) + u) + 1)@ time, @O(w + u)@ temporary space, and
 @O(1)@ result space.
+
+For a transition matrix whose initial row branches, the adaptive dense path
+evaluates the target predicate once per finite state and takes
+@O(n + k n^2)@ time and @O(n)@ temporary space for @n@ states.
 -}
 probabilityGivenInitialState ::
     ( Transition kernel

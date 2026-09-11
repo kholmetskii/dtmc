@@ -46,8 +46,6 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (
     fromMaybe,
  )
-import Data.Vector.Storable qualified as Storable
-import Data.Vector.Storable.Mutable qualified as Mutable
 import Dtmc.Analysis.Classification (
     recurrentState,
     transientStates,
@@ -57,6 +55,12 @@ import Dtmc.Analysis.Event (
  )
 import Dtmc.Analysis.Expectation (
     Expectation (..),
+ )
+import Dtmc.Analysis.FiniteHorizon.Internal (
+    branchingDenseBackend,
+    denseExactReturnProbability,
+    denseLowerReturnProbability,
+    denseUpperReturnProbability,
  )
 import Dtmc.Analysis.Initial.Internal (
     expectationUnderEither,
@@ -92,11 +96,6 @@ import Dtmc.State.Internal (
  )
 import Dtmc.Transition (
     Transition (..),
- )
-import Dtmc.Transition.Internal (
-    DenseTransitionBackend (..),
-    denseRowBranches,
-    transitionDenseBackend,
  )
 import Dtmc.Transition.Matrix.Internal (
     TransitionMatrix,
@@ -143,7 +142,7 @@ exactProbabilityAt time kernel initialState =
     fromMaybe genericProbability optimizedProbability
   where
     optimizedProbability = do
-        backend <- branchingDenseBackend kernel initialState
+        backend <- branchingDenseBackend kernel [initialState]
         pure (denseExactReturnProbability time backend initialState)
     genericProbability = go time (Map.singleton initialState 1)
     isInitial state = state == initialState
@@ -176,7 +175,7 @@ lowerTailProbability bound kernel initialState =
     fromMaybe genericProbability optimizedProbability
   where
     optimizedProbability = do
-        backend <- branchingDenseBackend kernel initialState
+        backend <- branchingDenseBackend kernel [initialState]
         pure (denseLowerReturnProbability bound backend initialState)
     genericProbability = go bound (Map.singleton initialState 1) 0
     isInitial state = state == initialState
@@ -343,7 +342,7 @@ upperTailProbability time kernel initialState =
     fromMaybe genericProbability optimizedProbability
   where
     optimizedProbability = do
-        backend <- branchingDenseBackend kernel initialState
+        backend <- branchingDenseBackend kernel [initialState]
         pure (denseUpperReturnProbability time backend initialState)
     genericProbability = go time (Map.singleton initialState 1)
     isInitial state = state == initialState
@@ -352,86 +351,6 @@ upperTailProbability time kernel initialState =
     go remaining survivors =
         let (next, _) = advanceUntilTarget kernel isInitial survivors
          in next `seq` go (remaining - 1) next
-
-branchingDenseBackend ::
-    (Transition kernel) =>
-    kernel ->
-    TransitionState kernel ->
-    Maybe (DenseTransitionBackend (TransitionState kernel))
-branchingDenseBackend kernel initial = do
-    backend <- transitionDenseBackend kernel
-    if denseRowBranches backend initial then Just backend else Nothing
-
-denseExactReturnProbability ::
-    Natural ->
-    DenseTransitionBackend state ->
-    state ->
-    Double
-denseExactReturnProbability 0 _ _ = 0
-denseExactReturnProbability time backend initial =
-    go time initialWeights
-  where
-    initialIndex = denseTransitionIndex backend initial
-    initialWeights = pointVector (LA.rows stored) initialIndex
-    storedTransposed = LA.tr stored
-    stored = denseTransitionMatrix backend
-
-    go 0 _ = 0
-    go remaining survivors =
-        let advanced = storedTransposed LA.#> survivors
-            returnMass = advanced Storable.! initialIndex
-         in if remaining == 1
-                then returnMass
-                else go (remaining - 1) (clearCoordinate initialIndex advanced)
-
-denseLowerReturnProbability ::
-    Natural ->
-    DenseTransitionBackend state ->
-    state ->
-    Double
-denseLowerReturnProbability bound backend initial =
-    go bound initialWeights 0
-  where
-    initialIndex = denseTransitionIndex backend initial
-    initialWeights = pointVector (LA.rows stored) initialIndex
-    storedTransposed = LA.tr stored
-    stored = denseTransitionMatrix backend
-
-    go remaining _ total | remaining <= 1 = total
-    go remaining survivors total =
-        let advanced = storedTransposed LA.#> survivors
-            returnMass = advanced Storable.! initialIndex
-            cumulative = total + returnMass
-            next = clearCoordinate initialIndex advanced
-         in cumulative `seq` next `seq` go (remaining - 1) next cumulative
-
-denseUpperReturnProbability ::
-    Natural ->
-    DenseTransitionBackend state ->
-    state ->
-    Double
-denseUpperReturnProbability time backend initial =
-    go time initialWeights
-  where
-    initialIndex = denseTransitionIndex backend initial
-    initialWeights = pointVector (LA.rows stored) initialIndex
-    storedTransposed = LA.tr stored
-    stored = denseTransitionMatrix backend
-
-    go 0 survivors = Storable.sum survivors
-    go remaining survivors =
-        let advanced = storedTransposed LA.#> survivors
-            next = clearCoordinate initialIndex advanced
-         in next `seq` go (remaining - 1) next
-
-pointVector :: Int -> Int -> LA.Vector Double
-pointVector dimension selected =
-    Storable.generate dimension $ \index ->
-        if index == selected then 1 else 0
-
-clearCoordinate :: Int -> LA.Vector Double -> LA.Vector Double
-clearCoordinate index =
-    Storable.modify $ \mutable -> Mutable.unsafeWrite mutable index 0
 
 {- | Compute the probability of a finite-threshold event in the first-return
 time @T_i^+ = inf { t >= 1 | X_t = i }@.
