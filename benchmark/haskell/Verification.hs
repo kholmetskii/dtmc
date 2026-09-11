@@ -8,6 +8,7 @@ module Verification (writeVerification) where
 import Data.Aeson (Value (Null), encode, object, toJSON, (.=))
 import Data.ByteString.Lazy qualified as BL
 import Data.Finite (Finite, getFinite)
+import Data.List (transpose)
 import Data.Proxy (Proxy)
 import Dataset
 import Dtmc.Analysis.Absorption qualified as Absorption
@@ -181,19 +182,15 @@ verifyDataset dataset =
     absorptionProbabilities
         | family /= "absorbing" = Null
         | otherwise =
-            let absorbing = datasetAbsorbing dataset
-                transient = Classification.transientStates matrix
-                valuesFor target =
-                    eitherOrFail
-                        ( sequence
-                            [ Absorption.probabilityGivenInitialState matrix target state
-                            | state <- transient
-                            ]
-                        )
+            let (transient, absorbing, rows) =
+                    eitherOrFail (Absorption.probabilityMatrix matrix)
+                columns
+                    | null rows = replicate (length absorbing) []
+                    | otherwise = transpose rows
              in object
                     [ "absorbing" .= map index absorbing
                     , "transient" .= map index transient
-                    , "values" .= map valuesFor absorbing
+                    , "values" .= columns
                     ]
     occupation
         | family `notElem` ["absorbing", "reducible"] = Null

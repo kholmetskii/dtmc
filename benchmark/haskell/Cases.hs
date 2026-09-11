@@ -298,9 +298,7 @@ absorptionBenchmarks entry dataset
         , bench "absorption/probabilities" $
             perRunEnv (preparedGraph dataset) $ \prepared ->
                 evaluate $!
-                    absorptionProbabilityChecksum
-                        (datasetAbsorbing dataset)
-                        (unPrepared prepared)
+                    absorptionProbabilityChecksum (unPrepared prepared)
         ]
 
 occupationBenchmarks :: forall n. (KnownNat n) => Entry -> Dataset n -> [Benchmark]
@@ -531,15 +529,10 @@ absorptionExpectationChecksum matrix =
 absorptionProbabilityChecksum ::
     forall n.
     (KnownNat n) =>
-    [Finite n] ->
     Matrix.TransitionMatrix (Finite n) ->
     Double
-absorptionProbabilityChecksum absorbing matrix =
-    weightedEither
-        [ Absorption.probabilityGivenInitialState matrix target initial
-        | target <- absorbing
-        , initial <- Classification.transientStates matrix
-        ]
+absorptionProbabilityChecksum =
+    checksumAbsorption . eitherOrFail . Absorption.probabilityMatrix
 
 benchmarkState :: forall n. (KnownNat n) => Finite n
 benchmarkState =

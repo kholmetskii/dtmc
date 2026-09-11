@@ -2,6 +2,7 @@
 
 module Force (
     checksumClasses,
+    checksumAbsorption,
     checksumExpectations,
     checksumFundamental,
     checksumMatrix,
@@ -52,6 +53,9 @@ checksumExpectations = foldl' step 0
 
 checksumFundamental :: ([state], [[Double]]) -> Double
 checksumFundamental (_, rows) = checksumValues (concat rows)
+
+checksumAbsorption :: ([state], [state], [[Double]]) -> Double
+checksumAbsorption (_, _, rows) = checksumValues (concat rows)
 
 checksumOccupation :: [[Expectation]] -> Double
 checksumOccupation = checksumExpectations . concat

@@ -134,7 +134,7 @@ caps are symmetric.
 | `visits/bounded-expectation/k-*` | `boundedExpectationGivenInitialState` | `expected_rewards(k - 1, ...)` |
 | `fundamental-matrix` | `fundamentalMatrix` | `fundamental_matrix` |
 | `absorption-time` | all-state expectation, transient part | `mean_absorption_times` |
-| `absorption/probabilities` | per-absorber transient probabilities | `absorption_probabilities` |
+| `absorption/probabilities` | `probabilityMatrix` | `absorption_probabilities` |
 | `occupation-matrix` | `occupationMatrix` | `mean_number_visits` |
 | `simulation/*` | `simulateMatrix` | `simulate` |
 
