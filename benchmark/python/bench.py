@@ -153,6 +153,16 @@ def fresh_chain(dataset: Dataset) -> MarkovChain:
     return MarkovChain(dataset.matrix)
 
 
+def operation_selected(name: str) -> bool:
+    selected_many = os.environ.get("DTMC_BENCH_OPERATIONS")
+    if selected_many is not None:
+        operations = [item for item in selected_many.split(",") if item]
+        return any(name.endswith(f"/{operation}") for operation in operations)
+
+    selected = os.environ.get("DTMC_BENCH_OPERATION")
+    return selected is None or selected in name
+
+
 def register_fresh(
     runner: pyperf.Runner,
     name: str,
@@ -161,8 +171,7 @@ def register_fresh(
     consume: Callable[[Any], Any],
 ) -> None:
     """Exclude fixture setup while still using a fresh cache for every sample."""
-    selected = os.environ.get("DTMC_BENCH_OPERATION")
-    if selected is not None and selected not in name:
+    if not operation_selected(name):
         return
 
     def timed(loops: int) -> float:
@@ -185,8 +194,7 @@ def register_warm(
     operation: Callable[[Any], Any],
     consume: Callable[[Any], Any],
 ) -> None:
-    selected = os.environ.get("DTMC_BENCH_OPERATION")
-    if selected is not None and selected not in name:
+    if not operation_selected(name):
         return
     inner_loops = 10_000
 

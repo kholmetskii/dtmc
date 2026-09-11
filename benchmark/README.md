@@ -27,6 +27,20 @@ plots. The full reproducible experiment is:
 python3 benchmark/run.py all --mode full
 ```
 
+To compare only the bounded return and bounded visit operations used by the
+adaptive finite-horizon optimization, run:
+
+```console
+python3 benchmark/run.py finite-horizon --mode full
+```
+
+This focused comparison uses every family, sizes 10 through 100, and all three
+seeds. Its raw data, summaries, ratios, and plots are isolated under
+`benchmark/results/finite-horizon/full/`, so it does not replace results from
+the complete suite. Use `--mode smoke` first for a short pipeline check; smoke
+results are written to `benchmark/results/finite-horizon/smoke/`.
+The main overview is `ratio-summary.csv`; ratios above one favor `dtmc`.
+
 The full suite is intentionally expensive. Individual phases are available as
 `bootstrap`, `generate`, `verify`, `benchmark`, `profile`, and `analyse`
 commands. `profile` records Haskell RTS allocation/GC statistics and Python

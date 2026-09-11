@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import hashlib
 import json
@@ -121,8 +122,10 @@ def split_name(name: str, metadata: dict[str, dict[str, Any]]) -> tuple[str, str
     raise ValueError(f"benchmark name does not begin with a manifest dataset id: {name}")
 
 
-def active_result_paths(engine: str, datasets: Iterable[str]) -> Iterable[Path]:
-    directory = RESULTS / "raw" / engine
+def active_result_paths(
+    results: Path, engine: str, datasets: Iterable[str]
+) -> Iterable[Path]:
+    directory = results / "raw" / engine
     for dataset in sorted(datasets):
         path = directory / f"{dataset}.json"
         if path.is_file():
@@ -130,17 +133,26 @@ def active_result_paths(engine: str, datasets: Iterable[str]) -> Iterable[Path]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--data-root", type=Path, default=ROOT / "data" / "generated"
+    )
+    parser.add_argument("--results-root", type=Path, default=RESULTS)
+    args = parser.parse_args()
+    data_root = args.data_root.resolve()
+    results = args.results_root.resolve()
+
     manifest = json.loads(
-        (ROOT / "data" / "generated" / "manifest.json").read_text(encoding="utf-8")
+        (data_root / "manifest.json").read_text(encoding="utf-8")
     )
     metadata = {entry["id"]: entry for entry in manifest["datasets"]}
     grouped: dict[tuple[str, str, str], list[float]] = defaultdict(list)
 
-    for path in active_result_paths("haskell", metadata):
+    for path in active_result_paths(results, "haskell", metadata):
         for name, value in criterion_samples(path):
             dataset, operation = split_name(name, metadata)
             grouped[("dtmc", dataset, operation)].append(value)
-    for path in active_result_paths("python", metadata):
+    for path in active_result_paths(results, "python", metadata):
         for name, value in pyperf_samples(path):
             dataset, operation = split_name(name, metadata)
             grouped[("pydtmc", dataset, operation)].append(value)
@@ -160,7 +172,7 @@ def main() -> None:
             }
         )
 
-    RESULTS.mkdir(parents=True, exist_ok=True)
+    results.mkdir(parents=True, exist_ok=True)
     fields = [
         "engine",
         "dataset",
@@ -176,7 +188,7 @@ def main() -> None:
         "median_ci95_high_seconds",
         "samples",
     ]
-    with (RESULTS / "summary.csv").open("w", newline="", encoding="utf-8") as stream:
+    with (results / "summary.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
@@ -200,7 +212,7 @@ def main() -> None:
             }
         )
     ratio_fields = ["dataset", "family", "size", "seed", "operation", "pydtmc_over_dtmc"]
-    with (RESULTS / "ratios.csv").open("w", newline="", encoding="utf-8") as stream:
+    with (results / "ratios.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=ratio_fields)
         writer.writeheader()
         writer.writerows(ratios)
@@ -236,7 +248,7 @@ def main() -> None:
         "ci95_high",
         "datasets",
     ]
-    with (RESULTS / "ratio-summary.csv").open("w", newline="", encoding="utf-8") as stream:
+    with (results / "ratio-summary.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=ratio_summary_fields)
         writer.writeheader()
         writer.writerows(ratio_summary)
@@ -288,7 +300,7 @@ def main() -> None:
         "maximum_size",
         "points",
     ]
-    with (RESULTS / "scaling.csv").open("w", newline="", encoding="utf-8") as stream:
+    with (results / "scaling.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=scaling_fields)
         writer.writeheader()
         writer.writerows(scaling_rows)

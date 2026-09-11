@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import statistics
 from collections import defaultdict
@@ -104,12 +105,17 @@ def read_csv(path: Path) -> list[dict[str, str]]:
 
 
 def main() -> None:
-    summary_path = RESULTS / "summary.csv"
-    ratio_path = RESULTS / "ratio-summary.csv"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--results-root", type=Path, default=RESULTS)
+    args = parser.parse_args()
+    results = args.results_root.resolve()
+
+    summary_path = results / "summary.csv"
+    ratio_path = results / "ratio-summary.csv"
     if not summary_path.exists() or not ratio_path.exists():
         raise SystemExit("run benchmark/analyse.py before plotting")
 
-    plots = RESULTS / "plots"
+    plots = results / "plots"
     plots.mkdir(parents=True, exist_ok=True)
     for stale in plots.glob("*.svg"):
         stale.unlink()
