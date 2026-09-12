@@ -20,6 +20,7 @@ module Dtmc.Analysis.LinearSystem.Internal (
     fundamental,
 ) where
 
+import Data.List qualified as List
 import Data.Vector.Storable qualified as Storable
 import Dtmc.Analysis.LinearSystem (
     LinearSystemError (..),
@@ -46,7 +47,7 @@ oneNorm = maximumAbsoluteSum . LA.toColumns
 
 maximumAbsoluteSum :: [LA.Vector Double] -> Double
 maximumAbsoluteSum =
-    foldl' max 0
+    List.foldl' max 0
         . map (Storable.foldl' (\acc value -> acc + abs value) 0)
 
 maximumAbsolute :: LA.Vector Double -> Double
