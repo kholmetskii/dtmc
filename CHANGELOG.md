@@ -26,6 +26,11 @@
   recurrent destination with one shared factorisation, while scalar
   absorption queries now solve their single right-hand side directly instead
   of constructing the complete fundamental inverse.
+- Reduced shared @(I - Q)@ solve overhead by proving well-conditioned DTMC
+  systems from an extra right-hand side in the existing LU factorisation,
+  avoiding a separate singular-value decomposition except near the numerical
+  rejection threshold. Matrix validation and residual norms now scan
+  unboxed storage rather than materialising boxed element lists.
 
 ## 0.2.0.0
 
