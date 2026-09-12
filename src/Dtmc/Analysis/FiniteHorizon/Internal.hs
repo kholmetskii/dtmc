@@ -82,16 +82,16 @@ denseExactHittingProbability ::
 denseExactHittingProbability time backend isTarget initial =
     go time (pointVector backend initial)
   where
-    (targetMask, survivorMask) = hittingMasks backend initial isTarget
+    targets = denseTargetSet backend initial isTarget
 
     go 0 _ = 0
     go remaining survivors =
         let advanced = advanceDense backend survivors
-            hitMass = targetMask LA.<.> advanced
+            hitMass = targetMass targets advanced
          in if remaining == 1
                 then hitMass
                 else
-                    let next = Storable.zipWith (*) survivorMask advanced
+                    let next = clearTargets targets advanced
                      in next `seq`
                             if Storable.all (== 0) next
                                 then 0
@@ -106,14 +106,14 @@ denseLowerHittingProbability ::
 denseLowerHittingProbability steps backend isTarget initial =
     go steps (pointVector backend initial) 0
   where
-    (targetMask, survivorMask) = hittingMasks backend initial isTarget
+    targets = denseTargetSet backend initial isTarget
 
     go 0 _ total = total
     go remaining survivors total =
         let advanced = advanceDense backend survivors
-            hitMass = targetMask LA.<.> advanced
+            hitMass = targetMass targets advanced
             cumulative = total + hitMass
-            next = Storable.zipWith (*) survivorMask advanced
+            next = clearTargets targets advanced
          in cumulative `seq`
                 next `seq`
                     if Storable.all (== 0) next
@@ -129,12 +129,12 @@ denseUpperHittingProbability ::
 denseUpperHittingProbability time backend isTarget initial =
     go time (pointVector backend initial)
   where
-    (_, survivorMask) = hittingMasks backend initial isTarget
+    targets = denseTargetSet backend initial isTarget
 
     go 0 survivors = Storable.sum survivors
     go remaining survivors =
         let advanced = advanceDense backend survivors
-            next = Storable.zipWith (*) survivorMask advanced
+            next = clearTargets targets advanced
          in next `seq`
                 if Storable.all (== 0) next
                     then 0
@@ -254,20 +254,42 @@ weightsVector backend weights =
   where
     dimension = LA.rows (denseTransitionMatrix backend)
 
-hittingMasks ::
+-- Target coordinates in dense-backend order. Keeping only matching indices
+-- avoids full floating-point target and survivor masks.
+newtype DenseTargetSet = DenseTargetSet
+    { denseTargetIndices :: Storable.Vector Int
+    }
+
+denseTargetSet ::
     DenseTransitionBackend state ->
     state ->
     (state -> Bool) ->
-    (LA.Vector Double, LA.Vector Double)
-hittingMasks backend initial isTarget =
-    (targetMask, Storable.map (1 -) targetMask)
+    DenseTargetSet
+denseTargetSet backend initial isTarget =
+    DenseTargetSet
+        ( Storable.fromList
+            [ index
+            | (index, state) <- zip [0 ..] (denseTransitionStates backend)
+            , index /= initialIndex
+            , isTarget state
+            ]
+        )
   where
     initialIndex = denseTransitionIndex backend initial
-    targetMask =
-        Storable.fromList
-            [ if index /= initialIndex && isTarget state then 1 else 0
-            | (index, state) <- zip [0 ..] (denseTransitionStates backend)
-            ]
+
+targetMass :: DenseTargetSet -> LA.Vector Double -> Double
+targetMass targets values =
+    Storable.foldl'
+        (\total index -> total + Storable.unsafeIndex values index)
+        0
+        (denseTargetIndices targets)
+
+clearTargets :: DenseTargetSet -> LA.Vector Double -> LA.Vector Double
+clearTargets targets =
+    Storable.modify $ \mutable ->
+        Storable.forM_
+            (denseTargetIndices targets)
+            (\index -> Mutable.unsafeWrite mutable index 0)
 
 clearCoordinate :: Int -> LA.Vector Double -> LA.Vector Double
 clearCoordinate index =

@@ -31,6 +31,9 @@
   avoiding a separate singular-value decomposition except near the numerical
   rejection threshold. Matrix validation and residual norms now scan
   unboxed storage rather than materialising boxed element lists.
+- Represented dense bounded-hitting targets by their canonical indices rather
+  than two full floating-point masks, reducing target-mass collection to the
+  target coordinates and clearing only those coordinates after each step.
 
 ## 0.2.0.0
 
