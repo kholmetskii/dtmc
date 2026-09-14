@@ -1,0 +1,36 @@
+{
+  "captured_at_utc": "2026-09-14T09:16:40Z",
+  "platform": "macOS-15.6.1-arm64-arm-64bit",
+  "machine": "arm64",
+  "processor": "arm",
+  "cpu_brand": "Apple M1",
+  "python": "Python 3.13.9",
+  "python_packages": "contourpy==1.3.3\ncycler==0.12.1\nfonttools==4.64.0\nkiwisolver==1.5.1\nmatplotlib==3.10.6\nnetworkx==3.5\nnumpy==2.3.1\npackaging==26.3\npillow==12.3.0\npsutil==7.2.2\nPyDTMC==9.0.0\npyparsing==3.3.2\npyperf==2.9.0\npython-dateutil==2.9.0.post0\nscipy==1.16.1\nsix==1.17.0",
+  "numpy_configuration": "/Users/a123/CodingProjects/dtmc/benchmark/.venv/lib/python3.13/site-packages/numpy/__config__.py:155: UserWarning: Install `pyyaml` for better output\n  warnings.warn(\"Install `pyyaml` for better output\", stacklevel=1)\n{\n  \"Compilers\": {\n    \"c\": {\n      \"name\": \"clang\",\n      \"linker\": \"ld64\",\n      \"version\": \"15.0.0\",\n      \"commands\": \"cc\"\n    },\n    \"cython\": {\n      \"name\": \"cython\",\n      \"linker\": \"cython\",\n      \"version\": \"3.1.2\",\n      \"commands\": \"cython\"\n    },\n    \"c++\": {\n      \"name\": \"clang\",\n      \"linker\": \"ld64\",\n      \"version\": \"15.0.0\",\n      \"commands\": \"c++\"\n    }\n  },\n  \"Machine Information\": {\n    \"host\": {\n      \"cpu\": \"aarch64\",\n      \"family\": \"aarch64\",\n      \"endian\": \"little\",\n      \"system\": \"darwin\"\n    },\n    \"build\": {\n      \"cpu\": \"aarch64\",\n      \"family\": \"aarch64\",\n      \"endian\": \"little\",\n      \"system\": \"darwin\"\n    }\n  },\n  \"Build Dependencies\": {\n    \"blas\": {\n      \"name\": \"accelerate\",\n      \"found\": true,\n      \"version\": \"unknown\",\n      \"detection method\": \"system\",\n      \"include directory\": \"unknown\",\n      \"lib directory\": \"unknown\",\n      \"openblas configuration\": \"unknown\",\n      \"pc file directory\": \"unknown\"\n    },\n    \"lapack\": {\n      \"name\": \"accelerate\",\n      \"found\": true,\n      \"version\": \"unknown\",\n      \"detection method\": \"system\",\n      \"include directory\": \"unknown\",\n      \"lib directory\": \"unknown\",\n      \"openblas configuration\": \"unknown\",\n      \"pc file directory\": \"unknown\"\n    }\n  },\n  \"Python Information\": {\n    \"path\": \"/private/var/folders/y6/nj790rtn62lfktb1sh__79hc0000gn/T/build-env-oawxqquo/bin/python\",\n    \"version\": \"3.13\"\n  },\n  \"SIMD Extensions\": {\n    \"baseline\": [\n      \"NEON\",\n      \"NEON_FP16\",\n      \"NEON_VFPV4\",\n      \"ASIMD\"\n    ],\n    \"found\": [\n      \"ASIMDHP\"\n    ],\n    \"not found\": [\n      \"ASIMDFHM\"\n    ]\n  }\n}",
+  "ghc": "The Glorious Glasgow Haskell Compilation System, version 9.10.3",
+  "cabal": "cabal-install version 3.16.1.0 \ncompiled using version 3.16.1.0 of the Cabal library (in-tree)",
+  "haskell_benchmark_binary": "/Users/a123/CodingProjects/dtmc/dist-newstyle/build/aarch64-osx/ghc-9.10.3/dtmc-0.2.0.0/b/dtmc-bench/opt/build/dtmc-bench/dtmc-bench",
+  "haskell_benchmark_linkage": "/Users/a123/CodingProjects/dtmc/dist-newstyle/build/aarch64-osx/ghc-9.10.3/dtmc-0.2.0.0/b/dtmc-bench/opt/build/dtmc-bench/dtmc-bench:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)\n\t/System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib (compatibility version 1.0.0, current version 1.0.0)\n\t/System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libLAPACK.dylib (compatibility version 1.0.0, current version 1.0.0)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n\t/usr/lib/libffi.dylib (compatibility version 1.0.0, current version 40.0.0)\n\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61439.120.27)\n\t/usr/lib/libcharset.1.dylib (compatibility version 1.0.0, current version 1.0.0)",
+  "haskell_options": [
+    "-O2",
+    "-threaded",
+    "-rtsopts"
+  ],
+  "cabal_freeze_sha256": "a5defccf9dd5c343d47bcc3b149f66470c14bdf6e9c6ebc1f01b925b7ac036cd",
+  "python_lock_sha256": "e86309826e1e02112e05208e9cc26ad65c958855fcb0e74461e49c2b922d048e",
+  "dataset_spec_sha256": "e1be2e0ff4d0ac1618aaa434e2676aa5af6c04a76ee556e286eba16214c7eda1",
+  "dataset_manifest_sha256": "8e127b4d9565e66db49843b1e9dc3673ed6fc38026a9f8edc0875b629dd6af1d",
+  "git_commit": "daf5d56d8b7967ced2274dfee0c73f2bacb997ff",
+  "git_status": "?? benchmark-full-20260913-000643.log\n?? benchmark-smoke-20260913-000643.log\n?? benchmark/backups/",
+  "thread_environment": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "MPLCONFIGDIR": "/Users/a123/CodingProjects/dtmc/benchmark/.cache/matplotlib",
+    "XDG_CACHE_HOME": "/Users/a123/CodingProjects/dtmc/benchmark/.cache",
+    "MPLBACKEND": "Agg"
+  },
+  "benchmark_scope": "complete suite"
+}

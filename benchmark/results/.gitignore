@@ -1,2 +1,14 @@
 *
 !.gitignore
+!environment.json
+!ratio-summary.csv
+!ratios.csv
+!scaling.csv
+!summary.csv
+!verification.json
+!plots/
+plots/*
+!plots/absorbing--hitting-bounded-exact-k-100--speed-ratio.svg
+!plots/dense--evolution-one-step--speed-ratio.svg
+!plots/dense--hitting-time-cold-all-states--speed-ratio.svg
+!plots/periodic--finite-time-observation-k-100--speed-ratio.svg
