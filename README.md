@@ -26,7 +26,7 @@ long-run analysis alongside simulation.
 Add the package to your Cabal file:
 
 ```cabal
-build-depends: dtmc ^>=0.2.0.0
+build-depends: dtmc ^>=0.3.0.0
 ```
 
 The package requires GHC 9.6 or newer and a BLAS/LAPACK implementation for

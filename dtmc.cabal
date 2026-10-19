@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               dtmc
-version:            0.2.0.0
+version:            0.3.0.0
 synopsis:           Type-safe discrete-time Markov chains
 description:
   Type-safe finite discrete-time Markov chains with matrix and kernel
@@ -16,7 +16,7 @@ bug-reports:        https://github.com/kholmetskii/dtmc/issues
 license:            BSD-3-Clause
 license-file:       LICENSE
 author:             Arkadii Kholmetskii
-maintainer:         Arkadii Kholmetskii <373321aa@gmail.com>
+maintainer:         Arkadii Kholmetskii <kholmetskiia@gmail.com>
 copyright:          2026 Arkadii Kholmetskii
 build-type:         Simple
 tested-with:
@@ -30,8 +30,19 @@ extra-doc-files:
     CHANGELOG.md
 
 extra-source-files:
+    cabal.project
     benchmark/README.md
     benchmark/REPORT.md
+    benchmark/results/environment.json
+    benchmark/results/ratio-summary.csv
+    benchmark/results/ratios.csv
+    benchmark/results/scaling.csv
+    benchmark/results/summary.csv
+    benchmark/results/verification.json
+    benchmark/results/plots/absorbing--hitting-bounded-exact-k-100--speed-ratio.svg
+    benchmark/results/plots/dense--evolution-one-step--speed-ratio.svg
+    benchmark/results/plots/dense--hitting-time-cold-all-states--speed-ratio.svg
+    benchmark/results/plots/periodic--finite-time-observation-k-100--speed-ratio.svg
     benchmark/cabal.project
     benchmark/cabal.project.freeze
     benchmark/analyse.py
@@ -173,7 +184,6 @@ benchmark dtmc-bench
       Verification
 
   ghc-options:
-      -O2
       -threaded
       -rtsopts
 
@@ -197,4 +207,4 @@ source-repository head
 source-repository this
   type:             git
   location:         https://github.com/kholmetskii/dtmc.git
-  tag:              v0.2.0.0
+  tag:              v0.3.0.0

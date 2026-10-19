@@ -1,1 +1,7 @@
 packages: .
+
+-- Haddock includes private backend methods in public instance details.
+-- Generate their internal documentation so those links have destinations;
+-- this does not expose the module to library users.
+program-options
+  haddock-options: --show=Dtmc.Transition.Internal

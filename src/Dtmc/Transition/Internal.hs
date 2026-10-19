@@ -1,3 +1,5 @@
+{-# OPTIONS_HADDOCK not-home #-}
+
 {- |
 Module      : Dtmc.Transition.Internal
 Description : Transition class and optional dense finite-state backend.

@@ -5,7 +5,7 @@ Module      : Dtmc.Analysis.Classification.Internal
 Description : Internal carriers and construction for chain classification.
 
 Raw carrier types behind "Dtmc.Analysis.Classification": the per-class summary
-t'CommClass' and whole-chain structural report t'Classification'. The report
+@CommClass@ and whole-chain structural report @Classification@. The report
 builder is shared with the transition-matrix cache.
 -}
 module Dtmc.Analysis.Classification.Internal (

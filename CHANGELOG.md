@@ -1,7 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.3.0.0
 
+- Updated the `Transition` class definition with a defaulted internal dense
+  backend method and relaxed finite-state constraints on cached queries.
+  Existing custom instances can continue to implement only `transitionLaw`.
+  The major version bump accounts for these class and signature changes.
+
+- Updated the package maintainer contact email.
 - Made `evolveVectorN` choose between repeated matrix-vector multiplication
   and matrix powering, avoiding unnecessary full matrix powers for moderate
   step counts.
